@@ -1,0 +1,45 @@
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--erp-text);
+}
+
+.required {
+  color: var(--erp-danger);
+  margin-left: 0.15rem;
+}
+
+.select {
+  font-family: var(--erp-font);
+  font-size: 0.92rem;
+  color: var(--erp-text);
+  background: var(--erp-surface);
+  border: 1px solid var(--erp-border);
+  border-radius: var(--erp-radius-sm);
+  padding: 0.6rem 0.75rem;
+  width: 100%;
+  transition: border-color var(--erp-transition-fast), box-shadow var(--erp-transition-fast);
+}
+
+.select:focus {
+  outline: none;
+  border-color: var(--erp-primary-600);
+  box-shadow: 0 0 0 3px var(--erp-primary-100);
+}
+
+.selectError {
+  border-color: var(--erp-danger);
+}
+
+.error {
+  font-size: 0.78rem;
+  color: var(--erp-danger);
+}

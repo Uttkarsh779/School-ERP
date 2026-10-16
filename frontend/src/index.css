@@ -1,0 +1,101 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+:root {
+  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  /* Force light mode — School ERP uses light backgrounds */
+  color-scheme: light;
+  color: #213547;
+  background-color: #ffffff;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  --primary-color: rgb(250 140 57);
+  --secondary-color: rgb(255 235 220);
+  --dark-text-color: rgb(14 14 14);
+  --light-text-color: rgb(248 248 255);
+}
+
+#root {
+  width: 100%;
+  height: 100vh;
+}
+
+h1 {
+  font-size: 3.2em;
+  line-height: 1.1;
+  color: #1a1a2e;
+}
+
+h2 {
+  color: #1a1a2e;
+}
+
+h3 {
+  font-size: 1.4rem;
+  margin-bottom: 1rem;
+  color: #333;
+}
+
+h4 {
+  font-size: 1.2rem;
+  margin: 1rem 0;
+  color: #444;
+}
+
+p {
+  color: #333;
+}
+
+a {
+  color: #1a73e8;
+  text-decoration: none;
+}
+
+a:hover {
+  color: #535bf2;
+}
+
+label {
+  color: #333;
+}
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+body {
+  margin: 0;
+  display: flex;
+  place-items: center;
+  min-width: 320px;
+  min-height: 100vh;
+  color: #213547;
+  background-color: #f5f5f5;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  overscroll-behavior-y: none;
+}
+
+.container {
+  width: 100%;
+  margin: 1rem auto;
+  max-width: 1920px;
+}
+
+/* Mobile PWA & Touch UX Enhancements */
+@media (max-width: 900px) {
+  html, body {
+    overflow-x: hidden;
+    touch-action: manipulation;
+  }
+}

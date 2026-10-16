@@ -1,0 +1,17 @@
+.wrapper {
+  text-align: center;
+  padding: 3rem 1.5rem;
+  color: var(--erp-text-muted);
+}
+
+.title {
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: var(--erp-text);
+  margin: 0 0 0.35rem;
+}
+
+.description {
+  font-size: 0.85rem;
+  margin: 0 0 1rem;
+}

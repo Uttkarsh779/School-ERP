@@ -1,0 +1,48 @@
+.filterRow {
+  max-width: 320px;
+  margin-bottom: 1.25rem;
+}
+
+.statsRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.percentageCard {
+  background: var(--erp-surface);
+  border: 1px solid var(--erp-border);
+  border-radius: var(--erp-radius-lg);
+  box-shadow: var(--erp-shadow-sm);
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.percentageValue {
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.percentageLabel {
+  margin-top: 0.3rem;
+  font-size: 0.82rem;
+  color: var(--erp-text-muted);
+}
+
+.good .percentageValue {
+  color: var(--erp-success);
+}
+.warn .percentageValue {
+  color: var(--erp-warning);
+}
+.bad .percentageValue {
+  color: var(--erp-danger);
+}
+
+.tableCard {
+  overflow: hidden;
+}

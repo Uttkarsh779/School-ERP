@@ -1,0 +1,53 @@
+.card {
+  background: var(--erp-surface);
+  border: 1px solid var(--erp-border);
+  border-radius: var(--erp-radius-lg);
+  box-shadow: var(--erp-shadow-sm);
+  padding: 1.1rem 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+.icon {
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: var(--erp-radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--erp-primary-100);
+  color: var(--erp-primary-700);
+  font-size: 1.3rem;
+  flex-shrink: 0;
+}
+
+.value {
+  font-size: 1.45rem;
+  font-weight: 600;
+  color: var(--erp-text);
+  line-height: 1.2;
+}
+
+.label {
+  font-size: 0.8rem;
+  color: var(--erp-text-muted);
+  font-weight: 400;
+}
+
+.trend {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+  margin-top: 0.4rem;
+  font-weight: 500;
+}
+
+.trendPositive {
+  color: var(--erp-success);
+}
+
+.trendNegative {
+  color: var(--erp-danger);
+}

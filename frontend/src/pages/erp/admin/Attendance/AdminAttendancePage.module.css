@@ -1,0 +1,52 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.tabs {
+  display: flex;
+  gap: 0.4rem;
+  border-bottom: 1px solid var(--erp-border);
+}
+
+.tab {
+  border: none;
+  background: transparent;
+  padding: 0.65rem 1rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--erp-text-muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: color var(--erp-transition-fast), border-color var(--erp-transition-fast);
+}
+
+.tab:hover {
+  color: var(--erp-text);
+}
+
+.tabActive {
+  color: var(--erp-primary-700);
+  border-bottom-color: var(--erp-primary-600);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.filters {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+  max-width: 480px;
+}
+
+@media (min-width: 480px) {
+  .filters {
+    grid-template-columns: 2fr 1fr;
+    align-items: end;
+  }
+}

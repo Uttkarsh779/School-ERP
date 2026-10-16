@@ -1,0 +1,57 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(23, 24, 28, 0.45);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 4vh 1rem;
+  z-index: 1000;
+  overflow-y: auto;
+}
+
+.modal {
+  background: var(--erp-surface);
+  border-radius: var(--erp-radius-lg);
+  box-shadow: var(--erp-shadow-lg);
+  width: 100%;
+  max-width: 560px;
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.1rem 1.4rem;
+  border-bottom: 1px solid var(--erp-border);
+}
+
+.title {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--erp-text);
+  margin: 0;
+}
+
+.closeButton {
+  background: transparent;
+  border: none;
+  font-size: 1.3rem;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--erp-text-muted);
+  padding: 0.2rem 0.4rem;
+  border-radius: var(--erp-radius-sm);
+}
+.closeButton:hover {
+  background: var(--erp-primary-50);
+  color: var(--erp-text);
+}
+
+.body {
+  padding: 1.4rem;
+  overflow-y: auto;
+}

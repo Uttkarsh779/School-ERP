@@ -1,0 +1,108 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.summaryCards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.cardLabel {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.cardValue {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.childSection {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.childHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.childName {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.childMeta {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+}
+
+.dueRow {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.dueRow:last-child {
+  border-bottom: none;
+}
+
+.totalRow {
+  font-weight: 600;
+  margin-top: 0.5rem;
+  padding-top: 1rem;
+  border-top: 2px solid var(--border);
+}
+
+.tabsContainer {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.tabBtn {
+  background: none;
+  border: none;
+  padding: 0.75rem 1rem;
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+}
+
+.tabBtn:hover {
+  color: var(--text);
+}
+
+.activeTabBtn {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}

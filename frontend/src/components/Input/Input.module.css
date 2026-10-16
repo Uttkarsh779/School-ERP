@@ -1,0 +1,75 @@
+.formGroup {
+  margin-bottom: 1rem;
+}
+
+.label {
+  display: block;
+  font-size: 1rem;
+  color: var(--dark-text-color);
+  margin: 0;
+  font-weight: 500;
+}
+
+.input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.8rem 1rem;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 1rem;
+  transition: all 0.3s;
+  background-color: var(--light-text-color);
+  color: var(--dark-text-color);
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px rgba(250, 140, 57, 0.2);
+}
+
+.inputError {
+  border-color: #e74c3c;
+}
+
+.errorMessage {
+  color: #e74c3c;
+  font-size: 0.8rem;
+  margin: 0;
+}
+
+.inputWrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.passwordInput {
+  padding-right: 2.6rem !important;
+}
+
+.togglePasswordBtn {
+  position: absolute;
+  right: 0.75rem;
+  background: transparent;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.2rem;
+  border-radius: 4px;
+  transition: color 0.2s ease;
+}
+
+.togglePasswordBtn:hover {
+  color: var(--primary-color, #fa8c39);
+}
+
+.required {
+  color: #e74c3c;
+  margin-left: 0.2rem;
+  font-size: 0.8rem;
+}

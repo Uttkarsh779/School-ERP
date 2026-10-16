@@ -1,0 +1,824 @@
+// School ERP — Phase 1 MVP schema
+// See prep/IMPLEMENTATION_PLAN.md §3 for the model rationale.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  TEACHER
+  STUDENT
+  PARENT
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  LEAVE
+}
+
+enum FeeMode {
+  CASH
+  BANK_TRANSFER
+  UPI_MANUAL
+  GATEWAY
+}
+
+enum FeePaymentStatus {
+  PENDING_REVIEW
+  APPROVED
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+// RTE/govt-reporting category — standard on Indian school admission records.
+enum StudentCategory {
+  GENERAL
+  OBC
+  SC
+  ST
+  EWS
+}
+
+enum StaffCategory {
+  TEACHER
+  PRINCIPAL
+  VICE_PRINCIPAL
+  COORDINATOR
+  GUARD
+  DRIVER
+  CLEANING_STAFF
+  HOUSEKEEPING_STAFF
+  SECURITY_STAFF
+  OFFICE_STAFF
+  ADMIN_STAFF
+  SUPPORT_STAFF
+  OTHER
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  email        String   @unique
+  passwordHash String
+  role         Role
+  name         String
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  staff   Staff?
+  parent  ParentGuardian?
+  student Student?
+
+  markedAttendance Attendance[] // admins can also mark/override attendance, not just teachers
+  examResultsEntered ExamResult[] // admins can also enter marks, not just teachers
+  markedFeeAdjustments FeeAdjustment[]
+  requestedRefunds Refund[] @relation("RefundRequestedBy")
+  approvedRefunds  Refund[] @relation("RefundApprovedBy")
+  feeAuditLogs     FeeAuditLog[]
+  dueDateAuditLogs DueDateAuditLog[]
+  StudentConcession StudentConcession[]
+}
+
+model AcademicSession {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique // e.g. "2026-27"
+  isCurrent Boolean  @default(false)
+  startDate DateTime
+  endDate   DateTime
+
+  classSections ClassSection[]
+  feeStructures FeeStructure[]
+  feeCharges    FeeCharge[]
+  invoices      Invoice[]
+  lateFeeRules  LateFeeRule[]
+  exams         Exam[]
+}
+
+model ClassSection {
+  id             Int             @id @default(autoincrement())
+  sessionId      Int
+  session        AcademicSession @relation(fields: [sessionId], references: [id])
+  className      String // e.g. "Grade 5"
+  section        String // e.g. "A"
+  classTeacherId Int?
+  classTeacher   Staff?          @relation(fields: [classTeacherId], references: [id])
+
+  students       Student[]
+  subjects       Subject[]
+  attendance     Attendance[]
+  feeStructures  FeeStructure[]
+  exams          Exam[]
+  timetableSlots TimetableSlot[]
+  assignments    Assignment[]
+
+  @@unique([sessionId, className, section])
+}
+
+model Subject {
+  id             Int          @id @default(autoincrement())
+  name           String
+  classSectionId Int
+  classSection   ClassSection @relation(fields: [classSectionId], references: [id])
+
+  teacherSubjects TeacherSubject[]
+  examResults     ExamResult[]
+  timetableSlots  TimetableSlot[]
+  assignments     Assignment[]
+
+  @@unique([classSectionId, name])
+}
+
+// Weekly timetable — dayOfWeek 1(Mon)-6(Sat), periodNumber 1-based. Subject/staff/room
+// are all optional so admin can lay out the period grid before filling every cell in.
+model TimetableSlot {
+  id             Int          @id @default(autoincrement())
+  classSectionId Int
+  classSection   ClassSection @relation(fields: [classSectionId], references: [id])
+  dayOfWeek      Int
+  periodNumber   Int
+  subjectId      Int?
+  subject        Subject?     @relation(fields: [subjectId], references: [id])
+  staffId        Int?
+  staff          Staff?       @relation(fields: [staffId], references: [id])
+  room           String?
+
+  @@unique([classSectionId, dayOfWeek, periodNumber])
+}
+
+model Staff {
+  id       Int    @id @default(autoincrement())
+  userId   Int    @unique
+  user     User   @relation(fields: [userId], references: [id]) // name/email/isActive live on User
+  staffCategory StaffCategory @default(TEACHER)
+  qualifications String?
+  contact  String?
+
+  classesAsClassTeacher ClassSection[]
+  subjects              TeacherSubject[]
+  timetableSlots        TimetableSlot[]
+  StudentConcession     StudentConcession[]
+  assignmentsCreated    Assignment[]
+
+  @@map("teachers")
+}
+
+model TeacherSubject {
+  id        Int     @id @default(autoincrement())
+  staffId   Int
+  staff     Staff   @relation(fields: [staffId], references: [id])
+  subjectId Int
+  subject   Subject @relation(fields: [subjectId], references: [id])
+
+  @@unique([staffId, subjectId])
+}
+
+model Student {
+  id               Int           @id @default(autoincrement())
+  userId           Int?          @unique // nullable — young students may not need their own login (Phase 2)
+  user             User?         @relation(fields: [userId], references: [id])
+
+  // Identity — admissionNo is the permanent lifetime identifier (assigned once at
+  // admission); rollNo is class-scoped and can change every academic session.
+  admissionNo   String    @unique
+  admissionDate DateTime?
+  name          String
+  rollNo        String
+  classSectionId Int
+  classSection  ClassSection @relation(fields: [classSectionId], references: [id])
+  dob           DateTime?
+  gender        Gender?
+  bloodGroup    String?
+  photoUrl      String?
+
+  // Family — printed on report cards/ID cards; independent of any ParentGuardian login account.
+  fatherName    String?
+  fatherContact String?
+  motherName    String?
+  motherContact String?
+
+  // Government IDs — nullable since not every student will have these on file yet;
+  // unique when present (Postgres allows multiple NULLs under a unique index).
+  aadharNumber String? @unique
+  apaarId      String? @unique
+
+  category       StudentCategory?
+  address        String?
+  contactNumber  String?
+  nationality    String?  @default("Indian")
+  previousSchool String?
+
+  transportRouteId Int?
+  transportRoute   TransportRoute? @relation(fields: [transportRouteId], references: [id])
+  isActive         Boolean       @default(true)
+  createdAt        DateTime      @default(now())
+
+  parents        ParentStudent[]
+  attendance     Attendance[]
+  examResults    ExamResult[]
+  feePayments    FeePayment[]
+  feeAssignments StudentFeeAssignment[]
+  feeCharges     FeeCharge[]
+  invoices       Invoice[]
+  feeAdjustments FeeAdjustment[]
+  payments       Payment[]
+  advances       AdvancePayment[]
+  refunds        Refund[]
+  transportAssignments StudentTransportAssignment[]
+  StudentConcession    StudentConcession[]
+
+  @@unique([classSectionId, rollNo])
+}
+
+model ParentGuardian {
+  id      Int    @id @default(autoincrement())
+  userId  Int?   @unique
+  user    User?  @relation(fields: [userId], references: [id]) // name/email live on User if present
+  name    String @default("Unknown") // Required for business logic now
+  email   String?
+  contact String?
+  address String?
+
+  children       ParentStudent[]
+  paymentBatches PaymentBatch[]
+}
+
+// Join table — this is what makes sibling accounts work (prep/FEATURE_ANALYSIS.md §7):
+// one ParentGuardian can link to N Students, each Student stays an independent record/ledger.
+model ParentStudent {
+  id        Int            @id @default(autoincrement())
+  parentId  Int
+  parent    ParentGuardian @relation(fields: [parentId], references: [id])
+  studentId Int
+  student   Student        @relation(fields: [studentId], references: [id])
+
+  relationshipType              String? // "Father", "Mother", "Guardian", etc.
+  isPrimary                     Boolean @default(true)
+  siblingOrder                  Int     @default(1)
+  receivesFeeNotifications      Boolean @default(true)
+  receivesAcademicNotifications Boolean @default(true)
+
+  @@unique([parentId, studentId])
+}
+
+model Attendance {
+  id             Int              @id @default(autoincrement())
+  studentId      Int
+  student        Student          @relation(fields: [studentId], references: [id])
+  classSectionId Int
+  classSection   ClassSection     @relation(fields: [classSectionId], references: [id])
+  date           DateTime         @db.Date
+  status         AttendanceStatus
+  markedByUserId Int // User, not Staff — an ADMIN can mark/override, not only teachers
+  markedByUser   User             @relation(fields: [markedByUserId], references: [id])
+
+  @@unique([studentId, date])
+}
+
+model Exam {
+  id             Int             @id @default(autoincrement())
+  sessionId      Int
+  session        AcademicSession @relation(fields: [sessionId], references: [id])
+  name           String // e.g. "Term 1"
+  classSectionId Int
+  classSection   ClassSection    @relation(fields: [classSectionId], references: [id])
+
+  results ExamResult[]
+}
+
+model ExamResult {
+  id             Int     @id @default(autoincrement())
+  examId         Int
+  exam           Exam    @relation(fields: [examId], references: [id])
+  studentId      Int
+  student        Student @relation(fields: [studentId], references: [id])
+  subjectId      Int
+  subject        Subject @relation(fields: [subjectId], references: [id])
+  marksObtained  Float
+  maxMarks       Float
+  enteredByUserId Int // User, not Staff — an ADMIN can enter marks too, not only teachers
+  enteredByUser  User    @relation(fields: [enteredByUserId], references: [id])
+
+  @@unique([examId, studentId, subjectId])
+}
+
+enum FeeFrequency {
+  MONTHLY
+  ANNUAL
+  ONE_TIME
+}
+
+enum JoiningPolicy {
+  FULL_MONTH
+  PRORATED
+  NEXT_MONTH
+}
+
+enum AssignmentStatus {
+  ACTIVE
+  LEFT_MID_YEAR
+  INACTIVE
+}
+
+enum ChargeStatus {
+  UNPAID
+  PARTIALLY_PAID
+  PAID
+  CANCELLED
+  VOID
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+  CANCELLED
+  VOID
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+  CANCELLED
+}
+
+enum AdjustmentType {
+  SIBLING_DISCOUNT
+  SCHOLARSHIP
+  STAFF_CHILD
+  SPECIAL_CONCESSION
+  TRANSPORT_CONCESSION
+  LATE_FEE_WAIVER
+  SMALL_BALANCE_WAIVER
+  FEE_WAIVER
+  OTHER
+}
+
+enum CalculationType {
+  FIXED_AMOUNT
+  PERCENTAGE
+}
+
+enum AdvanceStatus {
+  AVAILABLE
+  FULLY_UTILIZED
+  REFUNDED
+}
+
+enum RefundStatus {
+  REFUND_REQUESTED
+  REFUND_APPROVED
+  REFUND_PROCESSED
+  REFUND_REJECTED
+}
+
+enum LateFeeType {
+  FIXED
+  DAILY
+  SLAB
+}
+
+enum TransportAssignmentStatus {
+  ACTIVE
+  DISCONTINUED
+}
+
+enum TransportBillingPolicy {
+  FULL_MONTH
+  PRORATED
+  NEXT_PERIOD
+}
+
+model FeeHead {
+  id                  Int       @id @default(autoincrement())
+  name                String    @unique
+  code                String    @unique
+  description         String?
+  isRecurring         Boolean   @default(true)
+  allowPartialPayment Boolean   @default(true)
+  createdAt           DateTime  @default(now())
+
+  items   FeeStructureItem[]
+  charges FeeCharge[]
+}
+
+model FeeStructure {
+  id             Int             @id @default(autoincrement())
+  sessionId      Int
+  session        AcademicSession @relation(fields: [sessionId], references: [id])
+  classSectionId Int?
+  classSection   ClassSection?   @relation(fields: [classSectionId], references: [id])
+  head           String?         // Legacy compatibility field
+  amount         Decimal?        @db.Decimal(10, 2) // Legacy compatibility field
+  name           String          @default("Standard Structure")
+  description    String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @default(now()) @updatedAt
+
+  items       FeeStructureItem[]
+  assignments StudentFeeAssignment[]
+  payments    FeePayment[]
+}
+
+model FeeStructureItem {
+  id                  Int          @id @default(autoincrement())
+  feeStructureId      Int
+  feeStructure        FeeStructure @relation(fields: [feeStructureId], references: [id], onDelete: Cascade)
+  feeHeadId           Int
+  feeHead             FeeHead      @relation(fields: [feeHeadId], references: [id])
+  amount              Decimal      @db.Decimal(10, 2)
+  frequency           FeeFrequency @default(MONTHLY)
+  applicableMonths    Int[]        // 1-12 e.g. [6] or [1,2,3,4,5,6,7,8,9,10,11,12]
+  dueDateDay          Int          @default(10)
+  allowPartialPayment Boolean      @default(true)
+  effectiveFrom       DateTime     @default(now())
+  effectiveTo         DateTime?
+
+  charges FeeCharge[]
+}
+
+model StudentFeeAssignment {
+  id                Int              @id @default(autoincrement())
+  studentId         Int
+  student           Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  feeStructureId    Int
+  feeStructure      FeeStructure     @relation(fields: [feeStructureId], references: [id])
+  joiningMonth      Int?
+  joiningDatePolicy JoiningPolicy    @default(FULL_MONTH)
+  status            AssignmentStatus @default(ACTIVE)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  @@unique([studentId, feeStructureId])
+}
+
+model FeeCharge {
+  id                 Int               @id @default(autoincrement())
+  studentId          Int
+  student            Student           @relation(fields: [studentId], references: [id])
+  feeHeadId          Int
+  feeHead            FeeHead           @relation(fields: [feeHeadId], references: [id])
+  feeStructureItemId Int?
+  feeStructureItem   FeeStructureItem? @relation(fields: [feeStructureItemId], references: [id])
+  sessionId          Int
+  session            AcademicSession   @relation(fields: [sessionId], references: [id])
+  billingMonth       Int
+  billingYear        Int
+  dueDate            DateTime
+  baseAmount         Decimal           @db.Decimal(10, 2)
+  discountAmount     Decimal           @default(0) @db.Decimal(10, 2)
+  lateFeeAmount      Decimal           @default(0) @db.Decimal(10, 2)
+  netAmount          Decimal           @db.Decimal(10, 2)
+  paidAmount         Decimal           @default(0) @db.Decimal(10, 2)
+  status             ChargeStatus      @default(UNPAID)
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  invoiceItems InvoiceItem[]
+  allocations  PaymentAllocation[]
+  adjustments  FeeAdjustment[]
+
+  @@unique([studentId, feeHeadId, sessionId, billingYear, billingMonth])
+}
+
+model Invoice {
+  id                  Int             @id @default(autoincrement())
+  invoiceNumber       String          @unique
+  studentId           Int
+  student             Student         @relation(fields: [studentId], references: [id])
+  sessionId           Int
+  session             AcademicSession @relation(fields: [sessionId], references: [id])
+  collectionPeriodCode String?
+  issueDate           DateTime        @default(now())
+  dueDate             DateTime
+  totalBaseAmount     Decimal         @db.Decimal(10, 2)
+  totalDiscountAmount Decimal         @default(0) @db.Decimal(10, 2)
+  totalLateFeeAmount  Decimal         @default(0) @db.Decimal(10, 2)
+  totalAmount         Decimal         @db.Decimal(10, 2)
+  paidAmount          Decimal         @default(0) @db.Decimal(10, 2)
+  status              InvoiceStatus   @default(ISSUED)
+  notes               String?
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+
+  items       InvoiceItem[]
+  dueDateLogs DueDateAuditLog[]
+
+  @@unique([studentId, collectionPeriodCode, sessionId])
+}
+
+model InvoiceItem {
+  id          Int       @id @default(autoincrement())
+  invoiceId   Int
+  invoice     Invoice   @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  feeChargeId Int
+  feeCharge   FeeCharge @relation(fields: [feeChargeId], references: [id])
+  amount      Decimal   @db.Decimal(10, 2)
+  description String
+}
+
+model DueDateAuditLog {
+  id              Int      @id @default(autoincrement())
+  invoiceId       Int
+  invoice         Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  oldDueDate      DateTime
+  newDueDate      DateTime
+  changedByUserId Int
+  changedByUser   User     @relation(fields: [changedByUserId], references: [id])
+  reason          String?
+  timestamp       DateTime @default(now())
+}
+
+model ConcessionScheme {
+  id              Int             @id @default(autoincrement())
+  name            String
+  type            AdjustmentType
+  calculationType CalculationType
+  value           Decimal         @db.Decimal(10, 2)
+  applicableHeads Int[]           // IDs of FeeHead
+  startsFrom      DateTime?
+  endsOn          DateTime?
+  configJson      String?         // Flexible rules: e.g. {"2": 500, "3": 1000} for siblings
+  isActive        Boolean         @default(true)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  studentConcessions StudentConcession[]
+}
+
+model StudentConcession {
+  id                 Int               @id @default(autoincrement())
+  studentId          Int
+  student            Student           @relation(fields: [studentId], references: [id])
+  concessionSchemeId Int?
+  concessionScheme   ConcessionScheme? @relation(fields: [concessionSchemeId], references: [id])
+  staffId            Int?
+  staff              Staff?            @relation(fields: [staffId], references: [id])
+  type               AdjustmentType
+  calculationType    CalculationType
+  value              Decimal           @db.Decimal(10, 2)
+  applicableHeads    Int[]
+  startsFrom         DateTime?
+  endsOn             DateTime?
+  reason             String?
+  notes              String?
+  approvedByUserId   Int
+  approvedByUser     User              @relation(fields: [approvedByUserId], references: [id])
+  status             String            @default("ACTIVE") // PENDING, ACTIVE, EXPIRED, CANCELLED, REVERSED
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  feeAdjustments     FeeAdjustment[]
+}
+
+model FeeAdjustment {
+  id                  Int             @id @default(autoincrement())
+  studentId           Int
+  student             Student         @relation(fields: [studentId], references: [id])
+  feeChargeId         Int?
+  feeCharge           FeeCharge?      @relation(fields: [feeChargeId], references: [id])
+  studentConcessionId Int?
+  studentConcession   StudentConcession? @relation(fields: [studentConcessionId], references: [id])
+  type                AdjustmentType
+  calculationType     CalculationType
+  value               Decimal         @db.Decimal(10, 2)
+  amount              Decimal         @db.Decimal(10, 2)
+  reason              String
+  appliedByUserId     Int
+  appliedByUser       User            @relation(fields: [appliedByUserId], references: [id])
+  createdAt           DateTime        @default(now())
+}
+
+model PaymentBatch {
+  id               Int            @id @default(autoincrement())
+  parentGuardianId Int
+  parentGuardian   ParentGuardian @relation(fields: [parentGuardianId], references: [id])
+  totalAmount      Decimal        @db.Decimal(10, 2)
+  mode             FeeMode
+  receiptNumber    String         @unique
+  paymentDate      DateTime       @default(now())
+  transactionRef   String?
+  notes            String?
+  recordedByUserId Int?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  payments         Payment[]
+}
+
+model Payment {
+  id                Int           @id @default(autoincrement())
+  paymentNumber     String        @unique
+  studentId         Int
+  student           Student       @relation(fields: [studentId], references: [id])
+  paymentBatchId    Int?
+  paymentBatch      PaymentBatch? @relation(fields: [paymentBatchId], references: [id])
+  amount            Decimal       @db.Decimal(10, 2)
+  mode              FeeMode
+  status            PaymentStatus @default(PENDING)
+  transactionRef    String?
+  razorpayOrderId   String?       @unique
+  razorpayPaymentId String?       @unique
+  razorpaySignature String?
+  receiptNumber     String?       @unique
+  paidAt            DateTime?
+  recordedByUserId  Int?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  allocations PaymentAllocation[]
+  advances    AdvancePayment[]
+  refunds     Refund[]
+}
+
+model PaymentAllocation {
+  id              Int       @id @default(autoincrement())
+  paymentId       Int
+  payment         Payment   @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  feeChargeId     Int
+  feeCharge       FeeCharge @relation(fields: [feeChargeId], references: [id])
+  invoiceId       Int?
+  allocatedAmount Decimal   @db.Decimal(10, 2)
+  createdAt       DateTime  @default(now())
+}
+
+model AdvancePayment {
+  id              Int           @id @default(autoincrement())
+  studentId       Int
+  student         Student       @relation(fields: [studentId], references: [id])
+  paymentId       Int
+  payment         Payment       @relation(fields: [paymentId], references: [id])
+  amount          Decimal       @db.Decimal(10, 2)
+  usedAmount      Decimal       @default(0) @db.Decimal(10, 2)
+  remainingAmount Decimal       @db.Decimal(10, 2)
+  status          AdvanceStatus @default(AVAILABLE)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+model Refund {
+  id                Int          @id @default(autoincrement())
+  refundNumber      String       @unique
+  studentId         Int
+  student           Student      @relation(fields: [studentId], references: [id])
+  paymentId         Int?
+  payment           Payment?     @relation(fields: [paymentId], references: [id])
+  amount            Decimal      @db.Decimal(10, 2)
+  reason            String
+  status            RefundStatus @default(REFUND_REQUESTED)
+  requestedByUserId Int
+  requestedByUser   User         @relation("RefundRequestedBy", fields: [requestedByUserId], references: [id])
+  approvedByUserId  Int?
+  approvedByUser    User?        @relation("RefundApprovedBy", fields: [approvedByUserId], references: [id])
+  processedAt       DateTime?
+  createdAt         DateTime     @default(now())
+}
+
+model LateFeeRule {
+  id              Int             @id @default(autoincrement())
+  sessionId       Int
+  session         AcademicSession @relation(fields: [sessionId], references: [id])
+  gracePeriodDays Int             @default(10)
+  feeType         LateFeeType     @default(FIXED)
+  amount          Decimal         @default(0) @db.Decimal(10, 2)
+  slabsJson       String?
+  createdAt       DateTime        @default(now())
+}
+
+model FeeAuditLog {
+  id         Int      @id @default(autoincrement())
+  action     String
+  entityType String
+  entityId   Int
+  userId     Int
+  user       User     @relation(fields: [userId], references: [id])
+  oldValues  String?
+  newValues  String?
+  timestamp  DateTime @default(now())
+}
+
+model FeePayment {
+  id               Int              @id @default(autoincrement())
+  studentId        Int
+  student          Student          @relation(fields: [studentId], references: [id])
+  feeStructureId   Int
+  feeStructure     FeeStructure     @relation(fields: [feeStructureId], references: [id])
+  amount           Decimal          @db.Decimal(10, 2)
+  mode             FeeMode
+  status           FeePaymentStatus @default(PENDING_REVIEW)
+  transactionRef   String? // links payments split across siblings from one bank transfer (§7)
+  approvedByUserId Int?
+  receiptNumber    String?          @unique
+  paidAt           DateTime?
+  createdAt        DateTime         @default(now())
+}
+
+model TransportVillage {
+  id         Int                 @id @default(autoincrement())
+  name       String              @unique
+  monthlyFee Decimal             @db.Decimal(10, 2)
+  isActive   Boolean             @default(true)
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @default(now()) @updatedAt
+
+  feeHistory  VillageFeeHistory[]
+  assignments StudentTransportAssignment[]
+}
+
+model VillageFeeHistory {
+  id            Int              @id @default(autoincrement())
+  villageId     Int
+  village       TransportVillage @relation(fields: [villageId], references: [id], onDelete: Cascade)
+  monthlyFee    Decimal          @db.Decimal(10, 2)
+  effectiveDate DateTime         @default(now())
+  createdAt     DateTime         @default(now())
+}
+
+model StudentTransportAssignment {
+  id                 Int                       @id @default(autoincrement())
+  studentId          Int
+  student            Student                   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  villageId          Int
+  village            TransportVillage          @relation(fields: [villageId], references: [id])
+  monthlyFee         Decimal?                  @db.Decimal(10, 2) // Reference snapshot
+  startDate          DateTime
+  endDate            DateTime?
+  status             TransportAssignmentStatus @default(ACTIVE)
+  policy             TransportBillingPolicy    @default(FULL_MONTH)
+  discontinuedAt     DateTime?
+  discontinueReason  String?
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
+}
+
+model Notice {
+  id                  Int      @id @default(autoincrement())
+  title               String
+  body                String
+  targetRole          Role?    // null = everyone
+  targetClassSectionId Int?
+  postedByUserId      Int
+  postedAt            DateTime @default(now())
+}
+
+model TransportRoute {
+  id        Int       @id @default(autoincrement())
+  routeName String
+  stops     String? // simple comma/line-separated list for MVP; normalize later if needed
+
+  vehicles Vehicle[]
+  students Student[]
+}
+
+model Vehicle {
+  id            Int             @id @default(autoincrement())
+  vehicleNo     String          @unique
+  driverName    String?
+  driverContact String?
+  ownerName     String?
+  ownerContact  String?
+  capacity      Int?
+  routeId       Int?
+  route         TransportRoute? @relation(fields: [routeId], references: [id])
+}
+
+model Assignment {
+  id             Int          @id @default(autoincrement())
+  title          String
+  description    String       @db.Text
+  classSectionId Int
+  classSection   ClassSection @relation(fields: [classSectionId], references: [id], onDelete: Cascade)
+  subjectId      Int
+  subject        Subject      @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  assignedById   Int
+  assignedBy     Staff        @relation(fields: [assignedById], references: [id])
+  assignedDate   DateTime     @default(now())
+  dueDate        DateTime
+  endDate        DateTime     @default(now()) // End date till which homework appears
+  attachmentUrl  String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @default(now()) @updatedAt
+
+  @@index([classSectionId])
+  @@index([subjectId])
+  @@index([dueDate])
+  @@index([endDate])
+}
+

@@ -1,0 +1,33 @@
+.container {
+  margin: 0 auto;
+  padding: 0 2rem;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.header button {
+  width: fit-content;
+}
+
+.title {
+  font-size: 2rem;
+  font-weight: bold;
+}
+
+.addMenuButton {
+  background-color: var(--primary-color);
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: 0.375rem;
+  border: none;
+  cursor: pointer;
+}
+
+.addMenuButton:hover {
+  background-color: var(--secondary-color);
+}

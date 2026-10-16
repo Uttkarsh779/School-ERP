@@ -1,0 +1,71 @@
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.controlsRow {
+  display: grid;
+  grid-template-columns: 2fr 1.2fr 1fr;
+  gap: 1rem;
+  align-items: flex-end;
+  margin-bottom: 1.25rem;
+}
+
+.section {
+  margin-top: 1.5rem;
+}
+
+.formActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin-top: 0.5rem;
+}
+
+.bulkImportHint {
+  font-size: 0.82rem;
+  color: var(--erp-text-muted);
+  margin: 0 0 0.9rem;
+  line-height: 1.5;
+}
+
+.dropZone {
+  border: 2px dashed var(--erp-border);
+  border-radius: var(--erp-radius);
+  padding: 1.5rem;
+  text-align: center;
+  background: var(--erp-surface);
+  cursor: pointer;
+  transition: all var(--erp-transition-fast);
+}
+
+.dropZone:hover {
+  border-color: var(--erp-primary-600);
+  background: var(--erp-surface-hover, rgba(255, 255, 255, 0.02));
+}
+
+.fileInput {
+  font-size: 0.85rem;
+  color: var(--erp-text);
+}
+
+.resultsList {
+  margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.resultRow {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  font-size: 0.85rem;
+  padding: 0.5rem 0.7rem;
+  border-radius: var(--erp-radius-sm);
+  background: var(--erp-bg);
+}

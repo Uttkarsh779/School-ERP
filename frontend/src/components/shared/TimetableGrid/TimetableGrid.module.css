@@ -1,0 +1,122 @@
+.wrapper {
+  overflow-x: auto;
+  border: 1px solid var(--erp-border);
+  border-radius: var(--erp-radius-lg);
+  background: var(--erp-surface);
+  box-shadow: var(--erp-shadow-sm);
+}
+
+.grid {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  min-width: 680px;
+}
+
+.periodHeader {
+  background: var(--erp-bg);
+  border-bottom: 2px solid var(--erp-border);
+  border-right: 1px solid var(--erp-border);
+  padding: 0.75rem 1rem;
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--erp-text-muted);
+  font-weight: 700;
+  width: 100px;
+  text-align: center;
+}
+
+.dayHeader {
+  background: var(--erp-bg);
+  border-bottom: 2px solid var(--erp-border);
+  border-right: 1px solid var(--erp-border);
+  padding: 0.75rem 1rem;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--erp-text);
+  font-weight: 700;
+  text-align: center;
+  width: 15%;
+}
+
+.cellTd {
+  border-bottom: 1px solid var(--erp-border);
+  border-right: 1px solid var(--erp-border);
+  padding: 0.4rem;
+  vertical-align: top;
+}
+
+.periodLabel {
+  background: var(--erp-bg);
+  border-bottom: 1px solid var(--erp-border);
+  border-right: 1px solid var(--erp-border);
+  padding: 0.75rem 0.6rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--erp-text);
+  text-align: center;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.cell {
+  min-height: 3.8rem;
+  border-radius: var(--erp-radius-sm);
+  padding: 0.5rem 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  justify-content: center;
+  transition: all var(--erp-transition-fast);
+}
+
+.activeSlot {
+  background: var(--erp-primary-50);
+  border: 1px solid var(--erp-primary-200);
+}
+
+.emptySlot {
+  border: 1px dashed var(--erp-border);
+  background: transparent;
+  align-items: center;
+}
+
+.editable {
+  cursor: pointer;
+}
+
+.editable:hover {
+  border-color: var(--erp-primary-500);
+  background: var(--erp-primary-100);
+}
+
+.emptySlot.editable:hover {
+  border-color: var(--erp-primary-500);
+  background: var(--erp-primary-50);
+}
+
+.subjectName {
+  font-weight: 700;
+  color: var(--erp-text);
+  font-size: 0.85rem;
+  line-height: 1.2;
+}
+
+.teacherName {
+  color: var(--erp-primary-700);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.room {
+  color: var(--erp-text-muted);
+  font-size: 0.74rem;
+}
+
+.emptyText {
+  color: var(--erp-text-muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+}

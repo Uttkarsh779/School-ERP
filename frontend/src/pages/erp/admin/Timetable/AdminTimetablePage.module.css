@@ -1,0 +1,43 @@
+.filterRow {
+  max-width: 320px;
+  margin-bottom: 1.25rem;
+}
+
+.subjectRow {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-end;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.subjectInput {
+  flex: 1;
+  min-width: 12rem;
+}
+
+.subjectChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.subjectAssignRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.subjectAssignRow > div {
+  min-width: 10rem;
+}
+
+.chip {
+  background: var(--erp-primary-100);
+  color: var(--erp-primary-700);
+  border-radius: 999px;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+}

@@ -1,0 +1,104 @@
+.banner {
+  position: fixed;
+  top: max(0.6rem, env(safe-area-inset-top));
+  left: 0.75rem;
+  right: 0.75rem;
+  z-index: 1000;
+  background: var(--erp-surface, #ffffff);
+  border: 1px solid var(--erp-border, #e2e8f0);
+  box-shadow: 0 10px 25px -5px rgba(15, 42, 71, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  border-radius: 1rem;
+  padding: 0.85rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  animation: slideDown 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideDown {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.iconBadge {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.65rem;
+  background: linear-gradient(135deg, #0f2a47 0%, #1e4976 100%);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 0.8rem;
+  flex-shrink: 0;
+  box-shadow: 0 4px 10px rgba(15, 42, 71, 0.25);
+}
+
+.title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #0f2a47;
+  line-height: 1.2;
+}
+
+.subtitle {
+  font-size: 0.72rem;
+  color: #64748b;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+.installButton {
+  background: #0f2a47;
+  color: #ffffff;
+  border: none;
+  border-radius: 0.5rem;
+  padding: 0.45rem 0.85rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.installButton:active {
+  transform: scale(0.95);
+}
+
+.closeButton {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  padding: 0.3rem;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.closeButton:hover {
+  color: #475569;
+}

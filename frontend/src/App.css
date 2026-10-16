@@ -1,0 +1,15 @@
+/* Define global variables and styles here */
+:root {
+  --primary-color: #8e0808;
+  --light-text-color: #ffffff;
+  --background-color: #f0f2f5;
+  --card-background-color: #ffffff;
+  --news-card-background-color: #e4caca;
+  --text-color: #333333;
+}
+
+body {
+  font-family: sans-serif;
+  margin: 0;
+  background-color: var(--background-color);
+}

@@ -1,0 +1,146 @@
+.layout {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.header {
+  background-color: var(--primary-color);
+  padding: 3px 20px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.leftHeader {
+  display: flex;
+  gap: 1rem;
+}
+
+.leftHeader img {
+  width: 55px;
+}
+
+.leftHeader h3 {
+  font-size: larger;
+  margin: 0;
+  font-weight: bold;
+  color: #ffffff;
+}
+.leftHeader p {
+  font-size: large;
+  margin: 0;
+  color: #ffffff;
+}
+.userIcon {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.userIcon img {
+  background-color: #ffffff;
+  height: 30px;
+  width: 30px;
+  border-radius: 50%;
+}
+.userIcon p {
+  color: #ffffff;
+}
+
+.container {
+  display: flex;
+  flex: 1;
+  position: relative;
+}
+
+.sidebar {
+  background-color: var(--secondary-color);
+  width: 240px;
+  padding-top: 20px;
+  transition: transform 0.3s ease-in-out;
+  height: calc(100vh - 73px); /* Adjust based on header height */
+  position: fixed;
+  top: 73px; /* Header height */
+  left: 0;
+  z-index: 1000;
+}
+
+.menuItem {
+  padding: 15px 20px;
+  color: #000000;
+  text-decoration: none;
+  display: block;
+  font-weight: 500;
+  transition: all 0.2s ease-in-out;
+}
+
+.menuItem:hover {
+  background-color: #ffffff;
+  color: #000000;
+  border-left: 0.5rem solid var(--primary-color);
+}
+
+.active {
+  background-color: #ffffff;
+  color: #000000;
+  border-left: 0.5rem solid var(--primary-color);
+}
+
+.toggleButton {
+  background-color: var(--primary-color);
+  color: white;
+  border: none;
+  padding: 10px 12px;
+  cursor: pointer;
+  font-size: larger;
+}
+
+.mainContent {
+  flex: 1;
+  padding: 20px;
+  width: -webkit-fill-available;
+}
+
+.overlay {
+  position: fixed;
+  top: 73px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 999;
+}
+
+/* Desktop styles - sidebar pushes content */
+@media screen and (min-width: 769px) {
+  .mainContent {
+    margin-left: 240px;
+    width: calc(100% - 240px);
+  }
+}
+
+/* Mobile styles - sidebar overlaps content */
+@media screen and (max-width: 768px) {
+  .sidebar {
+    transform: translateX(-100%);
+  }
+
+  .sidebar.mobileVisible {
+    transform: translateX(0);
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
+  }
+  .leftHeader h3,
+  .leftHeader h3,
+  .userIcon p {
+    display: none;
+  }
+  .mainContent {
+    padding: 20px 5px;
+  }
+}

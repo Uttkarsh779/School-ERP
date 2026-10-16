@@ -1,0 +1,103 @@
+.wrapper {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: var(--erp-radius-lg);
+  border: 1px solid var(--erp-border);
+  background: var(--erp-surface);
+}
+
+.table {
+  width: 100%;
+  min-width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.table th {
+  text-align: left;
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--erp-text-muted);
+  font-weight: 700;
+  padding: 0.85rem 1rem;
+  background: var(--erp-primary-50);
+  border-bottom: 1px solid var(--erp-border);
+  white-space: nowrap;
+}
+
+.table td {
+  padding: 0.8rem 1rem;
+  border-bottom: 1px solid var(--erp-border);
+  color: var(--erp-text);
+  vertical-align: middle;
+}
+
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.table tbody tr:hover {
+  background: var(--erp-primary-50);
+}
+
+.empty {
+  padding: 2.5rem 1rem;
+  text-align: center;
+  color: var(--erp-text-muted);
+}
+
+.paginationBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--erp-border);
+  background: var(--erp-surface);
+  font-size: 0.82rem;
+  color: var(--erp-text-muted);
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.paginationInfo {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.paginationControls {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.pageBtn {
+  border: 1px solid var(--erp-border);
+  background: var(--erp-surface);
+  color: var(--erp-text);
+  padding: 0.3rem 0.65rem;
+  border-radius: var(--erp-radius-sm);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--erp-transition-fast);
+}
+
+.pageBtn:hover:not(:disabled) {
+  border-color: var(--erp-primary-600);
+  color: var(--erp-primary-600);
+}
+
+.pageBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.activePageBtn {
+  background: var(--erp-primary-600);
+  color: #ffffff;
+  border-color: var(--erp-primary-600);
+}

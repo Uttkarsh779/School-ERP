@@ -1,0 +1,44 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.dot {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.success {
+  background: var(--erp-success-bg);
+  color: var(--erp-success);
+}
+.danger {
+  background: var(--erp-danger-bg);
+  color: var(--erp-danger);
+}
+.warning {
+  background: var(--erp-warning-bg);
+  color: var(--erp-warning);
+}
+.info {
+  background: var(--erp-info-bg);
+  color: var(--erp-info);
+}
+.neutral {
+  background: var(--erp-primary-100);
+  color: var(--erp-primary-700);
+}
+.primary {
+  background: var(--erp-primary-100);
+  color: var(--erp-primary-700);
+}

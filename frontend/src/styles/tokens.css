@@ -1,0 +1,52 @@
+/*
+ * RRS Intl School ERP — design tokens.
+ * Built on the school's existing brand colors (--primary-color / --secondary-color
+ * from src/index.css, the same orange/peach used by the legacy Button/Input/DataTable
+ * components) rather than a separate palette — one consistent brand across old and
+ * new screens. This file just extends that brand into a fuller scale + a modern
+ * SaaS-dashboard layer (neutrals, status colors, elevation, radii) for the ERP screens.
+ */
+:root {
+  /* Brand — derived from var(--primary-color) #fa8c39 / var(--secondary-color) #ffebdc */
+  --erp-primary-700: #d9701f;
+  --erp-primary-600: #fa8c39;
+  --erp-primary-500: #fb9d57;
+  --erp-primary-100: #ffebdc;
+  --erp-primary-50: #fff6ef;
+
+  /* Neutral base — light, generous whitespace, brand color used as an accent only */
+  --erp-bg: #f7f7f8;
+  --erp-surface: #ffffff;
+  --erp-border: #e7e7ea;
+  --erp-text: #17181c;
+  --erp-text-muted: #6b6f76;
+  --erp-text-inverse: #ffffff;
+
+  /* Status */
+  --erp-success: #1e7f4c;
+  --erp-success-bg: #e6f4ec;
+  --erp-danger: #e74c3c;
+  --erp-danger-bg: #fdecea;
+  --erp-warning: #b8790b;
+  --erp-warning-bg: #fdf1de;
+  --erp-info: #2563ac;
+  --erp-info-bg: #e8f0fa;
+
+  /* Shape & elevation — larger radii, soft shadows (2026 dashboard norm) */
+  --erp-radius-sm: 8px;
+  --erp-radius-md: 12px;
+  --erp-radius-lg: 18px;
+  --erp-shadow-sm: 0 1px 2px rgba(23, 24, 28, 0.05), 0 1px 1px rgba(23, 24, 28, 0.03);
+  --erp-shadow-md: 0 6px 16px rgba(23, 24, 28, 0.08), 0 2px 4px rgba(23, 24, 28, 0.05);
+  --erp-shadow-lg: 0 16px 40px rgba(23, 24, 28, 0.16);
+
+  /* Type */
+  --erp-font: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+
+  /* Motion */
+  --erp-transition-fast: 120ms ease;
+  --erp-transition: 200ms ease;
+
+  /* Light mode only, by design — no dark-mode variant */
+  color-scheme: light;
+}

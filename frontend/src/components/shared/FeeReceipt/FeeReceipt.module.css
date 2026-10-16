@@ -1,0 +1,211 @@
+.receiptCard {
+  background: #ffffff;
+  border: 2px solid #cbd5e1;
+  border-radius: 12px;
+  padding: 1.75rem;
+  color: #0f172a;
+  font-family: var(--erp-font, 'Inter', system-ui, sans-serif);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.05);
+}
+
+.schoolHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  border-bottom: 3px double #0284c7;
+  padding-bottom: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.schoolBrand {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.schoolLogo {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+}
+
+.schoolName {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: #0284c7;
+  letter-spacing: 0.02em;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.schoolSub {
+  font-size: 0.8rem;
+  color: #64748b;
+  margin-top: 0.2rem;
+}
+
+.titleBadgeBlock {
+  text-align: right;
+}
+
+.receiptTitle {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.paidBadge {
+  display: inline-block;
+  background: #dcfce7;
+  color: #15803d;
+  font-weight: 700;
+  font-size: 0.75rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid #bbf7d0;
+  margin-top: 0.35rem;
+  letter-spacing: 0.04em;
+}
+
+.metaGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.65rem 1.5rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 1rem;
+  font-size: 0.86rem;
+  margin-bottom: 1.25rem;
+}
+
+.metaItem {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.metaLabel {
+  color: #64748b;
+  font-weight: 500;
+  min-width: 110px;
+}
+
+.metaValue {
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1.25rem;
+  font-size: 0.88rem;
+}
+
+.table th {
+  background: #f1f5f9;
+  color: #334155;
+  font-weight: 700;
+  text-align: left;
+  padding: 0.65rem 0.85rem;
+  border-bottom: 2px solid #cbd5e1;
+  text-transform: uppercase;
+  font-size: 0.78rem;
+  letter-spacing: 0.03em;
+}
+
+.table td {
+  padding: 0.65rem 0.85rem;
+  border-bottom: 1px solid #e2e8f0;
+  color: #334155;
+}
+
+.table tr:last-child td {
+  border-bottom: none;
+}
+
+.amountBox {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #f0f9ff;
+  border: 1.5px solid #0284c7;
+  border-radius: 8px;
+  padding: 0.85rem 1.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.amountLabel {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: #0369a1;
+  text-transform: uppercase;
+}
+
+.amountValue {
+  font-weight: 800;
+  font-size: 1.35rem;
+  color: #0284c7;
+}
+
+.wordsBox {
+  font-size: 0.85rem;
+  color: #475569;
+  font-style: italic;
+  margin-bottom: 1.5rem;
+  padding-left: 0.25rem;
+}
+
+.signatureSection {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px dashed #cbd5e1;
+}
+
+.sigBlock {
+  text-align: center;
+  width: 160px;
+}
+
+.sigLine {
+  border-top: 1px solid #94a3b8;
+  margin-bottom: 0.35rem;
+}
+
+.sigTitle {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+}
+
+.receiptFooter {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  text-align: center;
+  margin-top: 1.5rem;
+}
+
+/* Print Styles */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .receiptCard, .receiptCard * {
+    visibility: visible;
+  }
+  .receiptCard {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    border: none;
+    box-shadow: none;
+    padding: 0;
+  }
+}

@@ -1,0 +1,15 @@
+.section {
+  margin-top: 1.5rem;
+}
+
+.filterRow {
+  max-width: 320px;
+  margin-bottom: 1.25rem;
+}
+
+.formActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin-top: 0.5rem;
+}

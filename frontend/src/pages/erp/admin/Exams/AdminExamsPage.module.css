@@ -1,0 +1,159 @@
+.filterRow {
+  max-width: 320px;
+  margin-bottom: 1.25rem;
+}
+
+.failureBox {
+  border: 1px solid var(--erp-danger);
+  background: var(--erp-danger-bg);
+  border-radius: var(--erp-radius-sm);
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.failureTitle {
+  margin: 0 0 0.3rem;
+  font-weight: 700;
+  color: var(--erp-danger);
+  font-size: 0.85rem;
+}
+
+.failureList {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--erp-danger);
+  font-size: 0.85rem;
+}
+
+.failureList li {
+  margin-bottom: 0.25rem;
+}
+
+.gridWrapper {
+  overflow-x: auto;
+  border: 1px solid var(--erp-border);
+  border-radius: var(--erp-radius-sm);
+}
+
+.grid {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.grid th,
+.grid td {
+  padding: 0.55rem 0.7rem;
+  border-bottom: 1px solid var(--erp-border);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.grid thead th {
+  color: var(--erp-text-muted);
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: var(--erp-bg);
+}
+
+.subjectHeader {
+  text-align: center;
+  border-left: 1px solid var(--erp-border);
+}
+
+.subHeader {
+  text-align: center;
+  font-size: 0.68rem !important;
+}
+
+.stickyCol,
+.stickyCol2 {
+  position: sticky;
+  background: var(--erp-surface);
+  z-index: 1;
+}
+
+.stickyCol {
+  left: 0;
+  min-width: 5rem;
+  color: var(--erp-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.stickyCol2 {
+  left: 5rem;
+  min-width: 10rem;
+  font-weight: 600;
+  border-right: 1px solid var(--erp-border);
+}
+
+thead .stickyCol,
+thead .stickyCol2 {
+  background: var(--erp-bg);
+  z-index: 2;
+}
+
+.cellInput {
+  width: 4.2rem;
+  height: 2.1rem;
+  padding: 0 0.4rem;
+  border: 1px solid var(--erp-border);
+  border-radius: var(--erp-radius-sm);
+  background: var(--erp-surface);
+  color: var(--erp-text);
+  font-size: 0.85rem;
+  font-family: var(--erp-font);
+  text-align: center;
+}
+
+.cellInput:focus {
+  outline: 2px solid var(--erp-primary-600);
+  outline-offset: 1px;
+}
+
+.saveBar {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 1rem;
+}
+
+.prefilledField {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.prefilledLabel {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--erp-text);
+}
+
+.prefilledValue {
+  display: inline-flex;
+  align-items: center;
+  height: 2.4rem;
+  padding: 0 0.75rem;
+  border: 1px dashed var(--erp-border);
+  border-radius: var(--erp-radius-sm);
+  background: var(--erp-bg);
+  color: var(--erp-primary-700);
+  font-weight: 700;
+  width: fit-content;
+}
+
+.formActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin-top: 0.5rem;
+}
+
+@media (max-width: 640px) {
+  .grid th,
+  .grid td {
+    padding: 0.4rem 0.5rem;
+  }
+}

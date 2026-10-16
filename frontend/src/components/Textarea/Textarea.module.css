@@ -1,0 +1,43 @@
+.formGroup {
+  margin-bottom: 1rem;
+}
+
+.label {
+  display: block;
+  font-size: 1rem;
+  color: var(--dark-text-color);
+  margin: 0;
+  font-weight: 500;
+}
+
+.input {
+  width: -webkit-fill-available;
+  padding: 0.8rem 1rem;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 1rem;
+  transition: all 0.3s;
+  background-color: var(--light-text-color);
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px rgba(250, 140, 57, 0.2);
+}
+
+.inputError {
+  border-color: #e74c3c;
+}
+
+.errorMessage {
+  color: #e74c3c;
+  font-size: 0.8rem;
+  margin: 0;
+}
+
+.required {
+  color: #e74c3c;
+  margin-left: 0.2rem;
+  font-size: 0.8rem;
+}

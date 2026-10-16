@@ -1,0 +1,98 @@
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  border: 1px solid var(--erp-border);
+  border-radius: var(--erp-radius-md);
+  padding: 0.85rem;
+  background: var(--erp-bg);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: var(--erp-primary-100);
+  color: var(--erp-primary-700);
+  border-radius: 999px;
+  padding: 0.2rem 0.4rem 0.2rem 0.65rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.chipRemove {
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 0.9rem;
+  line-height: 1;
+  padding: 0.1rem 0.2rem;
+  border-radius: 999px;
+}
+
+.chipRemove:hover {
+  background: rgba(217, 112, 31, 0.16);
+}
+
+.filters {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.5rem;
+}
+
+@media (min-width: 480px) {
+  .filters {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.list {
+  max-height: 220px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  border-top: 1px solid var(--erp-border);
+  padding-top: 0.5rem;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.45rem;
+  border-radius: var(--erp-radius-sm);
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.row:hover {
+  background: var(--erp-surface);
+}
+
+.rowName {
+  font-weight: 500;
+  color: var(--erp-text);
+}
+
+.rowMeta {
+  color: var(--erp-text-muted);
+  font-size: 0.76rem;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.empty {
+  color: var(--erp-text-muted);
+  font-size: 0.85rem;
+  text-align: center;
+  padding: 0.5rem 0;
+  margin: 0;
+}

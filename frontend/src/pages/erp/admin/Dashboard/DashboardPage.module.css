@@ -1,0 +1,46 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1.25rem;
+}
+
+.noticeList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.noticeItem {
+  padding: 0.85rem 1rem;
+  border-radius: var(--erp-radius-md);
+  background: var(--erp-bg);
+  border: 1px solid var(--erp-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.noticeTitle {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--erp-text);
+  margin-bottom: 2px;
+}
+
+.noticeBody {
+  font-size: 0.8rem;
+  color: var(--erp-text-muted);
+}
+
+.noticeMeta {
+  font-size: 0.76rem;
+  color: var(--erp-text-muted);
+  white-space: nowrap;
+}

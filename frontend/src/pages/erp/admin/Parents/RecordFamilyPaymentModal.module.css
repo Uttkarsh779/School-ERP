@@ -1,0 +1,146 @@
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.summaryBox {
+  background: var(--erp-primary-50, #f8f9fa);
+  border: 1px solid var(--erp-border);
+  border-radius: var(--erp-radius-lg);
+  padding: 1.25rem;
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+}
+
+.summaryItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.summaryItem span:first-child {
+  font-size: 0.875rem;
+  color: var(--erp-text-muted);
+  font-weight: 500;
+}
+
+.outstandingValue {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--erp-danger);
+}
+
+.totalValue {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--erp-primary);
+}
+
+.sectionTitle {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin: 0 0 0.25rem 0;
+  color: var(--erp-text);
+}
+
+.sectionSubtitle {
+  font-size: 0.875rem;
+  color: var(--erp-text-muted);
+  margin: 0 0 1rem 0;
+}
+
+.allocationsSection {
+  padding: 1.5rem;
+  background: var(--erp-surface);
+  border: 1px solid var(--erp-border);
+  border-radius: var(--erp-radius-lg);
+}
+
+.allocationList {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.allocationRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  background: var(--erp-background, #fff);
+  border: 1px solid var(--erp-border);
+  border-radius: var(--erp-radius-md);
+  box-shadow: var(--erp-shadow-sm);
+}
+
+.childInfo strong {
+  font-size: 1rem;
+  font-weight: 600;
+  display: block;
+  margin-bottom: 0.25rem;
+  color: var(--erp-text);
+}
+
+.childMeta {
+  font-size: 0.875rem;
+  color: var(--erp-text-muted);
+}
+
+.inputWrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.currencyPrefix {
+  position: absolute;
+  left: 0.75rem;
+  color: var(--erp-text-muted);
+  font-weight: 600;
+}
+
+.allocationInput {
+  width: 130px;
+  padding: 0.5rem 0.75rem 0.5rem 1.75rem;
+  font-size: 1rem;
+  font-weight: 600;
+  text-align: right;
+  border: 1px solid var(--erp-border);
+  border-radius: var(--erp-radius-md);
+  background: var(--erp-surface);
+  color: var(--erp-text);
+  transition: all 0.2s ease;
+}
+
+.allocationInput:focus {
+  outline: none;
+  border-color: var(--erp-primary);
+  box-shadow: 0 0 0 3px var(--erp-primary-100);
+}
+
+.paymentDetails {
+  padding: 1.5rem;
+  background: var(--erp-surface);
+  border: 1px solid var(--erp-border);
+  border-radius: var(--erp-radius-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--erp-border);
+}

@@ -1,0 +1,41 @@
+.card {
+  background: var(--erp-surface);
+  border: 1px solid var(--erp-border);
+  border-radius: var(--erp-radius-lg);
+  box-shadow: var(--erp-shadow-sm);
+}
+
+.padded {
+  padding: 1.25rem;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.1rem 1.25rem;
+  border-bottom: 1px solid var(--erp-border);
+}
+
+.title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--erp-text);
+  margin: 0;
+}
+
+.subtitle {
+  font-size: 0.82rem;
+  color: var(--erp-text-muted);
+  margin: 0.15rem 0 0;
+}
+
+.body {
+  padding: 1.25rem;
+}
+
+@media (max-width: 768px) {
+  .padded, .header, .body {
+    padding: 0.9rem;
+  }
+}

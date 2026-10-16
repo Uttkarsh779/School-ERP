@@ -1,0 +1,10 @@
+{
+  "watch": ["src"],
+  "ext": "ts,json",
+  "nodeArgs": [
+    "--dns-result-order=ipv4first"
+  ],
+  "execMap": {
+    "ts": "ts-node"
+  }
+}

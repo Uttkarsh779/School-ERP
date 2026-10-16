@@ -1,0 +1,173 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.filterCard {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.25rem;
+  background-color: var(--erp-surface, #ffffff);
+  border: 1px solid var(--erp-border, #e2e8f0);
+  border-radius: var(--erp-radius-md, 8px);
+}
+
+.filterHeader {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.tabGroup {
+  display: flex;
+  background-color: var(--bg-secondary, #f1f5f9);
+  padding: 0.25rem;
+  border-radius: var(--erp-radius-sm, 6px);
+  gap: 0.25rem;
+}
+
+.tab {
+  padding: 0.4rem 0.9rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary, #64748b);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.tabActive {
+  background-color: var(--erp-surface, #ffffff);
+  color: var(--erp-primary-600, #0284c7);
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.controlsRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.searchBox {
+  flex: 1;
+  min-width: 240px;
+}
+
+.filterSelect {
+  width: 180px;
+}
+
+.formActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin-top: 1rem;
+}
+
+.profileCard {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.profileHeader {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--erp-border, #e2e8f0);
+}
+
+.avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: var(--bg-secondary, #f1f5f9);
+  color: var(--erp-text, #0f172a);
+  border: 1px solid var(--erp-border, #cbd5e1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+  font-weight: 600;
+}
+
+.profileMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.profileName {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--erp-text, #0f172a);
+}
+
+.profileEmail {
+  font-size: 0.85rem;
+  color: var(--text-secondary, #64748b);
+}
+
+.infoGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+  background-color: var(--bg-secondary, #f8fafc);
+  padding: 1rem;
+  border-radius: var(--erp-radius-md, 8px);
+}
+
+.infoItem {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.infoLabel {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary, #64748b);
+  font-weight: 600;
+}
+
+.infoValue {
+  font-size: 0.92rem;
+  font-weight: 500;
+  color: var(--erp-text, #0f172a);
+}
+
+.roleChangeBox {
+  padding: 1.25rem;
+  border: 1px dashed var(--erp-primary-600, #0284c7);
+  background-color: rgba(2, 132, 199, 0.03);
+  border-radius: var(--erp-radius-md, 8px);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.roleBoxTitle {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--erp-primary-700, #0369a1);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+

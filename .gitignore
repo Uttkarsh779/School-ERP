@@ -1,0 +1,45 @@
+# Dependencies
+node_modules/
+*/node_modules/
+
+# Production build artifacts
+dist/
+*/dist/
+build/
+*/build/
+
+# Environment variables & secrets (CRITICAL: Never commit DB passwords or secrets)
+.env
+.env.*
+!.env.example
+*.env
+backend/.env
+frontend/.env
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS & Editor generated files
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+*.swp
+*.swo
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# Prisma generated client (regenerated via npx prisma generate)
+backend/src/generated/prisma/
+
+# Temporary / Scratch error files
+errors.txt
+capture_errors.js
