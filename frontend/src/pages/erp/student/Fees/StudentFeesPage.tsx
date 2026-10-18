@@ -1,506 +1,421 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "react-toastify";
-import {
-  Badge,
-  Button,
-  Card,
-  EmptyState,
-  Modal,
-  PageHeader,
-  Spinner,
-  Table,
-} from "../../../../components/ui";
+import { Badge, Button, Card, EmptyState, Icon, Input, Modal, PageHeader, Spinner, StatCard, Table } from "../../../../components/ui";
+import type { TableColumn } from "../../../../components/ui";
+import ReceiptModal from "../../../../components/shared/FeeReceipt/ReceiptModal";
 import { useGetMyStudentProfileQuery } from "../../../../store/api/students.api";
 import {
   useCreateRazorpayOrderMutation,
+  useGetRefundsQuery,
   useGetStudentDueSummaryQuery,
   useGetStudentLedgerQuery,
-  useGetInvoicesQuery,
+  useRequestRefundMutation,
   useVerifyRazorpayPaymentMutation,
+  type DueCharge,
+  type LedgerEntry,
 } from "../../../../store/api/fees.api";
+import { MONTH_NAMES, fmtDate, getErrorMessage, inr } from "../../admin/Fees/feeUtils";
+import shared from "../../admin/Fees/Fees.module.css";
 import styles from "./StudentFeesPage.module.css";
 
 declare global {
   interface Window {
-    Razorpay: any;
+    Razorpay: new (options: Record<string, unknown>) => { open: () => void };
   }
 }
 
-const loadRazorpayScript = () => {
-  return new Promise((resolve) => {
-    if (window.Razorpay) {
-      resolve(true);
-      return;
-    }
+const loadRazorpayScript = () =>
+  new Promise<boolean>((resolve) => {
+    if (window.Razorpay) return resolve(true);
     const script = document.createElement("script");
     script.src = "https://checkout.razorpay.com/v1/checkout.js";
     script.onload = () => resolve(true);
     script.onerror = () => resolve(false);
     document.body.appendChild(script);
   });
+
+type MonthDue = {
+  key: string;
+  label: string;
+  dueDate: string;
+  lines: Array<{ head: string; base: number; discount: number; late: number; paid: number; outstanding: number }>;
+  outstanding: number;
+  late: number;
+  overdue: boolean;
 };
 
+// Student fees: what's due (by month, incl. late fees from the school's rule — the same
+// calculation the fee counter uses), pay online, payment history with receipts, the full
+// statement, and refund requests.
 const StudentFeesPage = () => {
-  const [activeTab, setActiveTab] = useState<"dues" | "ledger">("dues");
-  const [customPayAmount, setCustomPayAmount] = useState<string>("");
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [successModalData, setSuccessModalData] = useState<any | null>(null);
-  const [selectedInvoiceForBreakdown, setSelectedInvoiceForBreakdown] = useState<any | null>(null);
+  const [tab, setTab] = useState<"dues" | "payments" | "statement">("dues");
+  const [payAmount, setPayAmount] = useState("");
+  const [isPaying, setIsPaying] = useState(false);
+  const [receiptId, setReceiptId] = useState<number | null>(null);
+  const [refundFor, setRefundFor] = useState<{ paymentId: number; max: number; ref: string } | null>(null);
+  const [refundAmount, setRefundAmount] = useState("");
+  const [refundReason, setRefundReason] = useState("");
 
-  const { data: profile, isLoading: isLoadingProfile } = useGetMyStudentProfileQuery();
-
-  const {
-    data: dueSummary,
-    isLoading: isLoadingSummary,
-    refetch: refetchDues,
-  } = useGetStudentDueSummaryQuery(profile?.id ?? 0, { skip: !profile });
-
-  const { data: ledgerData, isLoading: isLoadingLedger } = useGetStudentLedgerQuery(profile?.id ?? 0, {
-    skip: !profile || activeTab !== "ledger",
-  });
-
-  const { data: invoicesList, refetch: refetchInvoices } = useGetInvoicesQuery(
-    { studentId: profile?.id },
-    { skip: !profile }
-  );
-
-  const [createRazorpayOrder] = useCreateRazorpayOrderMutation();
-  const [verifyRazorpayPayment] = useVerifyRazorpayPaymentMutation();
+  const { data: profile, isLoading: profileLoading } = useGetMyStudentProfileQuery();
+  const studentId = profile?.id ?? 0;
+  const { data: due, isLoading: dueLoading, isError: dueError, refetch: refetchDue } = useGetStudentDueSummaryQuery(studentId, { skip: !profile });
+  const { data: ledger, isLoading: ledgerLoading, refetch: refetchLedger } = useGetStudentLedgerQuery(studentId, { skip: !profile });
+  const { data: refunds = [] } = useGetRefundsQuery(profile ? { studentId } : undefined, { skip: !profile });
+  const [createOrder] = useCreateRazorpayOrderMutation();
+  const [verifyPayment] = useVerifyRazorpayPaymentMutation();
+  const [requestRefund, { isLoading: requestingRefund }] = useRequestRefundMutation();
 
   useEffect(() => {
     loadRazorpayScript();
   }, []);
 
-  const handlePayNow = async (targetAmount?: number) => {
-    if (!profile) return;
-
-    const amountToPay = targetAmount || (customPayAmount ? parseFloat(customPayAmount) : dueSummary?.netPayable || 0);
-
-    if (amountToPay <= 0) {
-      toast.error("Payment amount must be greater than 0");
-      return;
+  const months: MonthDue[] = useMemo(() => {
+    const groups = new Map<string, MonthDue>();
+    const now = new Date();
+    for (const c of (due?.charges ?? []) as unknown as DueCharge[]) {
+      if (c.outstandingAmount <= 0) continue;
+      const key = `${c.billingYear}-${String(c.billingMonth).padStart(2, "0")}`;
+      const g: MonthDue = groups.get(key) ?? {
+        key,
+        label: `${MONTH_NAMES[c.billingMonth - 1]} ${c.billingYear}`,
+        dueDate: c.dueDate,
+        lines: [],
+        outstanding: 0,
+        late: 0,
+        overdue: false,
+      };
+      g.lines.push({
+        head: c.feeHead?.name ?? "Fee",
+        base: Number(c.baseAmount),
+        discount: Number(c.discountAmount),
+        late: Number(c.calculatedLateFee ?? 0),
+        paid: Number(c.paidAmount),
+        outstanding: Number(c.outstandingAmount),
+      });
+      g.outstanding += Number(c.outstandingAmount);
+      g.late += Number(c.calculatedLateFee ?? 0);
+      g.overdue = g.overdue || new Date(c.dueDate) < now;
+      if (new Date(c.dueDate) < new Date(g.dueDate)) g.dueDate = c.dueDate;
+      groups.set(key, g);
     }
+    return [...groups.values()].sort((a, b) => a.key.localeCompare(b.key));
+  }, [due]);
 
+  const totalOutstanding = Number(due?.totalOutstanding ?? 0);
+  const overdueTotal = months.filter((m) => m.overdue).reduce((s, m) => s + m.outstanding, 0);
+  const firstMonth = months[0];
+
+  useEffect(() => {
+    if (!payAmount && firstMonth) setPayAmount(String(Math.round(firstMonth.outstanding * 100) / 100));
+  }, [firstMonth]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const payments = useMemo(
+    () => (ledger?.entries ?? []).filter((e) => e.type === "PAYMENT" && e.paymentId).reverse(),
+    [ledger]
+  );
+  const refundedByPayment = useMemo(() => {
+    const m = new Map<number, number>();
+    for (const r of refunds) {
+      if (r.paymentId && r.status !== "REFUND_REJECTED") m.set(r.paymentId, (m.get(r.paymentId) ?? 0) + Number(r.amount));
+    }
+    return m;
+  }, [refunds]);
+
+  const afterPayment = (paymentId?: number) => {
+    toast.success("Payment received — thank you!");
+    setPayAmount("");
+    refetchDue();
+    refetchLedger();
+    if (paymentId) setReceiptId(paymentId);
+  };
+
+  const payOnline = async () => {
+    if (!profile) return;
+    const amount = Number(payAmount);
+    if (!(amount > 0)) return toast.error("Enter the amount you want to pay");
+    if (amount > totalOutstanding) return toast.error(`You can pay at most ${inr(totalOutstanding)}`);
+    setIsPaying(true);
     try {
-      setIsProcessing(true);
-      const res = await createRazorpayOrder({
-        studentId: profile.id,
-        requestedAmount: amountToPay,
-      }).unwrap();
+      const order = await createOrder({ studentId: profile.id, requestedAmount: amount }).unwrap();
 
-      const options = {
-        key: res.keyId || "rzp_test_key",
-        amount: res.amount * 100,
+      // Development mock mode (server-controlled): no Razorpay window, confirm directly.
+      if (order.mock) {
+        await verifyPayment({
+          razorpayOrderId: order.orderId,
+          razorpayPaymentId: `pay_mock_${Date.now()}`,
+          razorpaySignature: "mock",
+          studentId: profile.id,
+        }).unwrap();
+        afterPayment(order.paymentId);
+        setIsPaying(false);
+        return;
+      }
+
+      if (!(await loadRazorpayScript()) || !window.Razorpay) {
+        toast.error("Couldn't load the payment window. Check your connection and try again.");
+        setIsPaying(false);
+        return;
+      }
+      const rzp = new window.Razorpay({
+        key: order.keyId,
+        amount: order.amountInPaise,
         currency: "INR",
-        name: "Dream Academy School",
-        description: `Fee Payment - ${profile.name}`,
-        order_id: res.orderId,
-        handler: async function (response: any) {
+        name: "School Fees",
+        description: `Fee payment · ${profile.name} (${profile.admissionNo})`,
+        order_id: order.orderId,
+        prefill: { name: profile.name, contact: profile.contactNumber || profile.fatherContact || "" },
+        theme: { color: getComputedStyle(document.documentElement).getPropertyValue("--erp-primary-600").trim() || "#fa8c39" },
+        handler: async (response: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) => {
           try {
-            const verifyRes = await verifyRazorpayPayment({
+            await verifyPayment({
               razorpayOrderId: response.razorpay_order_id,
               razorpayPaymentId: response.razorpay_payment_id,
               razorpaySignature: response.razorpay_signature,
               studentId: profile.id,
             }).unwrap();
-
-            toast.success("Payment Successful & Verified!");
-            setSuccessModalData(verifyRes.data || verifyRes);
-            refetchDues();
-            refetchInvoices();
-          } catch (err: any) {
-            toast.error(err?.data?.message || "Payment verification failed");
+            afterPayment(order.paymentId);
+          } catch (e) {
+            toast.error(getErrorMessage(e, "We couldn't confirm the payment. If money was deducted, contact the school office with your transaction ID."));
           } finally {
-            setIsProcessing(false);
+            setIsPaying(false);
           }
         },
-        prefill: {
-          name: profile.name,
-          contact: profile.contactNumber || profile.fatherContact || "",
-        },
-        theme: {
-          color: "#0f2a47",
-        },
-      };
-
-      const razorpayInstance = new window.Razorpay(options);
-      razorpayInstance.open();
-    } catch (err: any) {
-      toast.error(err?.data?.message || "Failed to initiate payment");
-      setIsProcessing(false);
+        modal: { ondismiss: () => setIsPaying(false) },
+      });
+      rzp.open();
+    } catch (e) {
+      toast.error(getErrorMessage(e, "Couldn't start the payment"));
+      setIsPaying(false);
     }
   };
 
-  const handleOpenReceipt = (paymentId: number) => {
-    const backendUrl = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
-    window.open(`${backendUrl}/payments/${paymentId}/receipt/pdf`, "_blank");
+  const submitRefund = async () => {
+    if (!refundFor || !profile) return;
+    const amount = Number(refundAmount);
+    if (!(amount > 0) || amount > refundFor.max) return toast.error(`Enter an amount up to ${inr(refundFor.max)}`);
+    if (refundReason.trim().length < 5) return toast.error("Please explain the reason (at least 5 characters)");
+    try {
+      await requestRefund({ studentId: profile.id, paymentId: refundFor.paymentId, amount, reason: refundReason.trim() }).unwrap();
+      toast.success("Refund request sent to the school office");
+      setRefundFor(null);
+    } catch (e) {
+      toast.error(getErrorMessage(e, "Couldn't send the refund request"));
+    }
   };
 
-  if (isLoadingProfile || isLoadingSummary) {
+  if (profileLoading || (profile && dueLoading)) {
     return (
-      <div className={styles.container}>
-        <PageHeader title="School Fees & Payment" />
+      <div className={shared.page}>
+        <PageHeader title="Fees & Payments" />
         <Spinner />
       </div>
     );
   }
-
   if (!profile) {
     return (
-      <div className={styles.container}>
-        <PageHeader title="School Fees & Payment" />
-        <EmptyState title="Profile not found" description="Unable to load student profile." />
+      <div className={shared.page}>
+        <PageHeader title="Fees & Payments" />
+        <EmptyState title="Your student record isn't linked yet" description="Please contact the school office." />
       </div>
     );
   }
 
-  const totalInvoiceBilled = invoicesList?.reduce((sum: number, inv: any) => sum + Number(inv.totalAmount || 0), 0) || 0;
-  const totalInvoicePaid = invoicesList?.reduce((sum: number, inv: any) => sum + Number(inv.paidAmount || 0), 0) || 0;
-  const totalInvoiceDue = Math.max(0, totalInvoiceBilled - totalInvoicePaid);
+  const statementColumns: TableColumn<LedgerEntry & { _k: number }>[] = [
+    { key: "date", label: "Date", render: (e) => fmtDate(e.date) },
+    { key: "description", label: "Details" },
+    { key: "debit", label: "Charged", render: (e) => (e.debit ? inr(e.debit) : "—") },
+    { key: "credit", label: "Paid / discount", render: (e) => (e.credit ? <span className={shared.success}>{inr(e.credit)}</span> : "—") },
+    { key: "balance", label: "Balance", render: (e) => <strong>{inr(e.balance)}</strong> },
+  ];
 
-  const displayTotalBilled = (dueSummary?.totalOutstanding ?? 0) > 0 ? (dueSummary?.totalOutstanding ?? 0) : totalInvoiceBilled;
-  const displayNetPayable = (dueSummary?.netPayable ?? 0) > 0 ? (dueSummary?.netPayable ?? 0) : totalInvoiceDue;
-  const isPaidInFull = displayNetPayable <= 0;
-
-  return (
-    <div className={styles.container}>
-      <PageHeader
-        title="School Fees & Online Payment"
-        subtitle={`${profile.name} · Admission No: ${profile.admissionNo}`}
-      />
-
-      {/* CLEAN THEME OUTSTANDING CARD */}
-      <div className={styles.dueCard}>
-        <div className={styles.dueHeader}>
-          <div>
-            <div className={styles.dueLabel}>Net Outstanding Balance</div>
-            <div className={styles.dueAmount}>
-              ₹{Number(displayNetPayable || 0).toLocaleString("en-IN")}
-            </div>
-          </div>
-          <Badge tone={isPaidInFull ? "success" : "warning"}>
-            {isPaidInFull ? "Paid in Full" : "Pending Dues"}
-          </Badge>
-        </div>
-
-        <div className={styles.summaryRow}>
-          <div>
-            <div className={styles.summaryLabel}>Total Billed</div>
-            <div className={styles.summaryVal}>₹{Number(displayTotalBilled || 0).toLocaleString("en-IN")}</div>
-          </div>
-          <div>
-            <div className={styles.summaryLabel}>Advance Balance</div>
-            <div className={styles.summaryVal}>₹{(dueSummary?.totalAdvanceAvailable || 0).toLocaleString("en-IN")}</div>
-          </div>
-        </div>
-
-        {!isPaidInFull && (
-          <div className={styles.payActions}>
-            <div className={styles.customPayRow}>
-              <input
-                type="number"
-                placeholder="Custom amount (optional)..."
-                className={styles.customPayInput}
-                value={customPayAmount}
-                onChange={(e) => setCustomPayAmount(e.target.value)}
-              />
-              <button
-                type="button"
-                className={styles.payNowBtn}
-                disabled={isProcessing}
-                onClick={() => handlePayNow()}
+  const paymentColumns: TableColumn<LedgerEntry>[] = [
+    { key: "date", label: "Date", render: (e) => fmtDate(e.date) },
+    { key: "referenceNo", label: "Receipt", render: (e) => e.referenceNo ?? "—" },
+    { key: "credit", label: "Amount", render: (e) => <strong>{inr(e.credit)}</strong> },
+    {
+      key: "refund",
+      label: "Refund",
+      render: (e) => {
+        const r = refunds.filter((x) => x.paymentId === e.paymentId);
+        return r.length ? r.map((x) => <Badge key={x.id} tone={x.status === "REFUND_PROCESSED" ? "success" : x.status === "REFUND_REJECTED" ? "danger" : "warning"}>{x.status.replace("REFUND_", "").toLowerCase()} {inr(x.amount)}</Badge>) : "—";
+      },
+    },
+    {
+      key: "actions",
+      label: "",
+      render: (e) => {
+        const max = Number(e.credit) - (refundedByPayment.get(e.paymentId!) ?? 0);
+        return (
+          <div className={shared.rowActions}>
+            <Button size="sm" variant="outline" onClick={() => setReceiptId(e.paymentId!)}>
+              Receipt
+            </Button>
+            {max > 0 && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setRefundFor({ paymentId: e.paymentId!, max, ref: e.referenceNo ?? "" });
+                  setRefundAmount("");
+                  setRefundReason("");
+                }}
               >
-                {isProcessing
-                  ? "Processing..."
-                  : `Pay ₹${(customPayAmount ? parseFloat(customPayAmount) || 0 : displayNetPayable).toLocaleString("en-IN")} Now →`}
-              </button>
-            </div>
-
-            <div className={styles.quickPills}>
-              <button type="button" className={styles.pillBtn} onClick={() => setCustomPayAmount("1000")}>₹1,000</button>
-              <button type="button" className={styles.pillBtn} onClick={() => setCustomPayAmount("2000")}>₹2,000</button>
-              <button type="button" className={styles.pillBtn} onClick={() => setCustomPayAmount("5000")}>₹5,000</button>
-              <button type="button" className={styles.pillBtn} onClick={() => setCustomPayAmount("")}>Full Amount</button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* TAB NAVIGATION */}
-      <div className={styles.tabRow}>
-        <Button
-          variant={activeTab === "dues" ? "primary" : "outline"}
-          onClick={() => setActiveTab("dues")}
-        >
-          Fee Bills & Dues
-        </Button>
-        <Button
-          variant={activeTab === "ledger" ? "primary" : "outline"}
-          onClick={() => setActiveTab("ledger")}
-        >
-          Financial Ledger History
-        </Button>
-      </div>
-
-      {/* TAB 1: DUES & FEE BILLS */}
-      {activeTab === "dues" && (
-        <>
-          {/* MOBILE CARDS VIEW */}
-          <div className={styles.mobileCardView}>
-            {!invoicesList || invoicesList.length === 0 ? (
-              <EmptyState title="No Fee Bills Issued" description="All fee charges are up to date!" />
-            ) : (
-              <div className={styles.mobileCardsList}>
-                {invoicesList.map((bill: any) => {
-                  const dueAmt = Math.max(0, Number(bill.totalAmount) - Number(bill.paidAmount || 0));
-                  return (
-                    <div key={bill.id} className={styles.billCard}>
-                      <div className={styles.billHeader}>
-                        <div>
-                          <div className={styles.billNo}>{bill.invoiceNumber}</div>
-                          <div className={styles.billPeriod}>{bill.collectionPeriodCode || "Monthly Fee"}</div>
-                        </div>
-                        <Badge tone={bill.status === "PAID" ? "success" : bill.status === "OVERDUE" ? "danger" : "warning"}>
-                          {bill.status}
-                        </Badge>
-                      </div>
-
-                      <div className={styles.billRow}>
-                        <div>
-                          <div className={styles.summaryLabel}>Total Bill</div>
-                          <div style={{ fontSize: "0.9rem", fontWeight: 700 }}>
-                            ₹{Number(bill.totalAmount).toLocaleString("en-IN")}
-                          </div>
-                        </div>
-                        <div style={{ textAlign: "right" }}>
-                          <div className={styles.summaryLabel}>Balance Due</div>
-                          <div style={{ fontSize: "1rem", fontWeight: 800, color: dueAmt > 0 ? "var(--erp-danger)" : "var(--erp-success)" }}>
-                            ₹{dueAmt.toLocaleString("en-IN")}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className={styles.billFooter}>
-                        <div className={styles.summaryLabel}>
-                          Due: {new Date(bill.dueDate).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
-                        </div>
-                        <div style={{ display: "flex", gap: "0.4rem" }}>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => setSelectedInvoiceForBreakdown(bill)}
-                          >
-                            Details
-                          </Button>
-                          {dueAmt > 0 ? (
-                            <Button
-                              size="sm"
-                              variant="primary"
-                              disabled={isProcessing}
-                              onClick={() => handlePayNow(dueAmt)}
-                            >
-                              Pay ₹{dueAmt.toLocaleString("en-IN")}
-                            </Button>
-                          ) : (
-                            <span style={{ color: "var(--erp-success)", fontWeight: 700, fontSize: "0.85rem" }}>✓ Paid</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+                Request refund
+              </Button>
             )}
           </div>
+        );
+      },
+    },
+  ];
 
-          {/* DESKTOP TABLE VIEW */}
-          <div className={styles.desktopTableView}>
-            <Card title="Monthly Fee Bills & Statements">
-              {!invoicesList || invoicesList.length === 0 ? (
-                <EmptyState title="No Fee Bills Issued" description="All fee charges are up to date!" />
+  return (
+    <div className={shared.page}>
+      <PageHeader
+        title="Fees & Payments"
+        subtitle={`${profile.name} · ${profile.classSection ? `${profile.classSection.className} - ${profile.classSection.section}` : ""} · Adm ${profile.admissionNo}`}
+      />
+
+      {dueError ? (
+        <Card>
+          <EmptyState title="Couldn't load your fees" action={<Button variant="outline" onClick={() => refetchDue()}>Retry</Button>} />
+        </Card>
+      ) : (
+        <>
+          <div className={shared.statsGrid}>
+            <StatCard label="Total outstanding" value={inr(totalOutstanding)} icon={<Icon name="building" />} />
+            <StatCard label="Overdue" value={inr(overdueTotal)} icon={<Icon name="bell" />} />
+            <StatCard label="Next due" value={firstMonth ? fmtDate(firstMonth.dueDate) : "—"} icon={<Icon name="calendar" />} />
+            <StatCard label="Advance credit" value={inr(due?.totalAdvanceAvailable ?? 0)} icon={<Icon name="check" />} />
+          </div>
+
+          {totalOutstanding > 0 ? (
+            <Card title="Pay online" subtitle="Secure payment via Razorpay (UPI, cards, net banking). You'll get a receipt immediately.">
+              <div className={styles.payRow}>
+                <div className={styles.payInput}>
+                  <Input label="Amount (₹)" inputMode="decimal" value={payAmount} onChange={(e) => setPayAmount(e.target.value)} hint={`Up to ${inr(totalOutstanding)}`} />
+                </div>
+                <div className={shared.rowActions}>
+                  {firstMonth && (
+                    <Button variant="outline" size="sm" onClick={() => setPayAmount(String(Math.round(firstMonth.outstanding * 100) / 100))}>
+                      {firstMonth.label} · {inr(firstMonth.outstanding)}
+                    </Button>
+                  )}
+                  {overdueTotal > 0 && overdueTotal !== firstMonth?.outstanding && (
+                    <Button variant="outline" size="sm" onClick={() => setPayAmount(String(Math.round(overdueTotal * 100) / 100))}>
+                      All overdue · {inr(overdueTotal)}
+                    </Button>
+                  )}
+                  <Button variant="outline" size="sm" onClick={() => setPayAmount(String(Math.round(totalOutstanding * 100) / 100))}>
+                    Everything · {inr(totalOutstanding)}
+                  </Button>
+                </div>
+                <Button onClick={payOnline} isLoading={isPaying} disabled={!(Number(payAmount) > 0)}>
+                  Pay {inr(Number(payAmount) || 0)}
+                </Button>
+              </div>
+              <p className={shared.muted} style={{ marginTop: "0.75rem" }}>
+                Payments settle the oldest dues first. To pay fees in advance for future months, please visit the school fee counter.
+              </p>
+            </Card>
+          ) : (
+            <div className={shared.notice}>All your fees are paid. Thank you!</div>
+          )}
+
+          <div className={shared.tabs} role="tablist">
+            {(
+              [
+                ["dues", `Dues (${months.length})`],
+                ["payments", `Payments (${payments.length})`],
+                ["statement", "Statement"],
+              ] as const
+            ).map(([key, label]) => (
+              <button key={key} type="button" role="tab" aria-selected={tab === key} className={`${shared.tab} ${tab === key ? shared.tabActive : ""}`} onClick={() => setTab(key)}>
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {tab === "dues" &&
+            (months.length === 0 ? (
+              <Card>
+                <EmptyState title="Nothing due" description="New fees appear here when the school issues them." />
+              </Card>
+            ) : (
+              <div className={styles.monthList}>
+                {months.map((m) => (
+                  <Card
+                    key={m.key}
+                    title={m.label}
+                    subtitle={`Due ${fmtDate(m.dueDate)}`}
+                    action={m.overdue ? <Badge tone="danger">Overdue</Badge> : <Badge tone="info">Due</Badge>}
+                  >
+                    <table className={shared.itemsTable}>
+                      <thead>
+                        <tr>
+                          <th>Fee</th>
+                          <th>Amount</th>
+                          <th>Discount</th>
+                          <th>Late fee</th>
+                          <th>Paid</th>
+                          <th>Balance</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {m.lines.map((l, i) => (
+                          <tr key={i}>
+                            <td>{l.head}</td>
+                            <td>{inr(l.base)}</td>
+                            <td>{l.discount ? <span className={shared.success}>−{inr(l.discount)}</span> : "—"}</td>
+                            <td>{l.late ? <span className={shared.danger}>+{inr(l.late)}</span> : "—"}</td>
+                            <td>{l.paid ? inr(l.paid) : "—"}</td>
+                            <td className={shared.strong}>{inr(l.outstanding)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <div className={shared.summaryTotal}>
+                      <span>Balance for {m.label}</span>
+                      <span>{inr(m.outstanding)}</span>
+                    </div>
+                    {m.late > 0 && <p className={shared.muted}>Includes {inr(m.late)} late fee as per the school's late-fee rule.</p>}
+                  </Card>
+                ))}
+              </div>
+            ))}
+
+          {tab === "payments" && (
+            <Card title="Payment history" subtitle="Download a receipt or request a refund for any payment">
+              {ledgerLoading ? <Spinner /> : <Table columns={paymentColumns} data={payments} keyField="paymentId" emptyMessage="No payments yet." />}
+            </Card>
+          )}
+
+          {tab === "statement" && (
+            <Card title="Fee statement" subtitle="Every charge, discount, payment and refund with your running balance">
+              {ledgerLoading ? (
+                <Spinner />
               ) : (
-                <Table
-                  keyField="id"
-                  columns={[
-                    { key: "invoiceNumber", label: "Fee Bill No", render: (r: any) => <strong>{r.invoiceNumber}</strong> },
-                    {
-                      key: "collectionPeriodCode",
-                      label: "Billing Period",
-                      render: (r: any) => r.collectionPeriodCode || "Monthly Fee",
-                    },
-                    {
-                      key: "dueDate",
-                      label: "Last Date to Pay",
-                      render: (r: any) => new Date(r.dueDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }),
-                    },
-                    {
-                      key: "totalAmount",
-                      label: "Total Amount",
-                      render: (r: any) => `₹${Number(r.totalAmount).toLocaleString("en-IN")}`,
-                    },
-                    {
-                      key: "paidAmount",
-                      label: "Paid Amount",
-                      render: (r: any) => `₹${Number(r.paidAmount || 0).toLocaleString("en-IN")}`,
-                    },
-                    {
-                      key: "due",
-                      label: "Balance Due",
-                      render: (r: any) => {
-                        const dueAmt = Math.max(0, Number(r.totalAmount) - Number(r.paidAmount || 0));
-                        return <strong style={{ color: dueAmt > 0 ? "var(--erp-danger)" : "var(--erp-success)" }}>₹{dueAmt.toLocaleString("en-IN")}</strong>;
-                      },
-                    },
-                    {
-                      key: "status",
-                      label: "Status",
-                      render: (r: any) => (
-                        <Badge tone={r.status === "PAID" ? "success" : r.status === "OVERDUE" ? "danger" : "warning"}>
-                          {r.status}
-                        </Badge>
-                      ),
-                    },
-                    {
-                      key: "action",
-                      label: "Actions",
-                      render: (r: any) => {
-                        const dueAmt = Math.max(0, Number(r.totalAmount) - Number(r.paidAmount || 0));
-                        return (
-                          <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => setSelectedInvoiceForBreakdown(r)}
-                            >
-                              View Components
-                            </Button>
-                            {dueAmt > 0 ? (
-                              <Button
-                                size="sm"
-                                variant="primary"
-                                disabled={isProcessing}
-                                onClick={() => handlePayNow(dueAmt)}
-                              >
-                                Pay ₹{dueAmt.toLocaleString("en-IN")} →
-                              </Button>
-                            ) : (
-                              <span style={{ color: "var(--erp-success)", fontWeight: 600 }}>✓ Paid</span>
-                            )}
-                          </div>
-                        );
-                      },
-                    },
-                  ]}
-                  data={invoicesList}
-                />
+                <Table columns={statementColumns} data={[...(ledger?.entries ?? [])].reverse().map((e, i) => ({ ...e, _k: i }))} keyField="_k" emptyMessage="No fee activity yet." />
               )}
             </Card>
-          </div>
+          )}
         </>
       )}
 
-      {/* TAB 2: FINANCIAL LEDGER */}
-      {activeTab === "ledger" && (
-        <Card title="Student Financial Ledger History">
-          {isLoadingLedger ? (
-            <Spinner />
-          ) : !ledgerData?.entries || ledgerData.entries.length === 0 ? (
-            <EmptyState title="No financial history" description="No charges or payments recorded." />
-          ) : (
-            <Table
-              keyField="date"
-              columns={[
-                { key: "date", label: "Date", render: (e: any) => new Date(e.date).toLocaleDateString("en-IN") },
-                { key: "description", label: "Description" },
-                { key: "type", label: "Type", render: (e: any) => <Badge tone={e.type === "PAYMENT" ? "success" : "info"}>{e.type}</Badge> },
-                { key: "debit", label: "Debit (Charges)", render: (e: any) => e.debit > 0 ? <span style={{ color: "var(--erp-danger)" }}>₹{Number(e.debit).toLocaleString("en-IN")}</span> : "—" },
-                { key: "credit", label: "Credit (Paid)", render: (e: any) => e.credit > 0 ? <span style={{ color: "var(--erp-success)" }}>₹{Number(e.credit).toLocaleString("en-IN")}</span> : "—" },
-                { key: "balance", label: "Balance", render: (e: any) => <strong>₹{Number(e.balance).toLocaleString("en-IN")}</strong> },
-              ]}
-              data={ledgerData.entries}
-            />
-          )}
-        </Card>
-      )}
+      {receiptId !== null && <ReceiptModal paymentId={receiptId} onClose={() => setReceiptId(null)} />}
 
-      {/* VERIFIED SUCCESS MODAL */}
-      {successModalData && (
-        <Modal title="Payment Successful ✓" onClose={() => setSuccessModalData(null)}>
-          <div style={{ textAlign: "center", padding: "1rem" }}>
-            <div style={{ fontSize: "3rem", color: "var(--erp-success)", marginBottom: "0.5rem" }}>✓</div>
-            <h2 style={{ fontSize: "1.25rem", fontWeight: 700, margin: "0 0 1rem 0" }}>Payment Verified & Confirmed</h2>
-            <div style={{ background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: "var(--erp-radius-sm)", padding: "1rem", textAlign: "left", marginBottom: "1.25rem", fontSize: "0.88rem" }}>
-              <p><strong>Receipt Number:</strong> {successModalData.receiptNumber}</p>
-              <p><strong>Amount Paid:</strong> ₹{(successModalData.payment?.amount || 0).toLocaleString("en-IN")}</p>
-              <p><strong>Payment Mode:</strong> Razorpay Gateway</p>
-              <p><strong>Razorpay Order ID:</strong> {successModalData.payment?.razorpayPaymentId || "Verified"}</p>
-            </div>
-            <Button variant="primary" onClick={() => handleOpenReceipt(successModalData.payment?.id)}>
-              View & Download PDF Receipt
-            </Button>
+      {refundFor && (
+        <Modal title="Request a refund" onClose={() => setRefundFor(null)}>
+          <div className={shared.formStack}>
+            <p className={shared.muted}>
+              For payment {refundFor.ref}. The school office reviews every request; you'll see the status under Payments.
+            </p>
+            <Input label="Amount (₹)" inputMode="decimal" value={refundAmount} onChange={(e) => setRefundAmount(e.target.value)} hint={`Up to ${inr(refundFor.max)}`} />
+            <Input label="Reason" value={refundReason} onChange={(e) => setRefundReason(e.target.value)} placeholder="e.g. Paid twice by mistake" />
           </div>
-        </Modal>
-      )}
-
-      {/* FEE BILL DETAILED COMPONENTS BREAKDOWN MODAL */}
-      {selectedInvoiceForBreakdown && (
-        <Modal
-          title={`Fee Bill Breakdown — ${selectedInvoiceForBreakdown.invoiceNumber}`}
-          onClose={() => setSelectedInvoiceForBreakdown(null)}
-        >
-          <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
-            <div style={{ background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: "var(--erp-radius-sm)", padding: "1rem", fontSize: "0.88rem", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
-              <div>Billing Period: <strong>{selectedInvoiceForBreakdown.collectionPeriodCode || "Monthly Fee"}</strong></div>
-              <div>Last Payment Date: <strong>{new Date(selectedInvoiceForBreakdown.dueDate).toLocaleDateString("en-IN")}</strong></div>
-              <div>Total Bill Amount: <strong>₹{Number(selectedInvoiceForBreakdown.totalAmount).toLocaleString("en-IN")}</strong></div>
-              <div>Status: <strong>{selectedInvoiceForBreakdown.status}</strong></div>
-            </div>
-
-            <div style={{ fontSize: "0.88rem", fontWeight: 600, color: "var(--erp-text)" }}>
-              Detailed Component Items Included:
-            </div>
-
-            <Table
-              keyField="id"
-              columns={[
-                {
-                  key: "description",
-                  label: "Fee Component Head",
-                  render: (item: any) => item.feeCharge?.feeHead?.name || item.description || "Tuition Fee",
-                },
-                {
-                  key: "code",
-                  label: "Code",
-                  render: (item: any) => item.feeCharge?.feeHead?.code || "TUITION",
-                },
-                {
-                  key: "amount",
-                  label: "Amount",
-                  render: (item: any) => <strong>₹{Number(item.amount).toLocaleString("en-IN")}</strong>,
-                },
-              ]}
-              data={selectedInvoiceForBreakdown.items && selectedInvoiceForBreakdown.items.length > 0 ? selectedInvoiceForBreakdown.items : [
-                { id: 1, description: "Monthly Tuition Fee", code: "TUITION", amount: selectedInvoiceForBreakdown.totalAmount }
-              ]}
-            />
-
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginTop: "0.5rem" }}>
-              <Button variant="outline" onClick={() => setSelectedInvoiceForBreakdown(null)}>
-                Close
-              </Button>
-              {Math.max(0, Number(selectedInvoiceForBreakdown.totalAmount) - Number(selectedInvoiceForBreakdown.paidAmount || 0)) > 0 && (
-                <Button
-                  variant="primary"
-                  onClick={() => {
-                    const dueAmt = Math.max(0, Number(selectedInvoiceForBreakdown.totalAmount) - Number(selectedInvoiceForBreakdown.paidAmount || 0));
-                    setSelectedInvoiceForBreakdown(null);
-                    handlePayNow(dueAmt);
-                  }}
-                >
-                  Pay ₹{Math.max(0, Number(selectedInvoiceForBreakdown.totalAmount) - Number(selectedInvoiceForBreakdown.paidAmount || 0)).toLocaleString("en-IN")} Now →
-                </Button>
-              )}
-            </div>
+          <div className={shared.formActions}>
+            <Button variant="outline" onClick={() => setRefundFor(null)}>Cancel</Button>
+            <Button onClick={submitRefund} isLoading={requestingRefund}>Send request</Button>
           </div>
         </Modal>
       )}

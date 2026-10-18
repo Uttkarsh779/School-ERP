@@ -1,0 +1,85 @@
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.head,
+.actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.buttons {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.quickFill {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.muted {
+  font-size: 0.78rem;
+  color: var(--erp-text-muted);
+}
+
+.tableWrap {
+  overflow: auto;
+  max-height: 60vh;
+  border: 1px solid var(--erp-border);
+  border-radius: var(--erp-radius-sm);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+}
+
+.table th,
+.table td {
+  padding: 0.5rem 0.55rem;
+  border-bottom: 1px solid var(--erp-border);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.table th {
+  position: sticky;
+  top: 0;
+  background: var(--erp-surface);
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--erp-text-muted);
+  white-space: nowrap;
+}
+
+.grade,
+.remark {
+  font: inherit;
+  font-size: 0.86rem;
+  padding: 0.35rem 0.45rem;
+  border: 1px solid var(--erp-border);
+  border-radius: var(--erp-radius-sm);
+  background: var(--erp-surface);
+  color: var(--erp-text);
+}
+
+.remark {
+  width: 100%;
+  min-width: 240px;
+}
+
+.grade:focus,
+.remark:focus {
+  outline: none;
+  border-color: var(--erp-primary-600);
+  box-shadow: 0 0 0 3px var(--erp-primary-100);
+}

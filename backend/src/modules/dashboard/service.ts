@@ -1,4 +1,6 @@
 import { prisma } from "../../config/prisma";
+import { getFeeOverview } from "../fees/overviewService";
+import { getAdminOperationalOverview } from "./adminOverviewService";
 
 export const getAdminCounts = async () => {
   const [
@@ -8,7 +10,8 @@ export const getAdminCounts = async () => {
     parentCount,
     transportVillagesCount,
     transportStudentsCount,
-    recentInvoices,
+    feeOverview,
+    operational,
     recentNotices,
   ] = await Promise.all([
     prisma.student.count({ where: { isActive: true } }),
@@ -17,19 +20,14 @@ export const getAdminCounts = async () => {
     prisma.parentGuardian.count(),
     prisma.transportVillage.count({ where: { isActive: true } }),
     prisma.studentTransportAssignment.count({ where: { status: "ACTIVE" } }),
-    prisma.invoice.findMany({
-      take: 20,
-      orderBy: { createdAt: "desc" },
-    }),
+    getFeeOverview(),
+    getAdminOperationalOverview(),
     prisma.notice.findMany({
       take: 4,
       orderBy: { postedAt: "desc" },
     }),
   ]);
 
-  const totalMonthlyBilled = recentInvoices.reduce((sum, inv) => sum + Number(inv.totalAmount || 0), 0);
-  const totalMonthlyCollected = recentInvoices.reduce((sum, inv) => sum + Number(inv.paidAmount || 0), 0);
-  const totalPendingDues = Math.max(0, totalMonthlyBilled - totalMonthlyCollected);
 
   return {
     studentCount,
@@ -38,12 +36,25 @@ export const getAdminCounts = async () => {
     parentCount,
     transportVillagesCount,
     transportStudentsCount,
+    // Real figures only (see fees/overviewService) — zeros when nothing is billed yet.
     financialSummary: {
-      totalMonthlyBilled: totalMonthlyBilled || 185000,
-      totalMonthlyCollected: totalMonthlyCollected || 124000,
-      totalPendingDues: totalPendingDues || 61000,
-      collectionRate: totalMonthlyBilled > 0 ? Math.round((totalMonthlyCollected / totalMonthlyBilled) * 100) : 67,
+      totalMonthlyBilled: feeOverview.billedThisMonth,
+      totalMonthlyCollected: feeOverview.collectedThisMonth,
+      totalPendingDues: feeOverview.outstanding,
+      collectionRate: feeOverview.collectionRate ?? 0,
     },
+    fees: {
+      collectedToday: feeOverview.collectedToday,
+      paymentsToday: feeOverview.paymentsToday,
+      collectedThisMonth: feeOverview.collectedThisMonth,
+      billedThisMonth: feeOverview.billedThisMonth,
+      collectionRate: feeOverview.collectionRate,
+      outstanding: feeOverview.outstanding,
+      overdue: feeOverview.overdue,
+      defaulterCount: feeOverview.defaulterCount,
+      recentPayments: feeOverview.recentPayments.slice(0, 4),
+    },
+    ...operational,
     recentNotices: recentNotices.map((n) => ({
       id: n.id,
       title: n.title,

@@ -1,0 +1,20 @@
+.homePage {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  color: #0f172a;
+  overflow-x: hidden;
+  font-family: inherit;
+}
+
+.mainContent {
+  flex: 1;
+}
+
+.loaderOverlay {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+}

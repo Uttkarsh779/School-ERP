@@ -1,0 +1,154 @@
+.page {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.tabsContainer {
+  display: flex;
+  gap: 0.5rem;
+  border-bottom: 1px solid var(--erp-border, #e2e8f0);
+  padding-bottom: 0.5rem;
+  overflow-x: auto;
+}
+
+.tabBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1.25rem;
+  font-size: 0.92rem;
+  font-weight: 600;
+  border: none;
+  background: transparent;
+  color: var(--erp-text-muted, #64748b);
+  border-radius: var(--erp-radius-md, 0.5rem);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.tabBtn:hover {
+  background: var(--erp-primary-50, #f8fafc);
+  color: var(--erp-text, #0f172a);
+}
+
+.tabBtnActive {
+  background: var(--erp-primary-100, #eff6ff);
+  color: var(--erp-primary-700, #1d4ed8);
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1.25rem;
+}
+
+.fullWidth {
+  grid-column: 1 / -1;
+}
+
+.textareaField {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.textareaField label {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--erp-text, #0f172a);
+}
+
+.textarea {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--erp-border, #cbd5e1);
+  border-radius: var(--erp-radius-md, 0.5rem);
+  font-family: inherit;
+  font-size: 0.92rem;
+  color: var(--erp-text, #0f172a);
+  resize: vertical;
+  min-height: 100px;
+  box-sizing: border-box;
+  background: var(--erp-surface, #ffffff);
+}
+
+.textarea:focus {
+  outline: none;
+  border-color: var(--erp-primary, #1e40af);
+  box-shadow: 0 0 0 3px rgba(30, 64, 175, 0.15);
+}
+
+.checkboxField {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.75rem 0;
+  cursor: pointer;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--erp-text, #0f172a);
+}
+
+.checkbox {
+  width: 1.15rem;
+  height: 1.15rem;
+  cursor: pointer;
+}
+
+.modalForm {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding: 0.5rem 0;
+}
+
+.modalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--erp-border, #e2e8f0);
+}
+
+.filtersRow {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.filterChip {
+  padding: 0.35rem 0.85rem;
+  border-radius: 9999px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  border: 1px solid var(--erp-border, #e2e8f0);
+  background: var(--erp-surface, #ffffff);
+  color: var(--erp-text-muted, #64748b);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.filterChip:hover {
+  background: var(--erp-primary-50, #f8fafc);
+  color: var(--erp-text, #0f172a);
+}
+
+.filterChipActive {
+  background: var(--erp-primary-600, #0f2a47);
+  color: #ffffff;
+  border-color: var(--erp-primary-600, #0f2a47);
+}
+
+@media (max-width: 768px) {
+  .formGrid {
+    grid-template-columns: 1fr;
+  }
+}

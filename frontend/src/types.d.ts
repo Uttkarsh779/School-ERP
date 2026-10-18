@@ -276,6 +276,12 @@ interface IExam {
   name: string;
   classSectionId: number;
   classSection?: IClassSection;
+  passPercentage?: number;
+  isLocked?: boolean;
+  resultsPublished?: boolean;
+  publishedAt?: string | null;
+  lockedAt?: string | null;
+  lockedByUser?: { id: number; name: string } | null;
 }
 
 interface IExamResult {
@@ -287,6 +293,7 @@ interface IExamResult {
   subject?: ISubject;
   marksObtained: number;
   maxMarks: number;
+  isAbsent?: boolean;
   enteredByUserId: number;
 }
 
@@ -302,13 +309,28 @@ interface IReportCardSubject {
   subjectName: string;
   marksObtained: number;
   maxMarks: number;
+  isAbsent?: boolean;
+  passed?: boolean;
 }
 
 interface IReportCard {
   examId: number;
   examName: string;
+  passPercentage?: number;
   studentId: number;
   subjects: IReportCardSubject[];
+  // Overall result; rank only once the exam is locked (isFinal).
+  isFinal?: boolean;
+  status?: "PASS" | "FAIL" | "ABSENT" | "PENDING" | "NOT_ENTERED" | null;
+  failedSubjects?: string[];
+  rank?: number | null;
+  rankedCount?: number | null;
+  resultsPublished?: boolean;
+  remarks?: {
+    remark: string | null;
+    classTeacher: string | null;
+    coScholastic: { workEducation: string | null; artEducation: string | null; healthPhysical: string | null; discipline: string | null };
+  } | null;
   total: number;
   maxTotal: number;
   percentage: number;
@@ -406,6 +428,7 @@ interface IInvoice {
   studentId: number;
   student?: IStudent;
   sessionId: number;
+  collectionPeriodCode?: string | null;
   issueDate: string;
   dueDate: string;
   totalBaseAmount: number;
@@ -417,6 +440,7 @@ interface IInvoice {
   notes?: string | null;
   items: IInvoiceItem[];
   createdAt: string;
+  updatedAt?: string;
 }
 
 interface IPaymentAllocation {

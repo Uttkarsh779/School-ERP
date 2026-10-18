@@ -46,3 +46,58 @@
 .tableCard {
   overflow: hidden;
 }
+
+.finalNote {
+  margin: -0.5rem 0 1.25rem;
+  font-size: 0.82rem;
+  color: var(--erp-text-muted);
+}
+
+.remarksGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.25rem;
+  margin-top: 1.25rem;
+  align-items: stretch;
+}
+
+.coList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.coList li {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 0.45rem;
+  border-bottom: 1px solid var(--erp-border);
+  font-size: 0.9rem;
+}
+
+.grade {
+  font-weight: 700;
+  color: var(--erp-primary-700);
+}
+
+.grade small {
+  font-weight: 400;
+  color: var(--erp-text-muted);
+}
+
+.remark {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--erp-text);
+}
+
+.remark footer {
+  margin-top: 0.5rem;
+  font-size: 0.82rem;
+  color: var(--erp-text-muted);
+}

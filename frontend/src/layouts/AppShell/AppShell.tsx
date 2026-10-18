@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { useDispatch } from "react-redux";
 import styles from "./AppShell.module.css";
 import { Icon } from "../../components/ui";
 import { useAppSelector } from "../../store/store";
 import { resetTokens } from "../../store/reducers/authReducer";
-import { navByRole, getMobilePrimaryNav } from "./navConfig";
+import { navByRole, getMobilePrimaryNav, profilePathByRole } from "./navConfig";
+import { useGetMyProfileQuery } from "../../store/api/profile.api";
 import PWAInstallPrompt from "../../components/PWAInstallPrompt/PWAInstallPrompt";
 
 const roleLabel: Record<string, string> = {
@@ -25,6 +26,11 @@ const AppShell = () => {
   const items = navByRole[user?.role ?? ""] ?? [];
   const primaryMobileItems = getMobilePrimaryNav(user?.role ?? "");
   const initials = (user?.name ?? user?.email ?? "?").charAt(0).toUpperCase();
+  // Profile photo + current name (they can change after login) for the user card.
+  const { data: me } = useGetMyProfileQuery(undefined, { skip: !user });
+  const displayName = me?.name ?? user?.name ?? user?.email;
+  const avatar = me?.photoUrl ? <img src={me.photoUrl} alt="" className={styles.avatarImg} /> : initials;
+  const profilePath = profilePathByRole[user?.role ?? ""];
 
   // Determine active section title for mobile header
   const activeItem = items.find((item) =>
@@ -63,17 +69,28 @@ const AppShell = () => {
         </nav>
 
         <div className={styles.footer}>
-          <div className={styles.userCard}>
-            <div className={styles.avatar}>{initials}</div>
+          <Link
+            to={profilePath ?? "#"}
+            className={`${styles.userCard} ${styles.userCardLink}`}
+            title="My profile"
+            onClick={() => setMobileOpen(false)}
+          >
+            <div className={styles.avatar}>{avatar}</div>
             <div>
-              <div className={styles.userName}>{user?.name ?? user?.email}</div>
+              <div className={styles.userName}>{displayName}</div>
               <div className={styles.userRole}>{roleLabel[user?.role ?? ""] ?? user?.role}</div>
             </div>
+          </Link>
+          <div className={styles.footerActions}>
+            <Link to="/" className={styles.websiteButton} title="Visit School Website">
+              <Icon name="globe" size={16} />
+              <span>School Website</span>
+            </Link>
+            <button type="button" className={styles.logoutButton} onClick={() => dispatch(resetTokens())}>
+              <Icon name="logout" size={16} />
+              <span>Sign out</span>
+            </button>
           </div>
-          <button type="button" className={styles.logoutButton} onClick={() => dispatch(resetTokens())}>
-            <Icon name="logout" size={16} />
-            Sign out
-          </button>
         </div>
       </aside>
 
@@ -104,7 +121,7 @@ const AppShell = () => {
             onClick={() => setMobileOpen(true)}
             aria-label="Open User Menu"
           >
-            <div className={styles.avatar}>{initials}</div>
+            <div className={styles.avatar}>{avatar}</div>
           </button>
         </header>
 

@@ -1,7 +1,9 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
+import { useSearchParams } from "react-router-dom";
 import { toast } from "react-toastify";
 import {
+  Badge,
   Button,
   Card,
   EmptyState,
@@ -30,10 +32,14 @@ import {
   type EnterExamResultInput,
 } from "../../../../store/api/exams.api";
 import styles from "../../admin/Exams/AdminExamsPage.module.css";
+import ExamResultsView from "../../admin/Exams/ExamResultsView";
+import RemarksEditor from "../../admin/Exams/RemarksEditor";
+import { isAbsentText, validateMarksCell } from "../../admin/Exams/marksCell";
 
 interface NewExamFormInputs {
   name: string;
   sessionId: string;
+  passPercentage: string;
 }
 
 interface MarksCell {
@@ -57,11 +63,15 @@ const getErrorMessage = (err: unknown, fallback: string) => {
 // teacher only has their own subject's columns accepted when saving — see the
 // per-row "You aren't assigned to teach this subject" failures if they try others.
 const TeacherExamsPage = () => {
-  const [classSectionId, setClassSectionId] = useState<string>("");
+  // ?classSectionId= lets the teacher dashboard deep-link straight to a class's exams.
+  const [searchParams] = useSearchParams();
+  const [classSectionId, setClassSectionId] = useState<string>(searchParams.get("classSectionId") ?? "");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedExam, setSelectedExam] = useState<IExam | null>(null);
   const [marks, setMarks] = useState<Record<string, MarksCell>>({});
   const [lastOutcomes, setLastOutcomes] = useState<IExamResultOutcome[] | null>(null);
+  const [resultsExamId, setResultsExamId] = useState<number | null>(null);
+  const [remarksExamId, setRemarksExamId] = useState<number | null>(null);
 
   const csId = classSectionId ? Number(classSectionId) : undefined;
 
@@ -91,7 +101,7 @@ const TeacherExamsPage = () => {
     const seeded: Record<string, MarksCell> = {};
     for (const result of existingResults) {
       seeded[cellKey(result.studentId, result.subjectId)] = {
-        marksObtained: String(result.marksObtained),
+        marksObtained: result.isAbsent ? "AB" : String(result.marksObtained),
         maxMarks: String(result.maxMarks),
       };
     }
@@ -126,27 +136,33 @@ const TeacherExamsPage = () => {
     return currentClassSection.classTeacherId === currentStaffId;
   }, [currentClassSection, currentStaffId]);
 
+  // Marks are editable only by the subject's allocated teacher (Subjects panel) — the class
+  // teacher included; they see the other subjects read-only. Mirrors the backend rule.
+  const isLocked = !!selectedExam?.isLocked;
   const canEditSubject = (subject: ISubject) => {
-    if (user?.role === "ADMIN" || user?.role === "SUPER_ADMIN") return true;
-    if (isClassTeacher) return true;
-    if (!currentStaffId) return false;
+    if (isLocked || !currentStaffId) return false;
     return Boolean(subject.teacherSubjects?.some((ts) => ts.staffId === currentStaffId));
   };
 
   const openModal = () => {
-    reset({ name: "", sessionId: "" });
+    reset({ name: "", sessionId: "", passPercentage: "33" });
     setIsModalOpen(true);
   };
 
   const closeModal = () => {
     setIsModalOpen(false);
-    reset({ name: "", sessionId: "" });
+    reset({ name: "", sessionId: "", passPercentage: "33" });
   };
 
   const onCreateExam = async (values: NewExamFormInputs) => {
     if (!csId) return;
     try {
-      await createExam({ name: values.name, sessionId: Number(values.sessionId), classSectionId: csId }).unwrap();
+      await createExam({
+        name: values.name,
+        sessionId: Number(values.sessionId),
+        classSectionId: csId,
+        passPercentage: Number(values.passPercentage),
+      }).unwrap();
       toast.success("Exam created successfully.");
       closeModal();
     } catch (err) {
@@ -180,13 +196,21 @@ const TeacherExamsPage = () => {
     const results: EnterExamResultInput[] = [];
     for (const student of students) {
       for (const subject of subjects) {
+        if (!canEditSubject(subject)) continue; // read-only columns are never sent
         const cell = marks[cellKey(student.id, subject.id)];
-        if (!cell || cell.marksObtained === "" || cell.maxMarks === "") continue;
+        if (!cell || cell.marksObtained.trim() === "" || cell.maxMarks === "") continue;
+        const error = validateMarksCell(cell.marksObtained, cell.maxMarks);
+        if (error) {
+          toast.error(`${student.name} — ${subject.name}: ${error}`);
+          return;
+        }
+        const absent = isAbsentText(cell.marksObtained);
         results.push({
           studentId: student.id,
           subjectId: subject.id,
-          marksObtained: Number(cell.marksObtained),
+          marksObtained: absent ? 0 : Number(cell.marksObtained),
           maxMarks: Number(cell.maxMarks),
+          isAbsent: absent,
         });
       }
     }
@@ -211,15 +235,35 @@ const TeacherExamsPage = () => {
   };
 
   const examColumns: TableColumn<IExam>[] = [
-    { key: "name", label: "Exam Name" },
+    {
+      key: "name",
+      label: "Exam Name",
+      render: (exam) => (
+        <span style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem" }}>
+          {exam.name}
+          {exam.resultsPublished ? <Badge tone="success">Published</Badge> : exam.isLocked && <Badge tone="warning">Locked</Badge>}
+        </span>
+      ),
+    },
     { key: "session", label: "Session", render: (exam) => exam.session?.name ?? "—" },
+    { key: "passPercentage", label: "Pass Mark", render: (exam) => `${exam.passPercentage ?? 33}%` },
     {
       key: "actions",
       label: "Actions",
       render: (exam) => (
-        <Button type="button" size="sm" onClick={() => openMarksEntry(exam)}>
-          Enter Marks
-        </Button>
+        <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
+          <Button type="button" size="sm" onClick={() => openMarksEntry(exam)}>
+            Enter Marks
+          </Button>
+          <Button type="button" size="sm" variant="outline" onClick={() => setResultsExamId(exam.id)}>
+            Results &amp; Ranks
+          </Button>
+          {isClassTeacher && (
+            <Button type="button" size="sm" variant="outline" onClick={() => setRemarksExamId(exam.id)}>
+              Report remarks
+            </Button>
+          )}
+        </div>
       ),
     },
   ];
@@ -231,6 +275,10 @@ const TeacherExamsPage = () => {
   }, [students]);
 
   const failures = (lastOutcomes ?? []).filter((o) => !o.success);
+
+  if (resultsExamId !== null) {
+    return <ExamResultsView examId={resultsExamId} onBack={() => setResultsExamId(null)} />;
+  }
 
   return (
     <div>
@@ -314,10 +362,15 @@ const TeacherExamsPage = () => {
           ) : (
             <>
               {/* Access Mode Notification Banner */}
-              {isClassTeacher ? (
+              {isLocked ? (
+                <div style={{ background: "var(--erp-warning-bg)", border: "1px solid var(--erp-warning)", borderRadius: "var(--erp-radius-sm)", padding: "0.75rem 1rem", marginBottom: "1rem", fontSize: "0.85rem", color: "var(--erp-warning)", fontWeight: 600, display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <span>🔒</span>
+                  <span>Marks for this exam are locked{selectedExam?.lockedByUser ? ` by ${selectedExam.lockedByUser.name}` : ""}. Ask an administrator to unlock it if a correction is needed.</span>
+                </div>
+              ) : isClassTeacher ? (
                 <div style={{ background: "var(--erp-primary-50, #f0f7ff)", border: "1px solid var(--erp-primary-600)", borderRadius: "var(--erp-radius-sm)", padding: "0.75rem 1rem", marginBottom: "1rem", fontSize: "0.85rem", color: "var(--erp-primary-700)", fontWeight: 600, display: "flex", alignItems: "center", gap: "0.5rem" }}>
                   <span>👑</span>
-                  <span>Class Teacher Access: You are the assigned Class Teacher for this section. You can view &amp; update marks for ALL subjects.</span>
+                  <span>Class Teacher Access: You can view marks for ALL subjects of this class. You can enter &amp; update only the subject(s) allocated to you — the others are read-only.</span>
                 </div>
               ) : (
                 <div style={{ background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: "var(--erp-radius-sm)", padding: "0.75rem 1rem", marginBottom: "1rem", fontSize: "0.85rem", color: "var(--erp-text-muted)", display: "flex", alignItems: "center", gap: "0.5rem" }}>
@@ -326,6 +379,10 @@ const TeacherExamsPage = () => {
                 </div>
               )}
 
+              <p style={{ margin: "0 0 0.75rem", fontSize: "0.82rem", color: "var(--erp-text-muted)" }}>
+                Type <strong>AB</strong> in the Marks box for a student who was absent (still fill in Max). Leave a cell
+                empty if marks aren&apos;t available yet.
+              </p>
               <div className={styles.gridWrapper}>
                 <table className={styles.grid}>
                   <thead>
@@ -336,7 +393,7 @@ const TeacherExamsPage = () => {
                         const editable = canEditSubject(subject);
                         return (
                           <th key={subject.id} colSpan={2} className={styles.subjectHeader} style={{ background: editable ? undefined : "var(--erp-surface-muted, #f8fafc)", opacity: editable ? 1 : 0.75 }}>
-                            {subject.name} {!editable && <span title="Locked: Assigned to another teacher">🔒</span>}
+                            {subject.name} {!editable && <span title={isLocked ? "Exam marks are locked" : "Read-only: allocated to another teacher"}>🔒</span>}
                           </th>
                         );
                       })}
@@ -364,12 +421,14 @@ const TeacherExamsPage = () => {
                             <Fragment key={subject.id}>
                               <td>
                                 <input
-                                  type="number"
+                                  type="text"
+                                  inputMode="decimal"
                                   className={styles.cellInput}
-                                  min={0}
+                                  placeholder="–"
+                                  aria-label={`${student.name} ${subject.name} marks (number or AB)`}
                                   value={cell.marksObtained}
                                   disabled={!editable}
-                                  title={editable ? "" : "Only the assigned subject teacher or Class Teacher can edit"}
+                                  title={editable ? "" : isLocked ? "Exam marks are locked" : "Only the subject's allocated teacher can edit"}
                                   style={editable ? {} : { opacity: 0.5, cursor: "not-allowed", background: "var(--erp-surface-muted, #f1f5f9)" }}
                                   onChange={(e) => setCell(student.id, subject.id, "marksObtained", e.target.value)}
                                 />
@@ -381,7 +440,7 @@ const TeacherExamsPage = () => {
                                   min={0}
                                   value={cell.maxMarks}
                                   disabled={!editable}
-                                  title={editable ? "" : "Only the assigned subject teacher or Class Teacher can edit"}
+                                  title={editable ? "" : isLocked ? "Exam marks are locked" : "Only the subject's allocated teacher can edit"}
                                   style={editable ? {} : { opacity: 0.5, cursor: "not-allowed", background: "var(--erp-surface-muted, #f1f5f9)" }}
                                   onChange={(e) => setCell(student.id, subject.id, "maxMarks", e.target.value)}
                                 />
@@ -395,7 +454,12 @@ const TeacherExamsPage = () => {
                 </table>
               </div>
               <div className={styles.saveBar}>
-                <Button variant="primary" isLoading={isSavingMarks} onClick={handleSaveMarks}>
+                <Button
+                  variant="primary"
+                  isLoading={isSavingMarks}
+                  onClick={handleSaveMarks}
+                  disabled={isLocked || !subjects.some(canEditSubject)}
+                >
                   Save Marks
                 </Button>
               </div>
@@ -403,6 +467,8 @@ const TeacherExamsPage = () => {
           )}
         </Card>
       )}
+
+      {remarksExamId !== null && <RemarksEditor examId={remarksExamId} onClose={() => setRemarksExamId(null)} />}
 
       {isModalOpen && (
         <Modal title="New Exam" onClose={closeModal}>
@@ -422,6 +488,19 @@ const TeacherExamsPage = () => {
                   placeholder="Select a session"
                   error={errors.sessionId?.message}
                   {...register("sessionId", { required: "Session is required" })}
+                />
+                <Input
+                  label="Pass Mark (% per subject)"
+                  type="number"
+                  min={0}
+                  max={100}
+                  step="0.5"
+                  required
+                  error={errors.passPercentage?.message}
+                  {...register("passPercentage", {
+                    required: "Pass mark is required",
+                    validate: (v) => (Number(v) >= 0 && Number(v) <= 100) || "Enter a value between 0 and 100",
+                  })}
                 />
                 <div className={styles.prefilledField} style={{ gridColumn: "1 / -1" }}>
                   <span className={styles.prefilledLabel}>Class Section</span>

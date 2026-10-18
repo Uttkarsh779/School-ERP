@@ -9,10 +9,28 @@ import * as adjustmentService from "./adjustmentService";
 import * as receiptService from "./receiptService";
 import * as paymentAllocationService from "./paymentAllocationService";
 import * as collectionEngineService from "./collectionEngineService";
+import * as multiMonthPaymentService from "./multiMonthPaymentService";
+import * as overviewService from "./overviewService";
 import * as transportVillageService from "../transport/transportVillageService";
-import { recordFamilyPayment } from "./familyPaymentService";
 import { prisma } from "../../config/prisma";
-import { FeeMode, PaymentStatus } from "../../generated/prisma/enums";
+import { FeeMode, LateFeeType, PaymentStatus } from "../../generated/prisma/enums";
+import { parseSlabs, receiptNumberFor } from "./lateFeeService";
+
+// For STUDENT/PARENT callers, the student ids they may see financial data for (null =
+// staff, unrestricted). Used to scope list endpoints that are otherwise "all students".
+const ownStudentIds = async (req: CustomRequest): Promise<number[] | null> => {
+  const role = req.user?.role;
+  if (role === "SUPER_ADMIN" || role === "ADMIN") return null;
+  if (role === "STUDENT") {
+    const s = await prisma.student.findUnique({ where: { userId: req.user!.id }, select: { id: true } });
+    return s ? [s.id] : [];
+  }
+  if (role === "PARENT") {
+    const p = await prisma.parentGuardian.findUnique({ where: { userId: req.user!.id }, include: { children: true } });
+    return p ? p.children.map((c: any) => c.studentId) : [];
+  }
+  return [];
+};
 
 // Helper to check ownership for STUDENT or PARENT
 const verifyStudentAccess = async (req: CustomRequest, studentId: number): Promise<boolean> => {
@@ -113,7 +131,39 @@ export const postBulkUpdateFeeStructures = async (req: CustomRequest, res: Respo
   res.json({ success: true, message: `Successfully updated ${result.updatedCount} class fee structures`, data: result });
 };
 
+// Validates fee-structure items (create + update). Returns an error message or null.
+const validateStructureItems = (items: unknown): string | null => {
+  if (!Array.isArray(items) || items.length === 0) return "Add at least one fee item";
+  const heads = new Set<number>();
+  for (const it of items as any[]) {
+    const headId = Number(it?.feeHeadId);
+    const amount = Number(it?.amount);
+    if (!Number.isInteger(headId) || headId <= 0) return "Each item needs a fee head";
+    if (heads.has(headId)) return "Each fee head can appear only once in a structure";
+    heads.add(headId);
+    if (!Number.isFinite(amount) || amount <= 0) return "Each fee amount must be greater than zero";
+    if (!["MONTHLY", "ANNUAL", "ONE_TIME"].includes(it?.frequency)) return "Frequency must be Monthly, Annual or One-time";
+    const months = it?.applicableMonths;
+    if (!Array.isArray(months) || months.length === 0 || months.some((m: any) => !Number.isInteger(m) || m < 1 || m > 12)) {
+      return "Choose the month(s) each fee is charged (1-12)";
+    }
+    if (it?.dueDateDay !== undefined && (!Number.isInteger(Number(it.dueDateDay)) || Number(it.dueDateDay) < 1 || Number(it.dueDateDay) > 28)) {
+      return "Due day must be between 1 and 28";
+    }
+  }
+  return null;
+};
+
 export const postFeeStructure = async (req: CustomRequest, res: Response) => {
+  if (!Number(req.body?.sessionId)) {
+    res.status(400).json({ success: false, message: "Choose the academic session" });
+    return;
+  }
+  const itemError = validateStructureItems(req.body?.items);
+  if (itemError) {
+    res.status(400).json({ success: false, message: itemError });
+    return;
+  }
   const structure = await feeStructureService.createFeeStructureWithItems(req.body);
   await ledgerService.createAuditLog({
     action: "CREATE_FEE_STRUCTURE",
@@ -127,6 +177,13 @@ export const postFeeStructure = async (req: CustomRequest, res: Response) => {
 
 export const putFeeStructure = async (req: CustomRequest, res: Response) => {
   const id = Number(req.params.id);
+  if (req.body?.items !== undefined) {
+    const itemError = validateStructureItems(req.body.items);
+    if (itemError) {
+      res.status(400).json({ success: false, message: itemError });
+      return;
+    }
+  }
   const structure = await feeStructureService.updateFeeStructure(id, req.body);
   await ledgerService.createAuditLog({
     action: "UPDATE_FEE_STRUCTURE",
@@ -194,12 +251,22 @@ export const postGenerateInvoice = async (req: CustomRequest, res: Response) => 
 };
 
 export const getInvoices = async (req: CustomRequest, res: Response) => {
-  const studentId = req.query.studentId ? Number(req.query.studentId) : undefined;
+  let studentId = req.query.studentId ? Number(req.query.studentId) : undefined;
   if (studentId) {
     const isAllowed = await verifyStudentAccess(req, studentId);
     if (!isAllowed) {
       res.status(403).json({ success: false, message: "Forbidden" });
       return;
+    }
+  } else {
+    // No studentId: staff get everything; a student/parent only ever gets their own.
+    const own = await ownStudentIds(req);
+    if (own !== null) {
+      if (own.length !== 1) {
+        res.status(400).json({ success: false, message: "studentId is required" });
+        return;
+      }
+      studentId = own[0];
     }
   }
   const invoices = await invoiceService.listInvoices({
@@ -266,33 +333,60 @@ export const postVerifyRazorpayPayment = async (req: CustomRequest, res: Respons
 
 export const postRazorpayWebhook = async (req: CustomRequest, res: Response) => {
   const signature = req.headers["x-razorpay-signature"] as string;
-  const rawBody = JSON.stringify(req.body);
+  // Razorpay signs the exact bytes it sent — use the raw body captured in app.ts.
+  const rawBody = (req as any).rawBody ?? JSON.stringify(req.body);
   const result = await razorpayService.processRazorpayWebhook(rawBody, signature);
   res.json({ success: true, data: result });
 };
 
 // Offline Manual Payment Entry
 export const postManualPayment = async (req: CustomRequest, res: Response) => {
-  const { studentId, amount, mode, transactionRef } = req.body;
-  const receiptNumber = await receiptService.generateReceiptNumber();
-  const paymentNumber = `PAY-MANUAL-${Date.now()}-${studentId}`;
+  const { transactionRef } = req.body;
+  const studentId = Number(req.body.studentId);
+  const amount = Number(req.body.amount);
+  const mode = req.body.mode as FeeMode;
+  if (!Number.isInteger(studentId) || studentId <= 0) {
+    res.status(400).json({ success: false, message: "Select a student" });
+    return;
+  }
+  if (!Number.isFinite(amount) || amount <= 0 || Math.round(amount * 100) !== amount * 100) {
+    res.status(400).json({ success: false, message: "Amount must be greater than zero with at most 2 decimals" });
+    return;
+  }
+  if (!Object.values(FeeMode).includes(mode) || mode === FeeMode.GATEWAY) {
+    res.status(400).json({ success: false, message: "Choose Cash, Bank Transfer or UPI" });
+    return;
+  }
+  if (!(await prisma.student.findUnique({ where: { id: studentId }, select: { id: true } }))) {
+    res.status(404).json({ success: false, message: "Student not found" });
+    return;
+  }
 
-  const payment = await prisma.payment.create({
-    data: {
-      paymentNumber,
+  // Payment, receipt number and FIFO allocation succeed or fail together.
+  const payment = await prisma.$transaction(async (tx: any) => {
+    const created = await tx.payment.create({
+      data: {
+        paymentNumber: `PAY-MANUAL-${Date.now()}-${studentId}`,
+        studentId,
+        amount,
+        mode,
+        status: PaymentStatus.SUCCESS,
+        transactionRef: transactionRef || null,
+        paidAt: new Date(),
+        recordedByUserId: req.user!.id,
+      },
+    });
+    const withReceipt = await tx.payment.update({
+      where: { id: created.id },
+      data: { receiptNumber: receiptNumberFor(created.id) },
+    });
+    await paymentAllocationService.allocatePaymentToChargesTransactionally(tx, {
+      paymentId: created.id,
       studentId,
-      amount: Number(amount),
-      mode: mode as FeeMode,
-      status: PaymentStatus.SUCCESS,
-      transactionRef,
-      receiptNumber,
-      paidAt: new Date(),
-      recordedByUserId: req.user!.id,
-    },
+      amount,
+    });
+    return withReceipt;
   });
-
-  // Allocate payment FIFO
-  await paymentAllocationService.allocatePaymentToCharges(payment.id, studentId, Number(amount));
 
   await ledgerService.createAuditLog({
     action: "RECORD_MANUAL_PAYMENT",
@@ -303,24 +397,6 @@ export const postManualPayment = async (req: CustomRequest, res: Response) => {
   });
 
   res.status(201).json({ success: true, data: payment });
-};
-
-export const postFamilyPayment = async (req: CustomRequest, res: Response) => {
-  const { parentGuardianId, totalAmount, mode, transactionRef, notes, allocations } = req.body;
-  try {
-    const result = await recordFamilyPayment({
-      parentGuardianId: Number(parentGuardianId),
-      totalAmount: Number(totalAmount),
-      mode: mode as FeeMode,
-      transactionRef,
-      notes,
-      recordedByUserId: req.user!.id,
-      allocations,
-    });
-    res.status(201).json({ success: true, data: result });
-  } catch (error: any) {
-    res.status(400).json({ success: false, message: error.message });
-  }
 };
 
 // Receipts
@@ -348,31 +424,6 @@ export const getReceiptPdfHtml = async (req: CustomRequest, res: Response) => {
   res.send(html);
 };
 
-export const getFamilyReceipt = async (req: CustomRequest, res: Response) => {
-  const { receiptNo } = req.params;
-  const batch = await prisma.paymentBatch.findUnique({
-    where: { receiptNumber: receiptNo },
-    include: {
-      parentGuardian: true,
-      payments: {
-        include: {
-          student: true,
-          allocations: {
-            include: { feeCharge: { include: { feeHead: true } } }
-          }
-        }
-      }
-    }
-  });
-
-  if (!batch) {
-    res.status(404).json({ success: false, message: "Receipt not found" });
-    return;
-  }
-
-  res.json({ success: true, data: batch });
-};
-
 // Student Financial Ledger
 export const getStudentLedger = async (req: CustomRequest, res: Response) => {
   const studentId = Number(req.params.studentId);
@@ -387,8 +438,26 @@ export const getStudentLedger = async (req: CustomRequest, res: Response) => {
 
 // Adjustments & Discounts
 export const postAdjustment = async (req: CustomRequest, res: Response) => {
+  const value = Number(req.body.value);
+  if (!Number.isFinite(value) || value <= 0) {
+    res.status(400).json({ success: false, message: "Discount value must be greater than zero" });
+    return;
+  }
+  if (req.body.calculationType === "PERCENTAGE" && value > 100) {
+    res.status(400).json({ success: false, message: "A percentage discount can't exceed 100%" });
+    return;
+  }
+  if (!String(req.body.reason ?? "").trim()) {
+    res.status(400).json({ success: false, message: "A reason is required" });
+    return;
+  }
   const adjustment = await adjustmentService.applyFeeAdjustment({
-    ...req.body,
+    studentId: Number(req.body.studentId),
+    feeChargeId: req.body.feeChargeId ? Number(req.body.feeChargeId) : undefined,
+    type: req.body.type,
+    calculationType: req.body.calculationType,
+    value,
+    reason: String(req.body.reason).trim(),
     appliedByUserId: req.user!.id,
   });
   await ledgerService.createAuditLog({
@@ -403,8 +472,43 @@ export const postAdjustment = async (req: CustomRequest, res: Response) => {
 
 // Refunds
 export const postRefundRequest = async (req: CustomRequest, res: Response) => {
+  const studentId = Number(req.body.studentId);
+  const amount = Number(req.body.amount);
+  const reason = String(req.body.reason ?? "").trim();
+  if (!(await verifyStudentAccess(req, studentId))) {
+    res.status(403).json({ success: false, message: "Forbidden: you can only request refunds for your own fees" });
+    return;
+  }
+  if (!Number.isFinite(amount) || amount <= 0) {
+    res.status(400).json({ success: false, message: "Refund amount must be greater than zero" });
+    return;
+  }
+  if (reason.length < 5) {
+    res.status(400).json({ success: false, message: "Please give a reason (at least 5 characters)" });
+    return;
+  }
+  const paymentId = req.body.paymentId ? Number(req.body.paymentId) : undefined;
+  if (paymentId) {
+    const payment = await prisma.payment.findUnique({ where: { id: paymentId } });
+    if (!payment || payment.studentId !== studentId || payment.status !== PaymentStatus.SUCCESS) {
+      res.status(400).json({ success: false, message: "That payment can't be refunded" });
+      return;
+    }
+    const alreadyRequested = await prisma.refund.aggregate({
+      where: { paymentId, status: { in: ["REFUND_REQUESTED", "REFUND_APPROVED", "REFUND_PROCESSED"] } },
+      _sum: { amount: true },
+    });
+    const remaining = Number(payment.amount) - Number(alreadyRequested._sum.amount ?? 0);
+    if (amount > remaining) {
+      res.status(400).json({ success: false, message: `At most ₹${remaining.toLocaleString("en-IN")} of this payment can still be refunded` });
+      return;
+    }
+  }
   const refund = await adjustmentService.createRefundRequest({
-    ...req.body,
+    studentId,
+    paymentId,
+    amount,
+    reason,
     requestedByUserId: req.user!.id,
   });
   await ledgerService.createAuditLog({
@@ -435,13 +539,38 @@ export const patchApproveRefund = async (req: CustomRequest, res: Response) => {
   res.json({ success: true, data: refund });
 };
 
+export const patchProcessRefund = async (req: CustomRequest, res: Response) => {
+  const refund = await adjustmentService.markRefundProcessed(Number(req.params.id));
+  await ledgerService.createAuditLog({
+    action: "PROCESS_REFUND",
+    entityType: "Refund",
+    entityId: refund.id,
+    userId: req.user!.id,
+    newValues: refund,
+  });
+  res.json({ success: true, data: refund });
+};
+
+export const getFeeOverview = async (_req: CustomRequest, res: Response) => {
+  res.json({ success: true, data: await overviewService.getFeeOverview() });
+};
+
 export const getRefunds = async (req: CustomRequest, res: Response) => {
-  const studentId = req.query.studentId ? Number(req.query.studentId) : undefined;
+  let studentId = req.query.studentId ? Number(req.query.studentId) : undefined;
   if (studentId) {
     const isAllowed = await verifyStudentAccess(req, studentId);
     if (!isAllowed) {
       res.status(403).json({ success: false, message: "Forbidden" });
       return;
+    }
+  } else {
+    const own = await ownStudentIds(req);
+    if (own !== null) {
+      if (own.length !== 1) {
+        res.status(400).json({ success: false, message: "studentId is required" });
+        return;
+      }
+      studentId = own[0];
     }
   }
   const refunds = await adjustmentService.listRefunds(studentId);
@@ -662,12 +791,68 @@ export const postLateFeeRule = async (req: CustomRequest, res: Response) => {
     res.status(400).json({ success: false, message: "sessionId, feeType, and amount are required" });
     return;
   }
+  if (!Object.values(LateFeeType).includes(feeType)) {
+    res.status(400).json({ success: false, message: "feeType must be FIXED, DAILY or SLAB" });
+    return;
+  }
+  if (!Number.isFinite(Number(amount)) || Number(amount) < 0) {
+    res.status(400).json({ success: false, message: "amount must be 0 or more" });
+    return;
+  }
+  if (gracePeriodDays !== undefined && (!Number.isInteger(Number(gracePeriodDays)) || Number(gracePeriodDays) < 0)) {
+    res.status(400).json({ success: false, message: "gracePeriodDays must be a whole number of 0 or more" });
+    return;
+  }
+  if (feeType === "SLAB") {
+    try {
+      parseSlabs(slabsJson);
+    } catch (e) {
+      res.status(400).json({ success: false, message: (e as Error).message });
+      return;
+    }
+  }
   const rule = await feeStructureService.createLateFeeRule({
     sessionId: Number(sessionId),
-    gracePeriodDays: gracePeriodDays ? Number(gracePeriodDays) : 10,
+    gracePeriodDays: gracePeriodDays !== undefined && gracePeriodDays !== "" ? Number(gracePeriodDays) : 10,
     feeType,
     amount: Number(amount),
     slabsJson: typeof slabsJson === "string" ? slabsJson : slabsJson ? JSON.stringify(slabsJson) : undefined,
   });
   res.status(201).json({ success: true, data: rule });
 };
+
+export const getStudentMonthsChart = async (req: CustomRequest, res: Response) => {
+  try {
+    const studentId = Number(req.params.studentId);
+    const sessionId = req.query.sessionId ? Number(req.query.sessionId) : undefined;
+    const isAllowed = await verifyStudentAccess(req, studentId);
+    if (!isAllowed) {
+      res.status(403).json({ success: false, message: "Forbidden" });
+      return;
+    }
+    const result = await multiMonthPaymentService.getStudentMonthsChart(studentId, sessionId);
+    res.json({ success: true, data: result });
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error.message || "Failed to load fee chart" });
+  }
+};
+
+export const postMultiMonthPayment = async (req: CustomRequest, res: Response) => {
+  const body = req.body ?? {};
+  const requestsWaiver =
+    Boolean(body.waiveLateFines) ||
+    Number(body.lumpSumDiscount?.value) > 0 ||
+    (Array.isArray(body.selectedMonths) &&
+      body.selectedMonths.some((m: any) => Array.isArray(m.headWaivers) && m.headWaivers.some((w: any) => Number(w.waiverAmount) > 0)));
+  if (requestsWaiver && req.user!.role !== "SUPER_ADMIN") {
+    res.status(403).json({ success: false, message: "Only a Super Admin can apply waivers or discounts at the payment desk" });
+    return;
+  }
+  try {
+    const result = await multiMonthPaymentService.recordMultiMonthPayment(req.body, req.user!.id);
+    res.status(201).json({ success: true, data: result });
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error.message || "Failed to record payment" });
+  }
+};
+

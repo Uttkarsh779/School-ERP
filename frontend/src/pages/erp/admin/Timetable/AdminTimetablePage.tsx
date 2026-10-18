@@ -124,7 +124,7 @@ const AdminTimetablePage = () => {
     if (!editingCell || !csId) return;
 
     try {
-      await upsertSlot({
+      const saved = await upsertSlot({
         classSectionId: csId,
         dayOfWeek: editingCell.day,
         periodNumber: editingCell.period,
@@ -134,6 +134,7 @@ const AdminTimetablePage = () => {
       }).unwrap();
 
       toast.success("Timetable updated");
+      if (saved.warning) toast.warn(saved.warning, { autoClose: 9000 });
       setEditingCell(null);
     } catch (err) {
       toast.error(getErrorMessage(err, "Failed to update timetable"));

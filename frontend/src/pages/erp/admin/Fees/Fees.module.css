@@ -1,0 +1,289 @@
+/* Shared styles for the rebuilt Fee Management tabs. Uses the ERP design tokens only. */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+  border-bottom: 1px solid var(--erp-border);
+  overflow-x: auto;
+}
+
+.tab {
+  border: none;
+  background: transparent;
+  padding: 0.65rem 1rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--erp-text-muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  transition: color var(--erp-transition-fast), border-color var(--erp-transition-fast);
+}
+
+.tab:hover {
+  color: var(--erp-text);
+}
+
+.tabActive {
+  color: var(--erp-primary-700);
+  border-bottom-color: var(--erp-primary-600);
+}
+
+.tabCount {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  background: var(--erp-danger-bg);
+  color: var(--erp-danger);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.twoCol {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 1.25rem;
+  align-items: stretch;
+}
+
+.twoCol > * {
+  height: 100%;
+}
+
+.filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1rem;
+  align-items: end;
+  margin-bottom: 1.25rem;
+}
+
+.wide {
+  grid-column: span 2;
+}
+
+.muted {
+  font-size: 0.8rem;
+  color: var(--erp-text-muted);
+  margin: 0;
+}
+
+.danger {
+  color: var(--erp-danger);
+}
+
+.success {
+  color: var(--erp-success);
+}
+
+.strong {
+  font-weight: 700;
+}
+
+.rowActions {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.listItem {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: var(--erp-radius-md);
+  background: var(--erp-bg);
+  border: 1px solid var(--erp-border);
+}
+
+.listMain {
+  flex: 1;
+  min-width: 0;
+}
+
+.itemTitle {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--erp-text);
+}
+
+.amount {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.notice {
+  padding: 0.8rem 1rem;
+  border-radius: var(--erp-radius-sm);
+  font-size: 0.86rem;
+  line-height: 1.45;
+  background: var(--erp-info-bg);
+  color: var(--erp-info);
+}
+
+.noticeWarn {
+  background: var(--erp-warning-bg);
+  color: var(--erp-warning);
+}
+
+.noticeDanger {
+  background: var(--erp-danger-bg);
+  color: var(--erp-danger);
+}
+
+.summaryBox {
+  border: 1px solid var(--erp-border);
+  border-radius: var(--erp-radius-md);
+  background: var(--erp-bg);
+  padding: 0.9rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  font-size: 0.88rem;
+}
+
+.summaryLine {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.summaryTotal {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-top: 0.55rem;
+  margin-top: 0.2rem;
+  border-top: 1px solid var(--erp-border);
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--erp-text);
+}
+
+.discount {
+  color: var(--erp-success);
+}
+
+.formActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin-top: 1rem;
+  flex-wrap: wrap;
+}
+
+.formStack {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.itemsTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+}
+
+.itemsTable th,
+.itemsTable td {
+  text-align: left;
+  padding: 0.5rem 0.45rem;
+  border-bottom: 1px solid var(--erp-border);
+  vertical-align: middle;
+}
+
+.itemsTable th {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--erp-text-muted);
+}
+
+.cellInput {
+  width: 100%;
+  min-width: 5rem;
+  font: inherit;
+  font-size: 0.86rem;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--erp-border);
+  border-radius: var(--erp-radius-sm);
+  background: var(--erp-surface);
+  color: var(--erp-text);
+}
+
+.cellInput:focus {
+  outline: none;
+  border-color: var(--erp-primary-600);
+  box-shadow: 0 0 0 3px var(--erp-primary-100);
+}
+
+.monthPicker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.monthChip {
+  border: 1px solid var(--erp-border);
+  background: var(--erp-surface);
+  color: var(--erp-text-muted);
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.15rem 0.45rem;
+  cursor: pointer;
+}
+
+.monthChipOn {
+  background: var(--erp-primary-100);
+  border-color: var(--erp-primary-600);
+  color: var(--erp-primary-700);
+}
+
+.track {
+  height: 0.45rem;
+  border-radius: 999px;
+  background: var(--erp-bg);
+  border: 1px solid var(--erp-border);
+  overflow: hidden;
+}
+
+.bar {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--erp-primary-600);
+}
+
+@media (max-width: 600px) {
+  .wide {
+    grid-column: 1 / -1;
+  }
+}

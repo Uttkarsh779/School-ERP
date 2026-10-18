@@ -128,7 +128,7 @@ export const listInvoices = async (filters: {
         },
       },
       dueDateLogs: {
-        include: { changedByUser: true },
+        include: { changedByUser: { select: { id: true, name: true } } },
         orderBy: { timestamp: "desc" },
       },
     },
@@ -155,7 +155,7 @@ export const getInvoiceById = async (id: number) => {
         },
       },
       dueDateLogs: {
-        include: { changedByUser: true },
+        include: { changedByUser: { select: { id: true, name: true } } },
         orderBy: { timestamp: "desc" },
       },
     },
@@ -176,6 +176,12 @@ export const extendInvoiceDueDate = async (data: {
 
   const oldDueDate = invoice.dueDate;
   const updatedDueDate = new Date(newDueDate);
+  if (Number.isNaN(updatedDueDate.getTime())) {
+    throw Object.assign(new Error("Choose a valid new due date"), { statusCode: 400 });
+  }
+  if (updatedDueDate <= oldDueDate) {
+    throw Object.assign(new Error("The new due date must be after the current one"), { statusCode: 400 });
+  }
 
   // Execute in transaction: update Invoice due date + record DueDateAuditLog
   return prisma.$transaction(async (tx: any) => {
@@ -184,6 +190,16 @@ export const extendInvoiceDueDate = async (data: {
       data: { dueDate: updatedDueDate },
       include: { items: true },
     });
+
+    // Move the unpaid charges on this bill too — late fees are calculated from each
+    // charge's due date, so an extension must cover them or late fees keep accruing.
+    const chargeIds = updatedInvoice.items.map((i: any) => i.feeChargeId);
+    if (chargeIds.length) {
+      await tx.feeCharge.updateMany({
+        where: { id: { in: chargeIds }, status: { in: ["UNPAID", "PARTIALLY_PAID"] } },
+        data: { dueDate: updatedDueDate },
+      });
+    }
 
     await tx.dueDateAuditLog.create({
       data: {

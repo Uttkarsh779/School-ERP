@@ -14,3 +14,4 @@ export { default as Modal } from "./Modal/Modal";
 export { default as Icon } from "./Icon/Icon";
 export { default as FormSection, FormGrid } from "./FormSection/FormSection";
 export { default as ConfirmDialog } from "./ConfirmDialog/ConfirmDialog";
+export { default as ImageUpload } from "./ImageUpload/ImageUpload";

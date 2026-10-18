@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
@@ -8,6 +9,7 @@ import logo from "../../assets/images/logo.png";
 import Button from "../../components/Button";
 import Input from "../../components/Input";
 import Div from "../../components/Div";
+import { Icon } from "../../components/ui";
 import { useLoginUserMutation } from "../../store/services/user.api";
 import { toast } from "react-toastify";
 import { setTokens } from "../../store/reducers/authReducer";
@@ -124,8 +126,18 @@ const Login: React.FC = () => {
         </div>
 
         <div className={styles.rightSection}>
-          <AnimatePresence mode="wait">
-            {!showForgotPassword ? (
+          <div className={styles.loginCard}>
+            <div className={styles.topBar}>
+              <Link to="/" className={styles.backButton} aria-label="Back to School Website">
+                <span className={styles.backButtonIconWrapper}>
+                  <Icon name="arrowLeft" size={14} />
+                </span>
+                <span className={styles.backButtonText}>Back to School Website</span>
+              </Link>
+            </div>
+
+            <AnimatePresence mode="wait">
+              {!showForgotPassword ? (
               <Div key="login" direction="bottom" immediate>
                 <div className={styles.modeToggle} role="tablist" aria-label="Login as">
                   <button
@@ -153,7 +165,7 @@ const Login: React.FC = () => {
                 </h1>
                 <p className={styles.subtitle}>
                   {loginMode === "family"
-                    ? "Check your attendance, fee bills, report cards & school updates"
+                    ? "Sign in to your account"
                     : "Sign in to manage your school"}
                 </p>
 
@@ -248,6 +260,7 @@ const Login: React.FC = () => {
           </AnimatePresence>
         </div>
       </div>
+    </div>
   );
 };
 

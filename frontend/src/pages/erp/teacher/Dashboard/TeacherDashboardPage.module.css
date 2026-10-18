@@ -1,103 +1,163 @@
 .container {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 1.25rem;
 }
 
 .statsGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 1rem;
 }
 
-.mainGrid {
+.twoCol {
   display: grid;
-  grid-template-columns: 2fr 1fr;
-  gap: 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 1.25rem;
+  align-items: stretch;
 }
 
-@media (max-width: 900px) {
-  .mainGrid {
-    grid-template-columns: 1fr;
-  }
+.twoCol > * {
+  height: 100%;
 }
 
-.classesGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 1rem;
-}
-
-.cardHint {
+.muted {
+  font-size: 0.8rem;
   color: var(--erp-text-muted);
-  font-size: 0.85rem;
-  margin: 0 0 1rem;
+  margin: 0;
 }
 
-.actionsGroup {
-  display: flex;
-  gap: 0.5rem;
-  margin-top: 1rem;
-}
-
-.noticeList {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.noticeItem {
-  padding: 0.75rem;
-  background: var(--erp-surface);
-  border: 1px solid var(--erp-border);
-  border-radius: var(--erp-radius-sm);
-  transition: border-color var(--erp-transition-fast);
-}
-
-.noticeItem:hover {
-  border-color: var(--erp-primary-600);
-}
-
-.noticeTitle {
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--erp-text);
-  margin-bottom: 0.25rem;
-}
-
-.noticeMeta {
-  font-size: 0.78rem;
-  color: var(--erp-text-muted);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.quickLinkList {
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
 }
 
-.quickLinkBtn {
+.listItem {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.75rem 1rem;
-  background: var(--erp-surface);
+  padding: 0.7rem 0.9rem;
+  border-radius: var(--erp-radius-md);
+  background: var(--erp-bg);
   border: 1px solid var(--erp-border);
-  border-radius: var(--erp-radius-sm);
-  color: var(--erp-text);
-  font-weight: 600;
-  font-size: 0.88rem;
-  cursor: pointer;
-  transition: all var(--erp-transition-fast);
-  text-align: left;
-  width: 100%;
 }
 
-.quickLinkBtn:hover {
-  background: var(--erp-primary-50, #f0f7ff);
-  border-color: var(--erp-primary-600);
+.listMain {
+  flex: 1;
+  min-width: 0;
+}
+
+.itemTitle {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--erp-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.periodBadge {
+  flex-shrink: 0;
+  min-width: 2.2rem;
+  height: 2.2rem;
+  border-radius: var(--erp-radius-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--erp-primary-100);
   color: var(--erp-primary-700);
+  font-weight: 700;
+  font-size: 0.82rem;
+}
+
+.rowActions {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.examItem {
+  padding: 0.7rem 0.9rem;
+  border-radius: var(--erp-radius-md);
+  background: var(--erp-bg);
+  border: 1px solid var(--erp-border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.examTop {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.progressRow {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.track {
+  flex: 1;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: var(--erp-surface);
+  border: 1px solid var(--erp-border);
+  overflow: hidden;
+}
+
+.bar,
+.barDone {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--erp-primary-600);
+}
+
+.barDone {
+  background: var(--erp-success);
+}
+
+.due {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--erp-text-muted);
+  white-space: nowrap;
+}
+
+.noticeItem {
+  padding: 0.7rem 0.9rem;
+  border-radius: var(--erp-radius-md);
+  background: var(--erp-bg);
+  border: 1px solid var(--erp-border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.noticeBody {
+  font-size: 0.82rem;
+  color: var(--erp-text);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.cardFooter {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.75rem;
+}
+
+@media (max-width: 480px) {
+  .listItem,
+  .examTop {
+    flex-wrap: wrap;
+  }
 }

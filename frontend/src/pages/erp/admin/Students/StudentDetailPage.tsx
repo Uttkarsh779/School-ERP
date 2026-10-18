@@ -14,11 +14,13 @@ import {
   PageHeader,
   Select,
   Spinner,
+  StatCard,
   type SelectOption,
 } from "../../../../components/ui";
 import StudentProfileView from "../../../../components/shared/StudentProfileView/StudentProfileView";
 import {
   useGetStudentByIdQuery,
+  useGetStudentHistoryQuery,
   useSetStudentCredentialsMutation,
   useUpdateStudentMutation,
 } from "../../../../store/api/students.api";
@@ -30,6 +32,13 @@ import {
   useGetVillagesQuery,
 } from "../../../../store/api/transport.api";
 import StudentFormFields from "./StudentFormFields";
+import AttendanceHistoryTab from "./history/AttendanceHistoryTab";
+import ExamHistoryTab from "./history/ExamHistoryTab";
+import FeeHistoryTab from "./history/FeeHistoryTab";
+import TransportHistoryTab from "./history/TransportHistoryTab";
+import { inr } from "./history/historyFormat";
+import historyStyles from "./history/StudentHistory.module.css";
+import { formatPct } from "../Attendance/attendanceFormat";
 import { emptyStudentFormValues, type StudentFormValues } from "./studentForm";
 
 interface CredentialsFormInputs {
@@ -51,6 +60,13 @@ const StudentDetailPage = () => {
   const studentId = Number(id);
 
   const { data: student, isLoading, isError } = useGetStudentByIdQuery(studentId, { skip: !studentId });
+  const {
+    data: history,
+    isLoading: isHistoryLoading,
+    isError: isHistoryError,
+    refetch: refetchHistory,
+  } = useGetStudentHistoryQuery(studentId, { skip: !studentId });
+  const [tab, setTab] = useState<"overview" | "attendance" | "exams" | "fees" | "transport">("overview");
   const { data: classSections } = useGetClassSectionsQuery();
   const { data: transportRoutes } = useGetTransportRoutesQuery();
   const { data: villages } = useGetVillagesQuery();
@@ -267,7 +283,96 @@ const StudentDetailPage = () => {
       ) : !student ? (
         <EmptyState title="Student not found" description="This student record may have been removed." />
       ) : (
-        <StudentProfileView student={student} onAssignTransport={openTransportModal} />
+        <>
+          {/* At-a-glance summary across every area */}
+          <div className={historyStyles.statsGrid}>
+            <StatCard
+              label="Current class"
+              value={student.classSection ? `${student.classSection.className} - ${student.classSection.section}` : "—"}
+              icon={<Icon name="layers" />}
+            />
+            <StatCard
+              label="Overall attendance"
+              value={history ? formatPct(history.attendance.overall.percentage) : "—"}
+              icon={<Icon name="clipboardCheck" />}
+            />
+            <StatCard
+              label={history?.exams[0] ? `Latest exam · ${history.exams[0].examName}` : "Latest exam"}
+              value={history?.exams[0]?.percentage != null ? `${history.exams[0].percentage}%` : "—"}
+              icon={<Icon name="graduationCap" />}
+            />
+            <StatCard
+              label="Fees outstanding"
+              value={history ? inr(history.fees.summary.totalOutstanding) : "—"}
+              icon={<Icon name="building" />}
+            />
+            <StatCard
+              label="Transport"
+              value={history?.transport.find((t) => t.status === "ACTIVE")?.villageName ?? (student.transportRoute ? student.transportRoute.routeName : "Not using")}
+              icon={<Icon name="bus" />}
+            />
+          </div>
+
+          <div className={historyStyles.tabs} role="tablist">
+            {(
+              [
+                ["overview", "Overview"],
+                ["attendance", "Attendance"],
+                ["exams", "Exams & Marks"],
+                ["fees", "Fees"],
+                ["transport", "Transport"],
+              ] as const
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                role="tab"
+                aria-selected={tab === key}
+                className={`${historyStyles.tabBtn} ${tab === key ? historyStyles.tabActive : ""}`}
+                onClick={() => setTab(key)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {tab === "overview" ? (
+            <div className={historyStyles.tab}>
+              {history && history.academicHistory.length > 0 && (
+                <FormSection title="Academic History">
+                  <ul className={historyStyles.academicList}>
+                    {history.academicHistory.map((a) => (
+                      <li key={a.sessionId} className={historyStyles.listItem}>
+                        <div className={historyStyles.listMain}>
+                          <div className={historyStyles.itemTitle}>Session {a.sessionName}</div>
+                          <div className={historyStyles.muted}>{a.classes.join(", ")}</div>
+                        </div>
+                        {a.current && <Badge tone="primary">Current</Badge>}
+                      </li>
+                    ))}
+                  </ul>
+                </FormSection>
+              )}
+              <StudentProfileView student={student} />
+            </div>
+          ) : isHistoryLoading ? (
+            <Spinner />
+          ) : isHistoryError || !history ? (
+            <EmptyState
+              title="Couldn't load this student's history"
+              description="Check your connection and try again."
+              action={<Button variant="outline" onClick={() => refetchHistory()}>Retry</Button>}
+            />
+          ) : tab === "attendance" ? (
+            <AttendanceHistoryTab student={student} history={history} />
+          ) : tab === "exams" ? (
+            <ExamHistoryTab history={history} />
+          ) : tab === "fees" ? (
+            <FeeHistoryTab history={history} />
+          ) : (
+            <TransportHistoryTab student={student} history={history} onManageTransport={openTransportModal} />
+          )}
+        </>
       )}
 
       {/* Edit Student Profile Modal */}

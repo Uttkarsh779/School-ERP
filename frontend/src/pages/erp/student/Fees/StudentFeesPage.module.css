@@ -1,220 +1,25 @@
-.container {
+/* Student fees page — layout bits on top of the shared fee styles (admin/Fees/Fees.module.css). */
+
+.payRow {
   display: flex;
-  flex-direction: column;
-  gap: 1.25rem;
-}
-
-/* Minimalist Executive Due Card */
-.dueCard {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 0.85rem;
-  padding: 1.35rem 1.5rem;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-  display: flex;
-  flex-direction: column;
-  gap: 1.1rem;
-}
-
-.dueHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.dueLabel {
-  font-size: 0.75rem;
-  color: #64748b;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.dueAmount {
-  font-size: 2.2rem;
-  font-weight: 800;
-  color: #0f172a;
-  line-height: 1.1;
-  margin-top: 0.2rem;
-}
-
-.summaryRow {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  align-items: flex-end;
   gap: 1rem;
-  padding: 0.85rem 1.1rem;
-  background: #f8fafc;
-  border-radius: 0.65rem;
-  border: 1px solid #e2e8f0;
-}
-
-.summaryLabel {
-  font-size: 0.75rem;
-  color: #64748b;
-  font-weight: 500;
-}
-
-.summaryVal {
-  font-size: 1.05rem;
-  font-weight: 700;
-  color: #0f172a;
-  margin-top: 0.1rem;
-}
-
-.payActions {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.customPayRow {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
   flex-wrap: wrap;
 }
 
-.customPayInput {
-  flex: 1;
-  min-width: 140px;
-  padding: 0.65rem 0.9rem;
-  border-radius: 0.5rem;
-  border: 1px solid #cbd5e1;
-  font-size: 0.88rem;
-  outline: none;
-  background: #ffffff;
-  color: #0f172a;
+.payInput {
+  width: 200px;
 }
 
-.customPayInput:focus {
-  border-color: #0f2a47;
-}
-
-.payNowBtn {
-  background: #0f2a47;
-  color: #ffffff;
-  border: none;
-  border-radius: 0.5rem;
-  padding: 0.65rem 1.25rem;
-  font-size: 0.88rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition: opacity 0.15s ease;
-}
-
-.payNowBtn:hover {
-  opacity: 0.92;
-}
-
-.payNowBtn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-/* Quick Amount Preset Pills */
-.quickPills {
-  display: flex;
-  gap: 0.4rem;
-  overflow-x: auto;
-  padding-bottom: 0.2rem;
-}
-
-.pillBtn {
-  background: #f1f5f9;
-  color: #334155;
-  border: 1px solid #cbd5e1;
-  border-radius: 1rem;
-  padding: 0.35rem 0.75rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: background 0.15s ease;
-}
-
-.pillBtn:hover {
-  background: #e2e8f0;
-}
-
-/* Tab Switcher */
-.tabRow {
+.monthList {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.5rem;
-  width: 100%;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 1.25rem;
+  align-items: start;
 }
 
-.tabRow button {
-  width: 100%;
-  font-size: 0.82rem;
-  padding: 0.6rem 0.4rem;
-  text-align: center;
-}
-
-/* Mobile Cards View */
-.mobileCardsList {
-  display: flex;
-  flex-direction: column;
-  gap: 0.85rem;
-}
-
-.billCard {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 0.65rem;
-  padding: 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.billHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.billNo {
-  font-size: 0.9rem;
-  font-weight: 700;
-  color: #0f172a;
-}
-
-.billPeriod {
-  font-size: 0.78rem;
-  color: #64748b;
-}
-
-.billRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.6rem 0.75rem;
-  background: #f8fafc;
-  border-radius: 0.375rem;
-}
-
-.billFooter {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-}
-
-/* Responsive Table vs Mobile Cards */
-.desktopTableView {
-  display: block;
-}
-
-.mobileCardView {
-  display: none;
-}
-
-@media (max-width: 768px) {
-  .desktopTableView {
-    display: none;
-  }
-  .mobileCardView {
-    display: flex;
+@media (max-width: 480px) {
+  .payInput {
+    width: 100%;
   }
 }

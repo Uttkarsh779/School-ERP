@@ -1,0 +1,318 @@
+.filters {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+  max-width: 520px;
+}
+
+@media (min-width: 480px) {
+  .filters {
+    grid-template-columns: 1.4fr 1fr;
+    align-items: end;
+  }
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.muted {
+  font-size: 0.78rem;
+  color: var(--erp-text-muted);
+  margin: 0;
+}
+
+.linkButton {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  color: var(--erp-primary-700);
+  cursor: pointer;
+  text-align: left;
+}
+
+.linkButton:hover {
+  text-decoration: underline;
+}
+
+/* Class register */
+.register {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.registerHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.registerTitle {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--erp-text);
+  margin: 0.4rem 0 0.15rem;
+}
+
+.gridScroll {
+  overflow-x: auto;
+}
+
+.grid {
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.78rem;
+  width: max-content;
+  min-width: 100%;
+}
+
+.grid th,
+.grid td {
+  padding: 0.4rem 0.3rem;
+  text-align: center;
+  border-bottom: 1px solid var(--erp-border);
+  min-width: 2rem;
+  white-space: nowrap;
+}
+
+.grid th {
+  font-weight: 600;
+  color: var(--erp-text);
+  background: var(--erp-surface);
+}
+
+.grid tfoot td {
+  font-weight: 600;
+  color: var(--erp-text-muted);
+}
+
+.stickyCol {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--erp-surface);
+  text-align: left !important;
+  padding-left: 1rem !important;
+  padding-right: 0.75rem !important;
+  min-width: 11rem;
+  border-right: 1px solid var(--erp-border);
+}
+
+.roll {
+  display: inline-block;
+  min-width: 1.6rem;
+  color: var(--erp-text-muted);
+  font-weight: 500;
+}
+
+.weekday {
+  font-size: 0.68rem;
+  font-weight: 500;
+  color: var(--erp-text-muted);
+}
+
+.sunday {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--erp-danger);
+}
+
+.offDay {
+  background: var(--erp-bg) !important;
+}
+
+.cell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.5rem;
+  height: 1.4rem;
+  padding: 0 0.2rem;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.cell_PRESENT {
+  background: var(--erp-success-bg);
+  color: var(--erp-success);
+}
+
+.cell_ABSENT {
+  background: var(--erp-danger-bg);
+  color: var(--erp-danger);
+}
+
+.cell_LATE {
+  background: var(--erp-warning-bg);
+  color: var(--erp-warning);
+}
+
+.cell_LEAVE {
+  background: var(--erp-info-bg);
+  color: var(--erp-info);
+}
+
+.cellEmpty {
+  color: var(--erp-text-muted);
+}
+
+.pctCell {
+  font-weight: 600;
+  padding-right: 1rem !important;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding: 0.9rem 1.25rem;
+  border-top: 1px solid var(--erp-border);
+  font-size: 0.8rem;
+  color: var(--erp-text-muted);
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* Student month modal */
+.studentHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.countRow {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.6rem;
+  margin-bottom: 1.25rem;
+}
+
+.countBox {
+  padding: 0.6rem 0.75rem;
+  border-radius: var(--erp-radius-md);
+  background: var(--erp-bg);
+  border: 1px solid var(--erp-border);
+}
+
+.countValue {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--erp-text);
+}
+
+.calendar {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+
+.calendarHead {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--erp-text-muted);
+  text-align: center;
+  padding-bottom: 0.2rem;
+}
+
+.calendarDay {
+  min-height: 3rem;
+  border-radius: var(--erp-radius-sm);
+  border: 1px solid var(--erp-border);
+  padding: 0.3rem 0.4rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  font-size: 0.78rem;
+  color: var(--erp-text);
+}
+
+.calStatus {
+  align-self: flex-end;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.cal_PRESENT {
+  background: var(--erp-success-bg);
+  color: var(--erp-success);
+  border-color: transparent;
+}
+
+.cal_ABSENT {
+  background: var(--erp-danger-bg);
+  color: var(--erp-danger);
+  border-color: transparent;
+}
+
+.cal_LATE {
+  background: var(--erp-warning-bg);
+  color: var(--erp-warning);
+  border-color: transparent;
+}
+
+.cal_LEAVE {
+  background: var(--erp-info-bg);
+  color: var(--erp-info);
+  border-color: transparent;
+}
+
+.calUnmarked {
+  background: var(--erp-surface);
+  border-style: dashed;
+}
+
+.calOff {
+  background: var(--erp-bg);
+  color: var(--erp-text-muted);
+}
+
+.dateLists {
+  display: grid;
+  gap: 0.75rem;
+  margin: 1.25rem 0 0;
+}
+
+.dateLists dt {
+  font-size: 0.76rem;
+  color: var(--erp-text-muted);
+  margin-bottom: 0.15rem;
+}
+
+.dateLists dd {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--erp-text);
+}
+
+.modalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin-top: 1.25rem;
+}
+
+@media (max-width: 600px) {
+  .countRow {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .calendarDay {
+    min-height: 2.4rem;
+    font-size: 0.72rem;
+  }
+}

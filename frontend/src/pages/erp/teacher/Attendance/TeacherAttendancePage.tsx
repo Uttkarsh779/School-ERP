@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "react-toastify";
-import { Button, Card, EmptyState, PageHeader, Select, Spinner } from "../../../../components/ui";
+import { Button, Card, EmptyState, Input, PageHeader, Select, Spinner } from "../../../../components/ui";
+import ClassRegisterView from "../../admin/Attendance/ClassRegisterView";
+import tabStyles from "../../admin/Attendance/AdminAttendancePage.module.css";
+import { useGetTeacherDashboardQuery } from "../../../../store/api/dashboard.api";
 import type { SelectOption } from "../../../../components/ui";
 import {
   useGetClassAttendanceQuery,
@@ -39,6 +42,10 @@ const TeacherAttendancePage = () => {
   const [date, setDate] = useState(todayIso());
   const [statuses, setStatuses] = useState<Record<number, AttendanceStatus>>({});
   const [lastResults, setLastResults] = useState<MarkAttendanceResult[] | null>(null);
+  const [tab, setTab] = useState<"mark" | "register">(searchParams.get("tab") === "register" ? "register" : "mark");
+  const [monthValue, setMonthValue] = useState(todayIso().slice(0, 7));
+  // Which of my classes I'm the class teacher of — only those have a register to show.
+  const { data: teacherDashboard } = useGetTeacherDashboardQuery();
 
   const { data: classSections, isLoading: sectionsLoading, isError: sectionsError } = useGetMyClassSectionsQuery();
 
@@ -181,10 +188,73 @@ const TeacherAttendancePage = () => {
     );
   }
 
+  const isClassTeacherOfSelected = !!teacherDashboard?.classes?.some(
+    (c) => c.classSectionId === classSectionId && c.isClassTeacher
+  );
+  const [regYear, regMonth] = monthValue.split("-").map(Number);
+
   return (
     <div>
-      <PageHeader title="Mark Attendance" subtitle="RRS International School — Class Attendance Register" />
+      <PageHeader title="Attendance" subtitle="RRS International School — Class Attendance Register" />
 
+      <div className={tabStyles.tabs} role="tablist" style={{ marginBottom: "1.25rem" }}>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "mark"}
+          className={[tabStyles.tab, tab === "mark" ? tabStyles.tabActive : ""].join(" ")}
+          onClick={() => setTab("mark")}
+        >
+          Mark attendance
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "register"}
+          className={[tabStyles.tab, tab === "register" ? tabStyles.tabActive : ""].join(" ")}
+          onClick={() => setTab("register")}
+        >
+          Monthly register
+        </button>
+      </div>
+
+      {tab === "register" ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+          <Card>
+            <div className={styles.controls}>
+              {classSections.length > 1 ? (
+                <Select
+                  key={`reg-${classSectionId}`}
+                  label="Class Section"
+                  name="registerClassSectionId"
+                  options={sectionOptions}
+                  defaultValue={classSectionId}
+                  onChange={(e) => handleSectionChange(e.target.value)}
+                />
+              ) : (
+                <div className={styles.singleSection}>
+                  <span className={styles.controlLabel}>Class Section</span>
+                  <span className={styles.singleSectionValue}>
+                    {classSections[0].className} - {classSections[0].section}
+                  </span>
+                </div>
+              )}
+              <Input label="Month" type="month" value={monthValue} max={todayIso().slice(0, 7)} onChange={(e) => setMonthValue(e.target.value)} />
+            </div>
+          </Card>
+          {!teacherDashboard ? (
+            <Spinner />
+          ) : !classSectionId || !isClassTeacherOfSelected ? (
+            <EmptyState
+              title="Register available to the class teacher"
+              description="The monthly register is shown for classes where you're the class teacher — the same classes you can mark attendance for."
+            />
+          ) : regYear && regMonth ? (
+            <ClassRegisterView classSectionId={classSectionId} year={regYear} month={regMonth} />
+          ) : null}
+        </div>
+      ) : (
+      <>
       <Card>
         <div className={styles.controls}>
           {classSections.length > 1 ? (
@@ -293,6 +363,8 @@ const TeacherAttendancePage = () => {
           </>
         )}
       </Card>
+      </>
+      )}
     </div>
   );
 };

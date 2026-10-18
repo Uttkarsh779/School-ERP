@@ -1,5 +1,160 @@
-.container {
+.page {
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
+}
+
+.filters {
+  max-width: 320px;
+  margin-bottom: 1.25rem;
+}
+
+.title {
+  font-weight: 600;
+  color: var(--erp-text);
+}
+
+.muted {
+  font-size: 0.78rem;
+  color: var(--erp-text-muted);
+}
+
+.rowActions {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.formRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--erp-text);
+}
+
+.required {
+  color: var(--erp-danger);
+  margin-left: 0.15rem;
+}
+
+.textarea {
+  font-family: var(--erp-font);
+  font-size: 0.92rem;
+  color: var(--erp-text);
+  background: var(--erp-surface);
+  border: 1px solid var(--erp-border);
+  border-radius: var(--erp-radius-sm);
+  padding: 0.6rem 0.75rem;
+  resize: vertical;
+}
+
+.textarea:focus,
+.commentInput:focus {
+  outline: none;
+  border-color: var(--erp-primary-600);
+  box-shadow: 0 0 0 3px var(--erp-primary-100);
+}
+
+.formActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin-top: 1rem;
+}
+
+.reviewHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.subList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.subItem {
+  padding: 0.75rem 0.9rem;
+  border-radius: var(--erp-radius-md);
+  border: 1px solid var(--erp-border);
+  background: var(--erp-surface);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.subTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.badges {
+  display: inline-flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.answer {
+  padding: 0.6rem 0.75rem;
+  border-radius: var(--erp-radius-sm);
+  background: var(--erp-bg);
+  font-size: 0.88rem;
+  color: var(--erp-text);
+}
+
+.answer p {
+  margin: 0 0 0.35rem;
+  white-space: pre-wrap;
+}
+
+.comment {
+  font-size: 0.82rem;
+  color: var(--erp-info);
+}
+
+.reviewRow {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.commentInput {
+  flex: 1;
+  min-width: 200px;
+  font: inherit;
+  font-size: 0.86rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--erp-border);
+  border-radius: var(--erp-radius-sm);
+  background: var(--erp-surface);
+  color: var(--erp-text);
 }

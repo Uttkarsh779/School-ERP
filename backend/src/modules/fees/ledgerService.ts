@@ -1,4 +1,5 @@
 import { prisma } from "../../config/prisma";
+import { withLateFees } from "./lateFeeService";
 import { ChargeStatus, PaymentStatus } from "../../generated/prisma/enums";
 
 export const getStudentLedger = async (studentId: number) => {
@@ -7,12 +8,15 @@ export const getStudentLedger = async (studentId: number) => {
     include: { classSection: true },
   });
 
-  // Fetch all charges (Debit)
+  // Fetch all charges (Debit), with late fees from the configured rule (lateFeeService)
   const charges = await prisma.feeCharge.findMany({
     where: { studentId },
     include: { feeHead: true },
     orderBy: { createdAt: "asc" },
   });
+  const lateFees = new Map(
+    (await withLateFees(prisma, charges as any[])).map((r: any) => [r.charge.id, r.lateFee])
+  );
 
   // Fetch all payments (Credit)
   const payments = await prisma.payment.findMany({
@@ -51,9 +55,20 @@ export const getStudentLedger = async (studentId: number) => {
       date: c.createdAt,
       description: `${c.feeHead.name} (${c.billingMonth}/${c.billingYear})`,
       type: "CHARGE",
-      debit: c.baseAmount + c.lateFeeAmount,
+      // Number() on each Decimal: `decimal + decimal` concatenates strings in JS.
+      debit: Number(c.baseAmount) + (lateFees.get(c.id) ?? Number(c.lateFeeAmount)),
       credit: 0,
     });
+    // Discounts stored directly on the charge (concessions applied at billing).
+    if (Number(c.discountAmount) > 0) {
+      timeline.push({
+        date: c.createdAt,
+        description: `Discount on ${c.feeHead.name} (${c.billingMonth}/${c.billingYear})`,
+        type: "ADJUSTMENT",
+        debit: 0,
+        credit: Number(c.discountAmount),
+      });
+    }
   });
 
   payments.forEach((p: any) => {
@@ -62,27 +77,32 @@ export const getStudentLedger = async (studentId: number) => {
       description: `Payment Received (${p.mode}) - Receipt: ${p.receiptNumber || p.paymentNumber}`,
       type: "PAYMENT",
       debit: 0,
-      credit: p.amount,
+      credit: Number(p.amount),
       referenceNo: p.receiptNumber || p.razorpayPaymentId || undefined,
-    });
+      paymentId: p.id,
+    } as any);
   });
 
-  adjustments.forEach((a: any) => {
-    timeline.push({
-      date: a.createdAt,
-      description: `Discount/Adjustment: ${a.type} (${a.reason})`,
-      type: "ADJUSTMENT",
-      debit: 0,
-      credit: a.amount,
+  // Adjustments tied to a charge are already reflected in that charge's discount (or late
+  // fee) above; only charge-less adjustments are separate credits here.
+  adjustments
+    .filter((a: any) => !a.feeChargeId)
+    .forEach((a: any) => {
+      timeline.push({
+        date: a.createdAt,
+        description: `Discount/Adjustment: ${a.type} (${a.reason})`,
+        type: "ADJUSTMENT",
+        debit: 0,
+        credit: Number(a.amount),
+      });
     });
-  });
 
   refunds.forEach((r: any) => {
     timeline.push({
       date: r.processedAt || r.createdAt,
       description: `Refund Processed: ${r.reason}`,
       type: "REFUND",
-      debit: r.amount,
+      debit: Number(r.amount),
       credit: 0,
       referenceNo: r.refundNumber,
     });
@@ -144,29 +164,37 @@ export const getCollectionReport = async (startDate?: Date, endDate?: Date) => {
   };
 };
 
+// A defaulter has at least one charge PAST its due date that isn't fully paid.
 export const getDefaultersReport = async (classSectionId?: number) => {
+  const now = new Date();
+  const overdue = { status: { in: [ChargeStatus.UNPAID, ChargeStatus.PARTIALLY_PAID] }, dueDate: { lt: now } };
   const studentsWithDues = await prisma.student.findMany({
     where: {
       classSectionId: classSectionId ?? undefined,
       isActive: true,
-      feeCharges: {
-        some: { status: { in: [ChargeStatus.UNPAID, ChargeStatus.PARTIALLY_PAID] } },
-      },
+      feeCharges: { some: overdue },
     },
     include: {
       classSection: true,
       feeCharges: {
-        where: { status: { in: [ChargeStatus.UNPAID, ChargeStatus.PARTIALLY_PAID] } },
+        where: overdue,
         include: { feeHead: true },
       },
     },
   });
 
+  // Outstanding incl. late fees, computed by lateFeeService (Decimal-safe).
+  const allCharges = studentsWithDues.flatMap((s: any) => s.feeCharges);
+  const outstandingById = new Map(
+    (await withLateFees(prisma, allCharges as any[])).map((r: any) => [r.charge.id, r.outstanding])
+  );
+
   return studentsWithDues.map((s: any) => {
-    const totalDue = s.feeCharges.reduce((sum: number, c: any) => {
-      const net = c.baseAmount - c.discountAmount + c.lateFeeAmount;
-      return sum + (net - c.paidAmount);
-    }, 0);
+    const totalDue = s.feeCharges.reduce((sum: number, c: any) => sum + (outstandingById.get(c.id) ?? 0), 0);
+    const oldestDue = s.feeCharges.reduce(
+      (min: Date | null, c: any) => (!min || c.dueDate < min ? c.dueDate : min),
+      null as Date | null
+    );
 
     return {
       studentId: s.id,
@@ -178,6 +206,8 @@ export const getDefaultersReport = async (classSectionId?: number) => {
       contactNumber: s.contactNumber || s.fatherContact || s.motherContact,
       overdueChargesCount: s.feeCharges.length,
       totalDue,
+      oldestDueDate: oldestDue,
+      daysOverdue: oldestDue ? Math.floor((now.getTime() - new Date(oldestDue).getTime()) / 86_400_000) : 0,
     };
   });
 };
@@ -204,7 +234,7 @@ export const createAuditLog = async (data: {
 
 export const getAuditLogs = async () => {
   return prisma.feeAuditLog.findMany({
-    include: { user: true },
+    include: { user: { select: { id: true, name: true, role: true } } },
     orderBy: { timestamp: "desc" },
     take: 100,
   });

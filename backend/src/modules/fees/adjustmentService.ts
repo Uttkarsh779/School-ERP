@@ -43,8 +43,8 @@ export const applyFeeAdjustment = async (data: {
       appliedByUserId,
     },
     include: {
-      student: true,
-      appliedByUser: true,
+      student: { select: { id: true, name: true, admissionNo: true } },
+      appliedByUser: { select: { id: true, name: true } },
     },
   });
 };
@@ -197,8 +197,8 @@ export const createRefundRequest = async (data: {
       requestedByUserId: data.requestedByUserId,
     },
     include: {
-      student: true,
-      requestedByUser: true,
+      student: { select: { id: true, name: true, admissionNo: true } },
+      requestedByUser: { select: { id: true, name: true } },
     },
   });
 };
@@ -211,16 +211,17 @@ export const approveOrRejectRefund = async (data: {
   const { refundId, approved, approvedByUserId } = data;
   const status = approved ? "REFUND_APPROVED" : "REFUND_REJECTED";
 
-  const refund = await prisma.refund.update({
+  // Only a pending request can be decided (guarded in the write itself).
+  const { count } = await prisma.refund.updateMany({
+    where: { id: refundId, status: "REFUND_REQUESTED" },
+    data: { status, approvedByUserId },
+  });
+  if (count === 0) {
+    throw Object.assign(new Error("This refund request has already been decided"), { statusCode: 409 });
+  }
+  const refund = await prisma.refund.findUniqueOrThrow({
     where: { id: refundId },
-    data: {
-      status,
-      approvedByUserId,
-      processedAt: approved ? new Date() : null,
-    },
-    include: {
-      student: true,
-    },
+    include: { student: { select: { id: true, name: true, admissionNo: true } } },
   });
 
   return refund;
@@ -230,10 +231,26 @@ export const listRefunds = async (studentId?: number) => {
   return prisma.refund.findMany({
     where: { studentId: studentId ?? undefined },
     include: {
-      student: true,
-      requestedByUser: true,
-      approvedByUser: true,
+      student: { select: { id: true, name: true, admissionNo: true, rollNo: true } },
+      requestedByUser: { select: { id: true, name: true, role: true } },
+      approvedByUser: { select: { id: true, name: true } },
     },
     orderBy: { createdAt: "desc" },
+  });
+};
+
+// Marks an APPROVED refund as paid out to the family. Only processed refunds appear in the
+// ledger as money returned.
+export const markRefundProcessed = async (refundId: number) => {
+  const { count } = await prisma.refund.updateMany({
+    where: { id: refundId, status: "REFUND_APPROVED" },
+    data: { status: "REFUND_PROCESSED", processedAt: new Date() },
+  });
+  if (count === 0) {
+    throw Object.assign(new Error("Only an approved refund can be marked as paid out"), { statusCode: 409 });
+  }
+  return prisma.refund.findUniqueOrThrow({
+    where: { id: refundId },
+    include: { student: { select: { id: true, name: true, admissionNo: true } } },
   });
 };

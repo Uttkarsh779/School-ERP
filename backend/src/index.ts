@@ -17,4 +17,8 @@ const start = async (): Promise<void> => {
   });
 };
 
-start();
+start().catch((err) => {
+  console.error("[Server] Fatal Startup Error:", err);
+  process.exit(1);
+});
+

@@ -87,7 +87,16 @@ router.post(
   asyncHandler(controller.postVerifyRazorpayPayment)
 );
 router.post("/payments/manual", authorizeRoles(["SUPER_ADMIN", "ADMIN"]), asyncHandler(controller.postManualPayment));
-router.post("/payments/family/manual", authorizeRoles(["SUPER_ADMIN", "ADMIN"]), asyncHandler(controller.postFamilyPayment));
+router.get(
+  "/fees/student/:studentId/months-chart",
+  authorizeRoles(["SUPER_ADMIN", "ADMIN", "STUDENT", "PARENT"]),
+  asyncHandler(controller.getStudentMonthsChart)
+);
+router.post(
+  "/fees/payments/multi-month",
+  authorizeRoles(["SUPER_ADMIN", "ADMIN"]),
+  asyncHandler(controller.postMultiMonthPayment)
+);
 
 // Waivers
 router.post("/fees/adjustments/waive-late-fee", authorizeRoles(["SUPER_ADMIN"]), asyncHandler(controller.postWaiveLateFee));
@@ -105,11 +114,6 @@ router.get(
   authorizeRoles(["SUPER_ADMIN", "ADMIN", "STUDENT", "PARENT"]),
   asyncHandler(controller.getReceiptPdfHtml)
 );
-router.get(
-  "/payments/family/:receiptNo/receipt",
-  authorizeRoles(["SUPER_ADMIN", "ADMIN", "PARENT"]),
-  asyncHandler(controller.getFamilyReceipt)
-);
 
 // Student Ledger
 router.get(
@@ -119,9 +123,11 @@ router.get(
 );
 
 // Adjustments & Refunds
-router.post("/fees/adjustments", authorizeRoles(["SUPER_ADMIN", "ADMIN"]), asyncHandler(controller.postAdjustment));
+router.post("/fees/adjustments", authorizeRoles(["SUPER_ADMIN"]), asyncHandler(controller.postAdjustment));
 router.post("/refunds", authorizeRoles(["SUPER_ADMIN", "ADMIN", "STUDENT", "PARENT"]), asyncHandler(controller.postRefundRequest));
-router.patch("/refunds/:id/approve", authorizeRoles(["SUPER_ADMIN", "ADMIN"]), asyncHandler(controller.patchApproveRefund));
+// Refund approval and charge-level discounts are money decisions: Super Admin only.
+router.patch("/refunds/:id/approve", authorizeRoles(["SUPER_ADMIN"]), asyncHandler(controller.patchApproveRefund));
+router.patch("/refunds/:id/process", authorizeRoles(["SUPER_ADMIN"]), asyncHandler(controller.patchProcessRefund));
 router.get(
   "/refunds",
   authorizeRoles(["SUPER_ADMIN", "ADMIN", "STUDENT", "PARENT"]),
@@ -129,6 +135,7 @@ router.get(
 );
 
 // Reports & Audit Logs
+router.get("/fees/overview", authorizeRoles(["SUPER_ADMIN", "ADMIN"]), asyncHandler(controller.getFeeOverview));
 router.get("/fees/reports/collection", authorizeRoles(["SUPER_ADMIN", "ADMIN"]), asyncHandler(controller.getCollectionReport));
 router.get("/fee-payments/defaulters", authorizeRoles(["SUPER_ADMIN", "ADMIN"]), asyncHandler(controller.getDefaultersReport));
 router.get("/fees/audit-logs", authorizeRoles(["SUPER_ADMIN"]), asyncHandler(controller.getAuditLogs));

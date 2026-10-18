@@ -158,27 +158,55 @@ export const updateFeeStructure = async (
     }>;
   }
 ) => {
-  if (data.items) {
-    await prisma.feeStructureItem.deleteMany({
-      where: { feeStructureId: id },
-    });
+  // Items are matched by fee head and updated in place (one transaction), so items that
+  // already have bills keep their link; a removed item is deleted only if it was never billed.
+  return prisma.$transaction(async (tx: any) => {
+    if (data.items) {
+      const existing = await tx.feeStructureItem.findMany({
+        where: { feeStructureId: id },
+        include: { feeHead: { select: { name: true } }, _count: { select: { charges: true } } },
+      });
+      const byHead = new Map<number, any>(existing.map((e: any) => [e.feeHeadId, e]));
+      const incomingHeads = new Set(data.items.map((i: any) => Number(i.feeHeadId)));
 
-    await prisma.feeStructureItem.createMany({
-      data: data.items.map((item: any) => ({
-        feeStructureId: id,
-        feeHeadId: item.feeHeadId,
-        amount: item.amount,
-        frequency: item.frequency,
-        applicableMonths: item.applicableMonths,
-        dueDateDay: item.dueDateDay ?? 10,
-        allowPartialPayment: item.allowPartialPayment ?? true,
-        effectiveFrom: item.effectiveFrom ? new Date(item.effectiveFrom) : new Date(),
-        effectiveTo: item.effectiveTo ? new Date(item.effectiveTo) : null,
-      })),
-    });
-  }
+      for (const old of existing) {
+        if (!incomingHeads.has(old.feeHeadId)) {
+          if (old._count.charges > 0) {
+            throw Object.assign(
+              new Error(`"${old.feeHead.name}" has already been billed and can't be removed. Change its amount instead.`),
+              { statusCode: 409 }
+            );
+          }
+          await tx.feeStructureItem.delete({ where: { id: old.id } });
+        }
+      }
 
-  return prisma.feeStructure.update({
+      for (const item of data.items as any[]) {
+        const fields = {
+          amount: item.amount,
+          frequency: item.frequency,
+          applicableMonths: item.applicableMonths,
+          dueDateDay: item.dueDateDay ?? 10,
+          allowPartialPayment: item.allowPartialPayment ?? true,
+        };
+        const match = byHead.get(Number(item.feeHeadId));
+        if (match) {
+          await tx.feeStructureItem.update({ where: { id: match.id }, data: fields });
+        } else {
+          await tx.feeStructureItem.create({
+            data: {
+              feeStructureId: id,
+              feeHeadId: Number(item.feeHeadId),
+              ...fields,
+              effectiveFrom: item.effectiveFrom ? new Date(item.effectiveFrom) : new Date(),
+              effectiveTo: item.effectiveTo ? new Date(item.effectiveTo) : null,
+            },
+          });
+        }
+      }
+    }
+
+    return tx.feeStructure.update({
     where: { id },
     data: {
       name: data.name,
@@ -191,6 +219,7 @@ export const updateFeeStructure = async (
         },
       },
     },
+  });
   });
 };
 

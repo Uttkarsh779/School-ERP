@@ -36,7 +36,8 @@ export const getReceiptDetails = async (paymentId: number) => {
     mode: payment.mode,
     transactionRef: payment.transactionRef,
     razorpayPaymentId: payment.razorpayPaymentId,
-    amountPaid: payment.amount,
+    amountPaid: Number(payment.amount),
+    status: payment.status,
     student: {
       id: payment.student.id,
       name: payment.student.name,
@@ -44,12 +45,12 @@ export const getReceiptDetails = async (paymentId: number) => {
       rollNo: payment.student.rollNo,
       classSection: `${payment.student.classSection.className} - ${payment.student.classSection.section}`,
       fatherName: payment.student.fatherName,
-      contact: payment.student.contactNumber,
+      contact: payment.student.contactNumber || payment.student.fatherContact || payment.student.motherContact || null,
     },
     settledItems: (payment.allocations || []).map((a: any) => ({
       feeHead: a.feeCharge.feeHead.name,
       billingPeriod: `${a.feeCharge.billingMonth}/${a.feeCharge.billingYear}`,
-      amountAllocated: a.allocatedAmount,
+      amountAllocated: Number(a.allocatedAmount),
     })),
   };
 };

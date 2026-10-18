@@ -1,4 +1,5 @@
 import { prisma } from "../../config/prisma";
+import { withLateFees } from "./lateFeeService";
 import { ChargeStatus, FeeFrequency, JoiningPolicy } from "../../generated/prisma/enums";
 import { calculateTransportFeeForPeriod } from "../transport/transportVillageService";
 
@@ -203,31 +204,19 @@ export const getStudentDueSummary = async (studentId: number) => {
     },
   });
 
-  const now = new Date();
-  const chargesWithLateFee = student.feeCharges.map((charge: any) => {
-    let lateFee = Number(charge.lateFeeAmount);
-    if (now > charge.dueDate && charge.status !== ChargeStatus.PAID) {
-      const daysOverdue = Math.floor((now.getTime() - charge.dueDate.getTime()) / (1000 * 3600 * 24));
-      if (daysOverdue > 0 && lateFee === 0) {
-        if (daysOverdue <= 10) lateFee = 100;
-        else if (daysOverdue <= 20) lateFee = 250;
-        else lateFee = 500;
-      }
-    }
-
-    const netAmount = Math.max(0, Number(charge.baseAmount) - Number(charge.discountAmount) + lateFee);
-    const outstanding = Math.max(0, netAmount - Number(charge.paidAmount));
-
-    return {
-      ...charge,
-      baseAmount: Number(charge.baseAmount),
-      discountAmount: Number(charge.discountAmount),
-      paidAmount: Number(charge.paidAmount),
-      calculatedLateFee: lateFee,
-      netAmount,
-      outstandingAmount: outstanding,
-    };
-  });
+  // Late fees come from the session's configured rule (see lateFeeService) — the same
+  // calculation the payment desk, ledger and defaulters list use.
+  const computed = await withLateFees(prisma, student.feeCharges as any[]);
+  const chargesWithLateFee = computed.map(({ charge, lateFee, outstanding }: any) => ({
+    ...charge,
+    baseAmount: Number(charge.baseAmount),
+    discountAmount: Number(charge.discountAmount),
+    paidAmount: Number(charge.paidAmount),
+    lateFeeAmount: lateFee,
+    calculatedLateFee: lateFee,
+    netAmount: Math.max(0, Number(charge.baseAmount) - Number(charge.discountAmount) + lateFee),
+    outstandingAmount: outstanding,
+  }));
 
   let totalOutstanding = chargesWithLateFee.reduce((sum: number, c: any) => sum + c.outstandingAmount, 0);
 

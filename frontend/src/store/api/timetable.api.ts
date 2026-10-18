@@ -27,9 +27,10 @@ export const timetableApi = erpApi.injectEndpoints({
       transformResponse: (res: ApiEnvelope<ITimetableSlot[]>) => res.data,
       providesTags: ["Timetable"],
     }),
-    upsertTimetableSlot: builder.mutation<ITimetableSlot, UpsertTimetableSlotInput>({
+    // `warning` is set when the period's teacher isn't the subject's allocated teacher.
+    upsertTimetableSlot: builder.mutation<ITimetableSlot & { warning?: string }, UpsertTimetableSlotInput>({
       query: (body) => ({ url: "timetable", method: "POST", body }),
-      transformResponse: (res: ApiEnvelope<ITimetableSlot>) => res.data,
+      transformResponse: (res: ApiEnvelope<ITimetableSlot> & { warning?: string }) => ({ ...res.data, warning: res.warning }),
       invalidatesTags: ["Timetable"],
     }),
     deleteTimetableSlot: builder.mutation<void, number>({

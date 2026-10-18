@@ -12,6 +12,9 @@ import {
   postStudent,
   postStudentsBulkImport,
 } from "./controller";
+import { getStudentHistory } from "./historyService";
+import type { CustomRequest } from "../../middleware/auth";
+import type { Response } from "express";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -23,6 +26,20 @@ router.use(authenticateToken);
 // child, student = self), checked inside the controller — see getStudents/getStudent.
 router.get("/", authorizeRoles(["SUPER_ADMIN", "ADMIN", "TEACHER"]), asyncHandler(getStudents));
 router.get("/me", authorizeRoles(["STUDENT"]), asyncHandler(getMyStudentProfile));
+// Admin-only full history (attendance, exams, fees, transport) for the student 360° view.
+router.get(
+  "/:id/history",
+  authorizeRoles(["SUPER_ADMIN", "ADMIN"]),
+  asyncHandler(async (req: CustomRequest, res: Response) => {
+    const id = Number(req.params.id);
+    const history = Number.isInteger(id) && id > 0 ? await getStudentHistory(id) : null;
+    if (!history) {
+      res.status(404).json({ success: false, message: "Student not found" });
+      return;
+    }
+    res.status(200).json({ success: true, data: history });
+  })
+);
 router.get(
   "/:id",
   authorizeRoles(["SUPER_ADMIN", "ADMIN", "TEACHER", "PARENT", "STUDENT"]),

@@ -31,6 +31,67 @@ export interface AttendanceMonthlyReportEntry {
   counts: Record<AttendanceStatus, number>;
 }
 
+export interface AttendanceStatusCounts {
+  PRESENT: number;
+  ABSENT: number;
+  LATE: number;
+  LEAVE: number;
+}
+
+export interface AttendanceMonthlyOverview {
+  year: number;
+  month: number;
+  sessionId: number | null;
+  summary: {
+    classCount: number;
+    classesWithData: number;
+    studentCount: number;
+    counts: AttendanceStatusCounts;
+    percentage: number | null;
+  };
+  classes: Array<{
+    classSectionId: number;
+    className: string;
+    section: string;
+    sessionName: string | null;
+    studentCount: number;
+    workingDays: number;
+    counts: AttendanceStatusCounts;
+    marked: number;
+    percentage: number | null;
+  }>;
+}
+
+export interface AttendanceRegisterStudent {
+  studentId: number;
+  name: string;
+  rollNo: string;
+  admissionNo: string;
+  isActive: boolean;
+  counts: AttendanceStatusCounts;
+  days: Record<string, AttendanceStatus>; // "YYYY-MM-DD" -> status
+  marked: number;
+  notMarked: number;
+  percentage: number | null;
+}
+
+export interface AttendanceMonthlyRegister {
+  year: number;
+  month: number;
+  daysInMonth: number;
+  classSection: {
+    id: number;
+    className: string;
+    section: string;
+    sessionName: string | null;
+    classTeacherName: string | null;
+  };
+  workingDays: string[];
+  dayTotals: Record<string, AttendanceStatusCounts>;
+  summary: { studentCount: number; counts: AttendanceStatusCounts; percentage: number | null };
+  students: AttendanceRegisterStudent[];
+}
+
 export const attendanceApi = erpApi.injectEndpoints({
   endpoints: (builder) => ({
     markAttendance: builder.mutation<
@@ -70,6 +131,22 @@ export const attendanceApi = erpApi.injectEndpoints({
       transformResponse: (res: ApiEnvelope<AttendanceMonthlyReportEntry[]>) => res.data,
       providesTags: ["Attendance"],
     }),
+    getAttendanceMonthlyOverview: builder.query<
+      AttendanceMonthlyOverview,
+      { year: number; month: number; sessionId?: number }
+    >({
+      query: (params) => ({ url: "attendance/report/monthly", params }),
+      transformResponse: (res: ApiEnvelope<AttendanceMonthlyOverview>) => res.data,
+      providesTags: ["Attendance"],
+    }),
+    getAttendanceMonthlyRegister: builder.query<
+      AttendanceMonthlyRegister,
+      { classSectionId: number; year: number; month: number }
+    >({
+      query: ({ classSectionId, ...params }) => ({ url: `attendance/report/monthly/${classSectionId}`, params }),
+      transformResponse: (res: ApiEnvelope<AttendanceMonthlyRegister>) => res.data,
+      providesTags: ["Attendance"],
+    }),
   }),
 });
 
@@ -79,4 +156,6 @@ export const {
   useGetStudentAttendanceSummaryQuery,
   useGetAttendanceDefaultersQuery,
   useGetAttendanceMonthlyReportQuery,
+  useGetAttendanceMonthlyOverviewQuery,
+  useGetAttendanceMonthlyRegisterQuery,
 } = attendanceApi;

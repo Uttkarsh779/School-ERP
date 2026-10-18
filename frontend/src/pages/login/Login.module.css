@@ -13,6 +13,7 @@
   display: flex;
   flex-direction: column;
   background-color: var(--secondary-color);
+  border-right: 1px solid rgba(0, 0, 0, 0.06);
   padding: 2rem;
   position: relative;
 }
@@ -60,18 +61,86 @@
 }
 
 .rightSection {
-  width: 40%;
-  min-width: 450px;
+  width: 45%;
+  min-width: 460px;
+  display: flex;
+  flex-direction: column;
+  padding: 2.25rem 2.75rem;
+  background-color: #ffffff;
+  overflow-y: auto;
+  position: relative;
+}
+
+.topBar {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 2rem;
-  background-color: white;
+  width: 100%;
+  margin-bottom: 1.5rem;
+  flex-shrink: 0;
+}
+
+.backButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.42rem 1rem 0.42rem 0.6rem;
+  border-radius: 9999px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  color: #475569;
+  font-size: 0.84rem;
+  font-weight: 600;
+  text-decoration: none;
+  letter-spacing: -0.01em;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  cursor: pointer;
+}
+
+.backButton:hover {
+  background: #ffffff;
+  color: #0f172a;
+  border-color: #cbd5e1;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+  transform: translateY(-1px);
+}
+
+.backButtonIconWrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  color: #64748b;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.backButton:hover .backButtonIconWrapper {
+  transform: translateX(-2px);
+  color: #ea580c;
+  background: #fff7ed;
+  border-color: #fed7aa;
+}
+
+.backButtonText {
+  white-space: nowrap;
+}
+
+.backButton:active {
+  transform: translateY(0) scale(0.98);
 }
 
 .loginCard {
   width: 100%;
   max-width: 400px;
+  margin: auto;
+  display: flex;
+  flex-direction: column;
 }
 
 .modeToggle {
@@ -175,6 +244,8 @@
 
   .leftSection {
     padding: 1.5rem;
+    border-right: none;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
   }
 
   .rightSection {

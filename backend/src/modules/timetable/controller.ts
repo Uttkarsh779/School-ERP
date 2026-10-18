@@ -4,6 +4,7 @@ import { findStaffByUserId } from "../staff/service";
 import { isClassTeacherOfSection } from "../classSections/service";
 import { getStudentByUserId } from "../students/service";
 import { getParentByUserId } from "../parents/service";
+import { getAllocatedStaffId } from "../subjects/service";
 import {
   deleteTimetableSlot,
   listTimetableForClass,
@@ -75,7 +76,20 @@ export const postTimetableSlot = async (req: CustomRequest, res: Response): Prom
       staffId: staffId ? Number(staffId) : null,
       room: room || null,
     });
-    res.status(200).json({ success: true, data: slot });
+
+    // Marks-entry rights come from the subject allocation, not the timetable — so flag
+    // (without blocking: substitutions are legitimate) a period whose teacher differs.
+    let warning: string | undefined;
+    if (subjectId && staffId) {
+      const allocated = await getAllocatedStaffId(Number(subjectId));
+      if (allocated === null) {
+        warning = "This subject has no allocated teacher yet, so nobody can enter its marks. Allocate a teacher in the Subjects panel.";
+      } else if (allocated !== Number(staffId)) {
+        warning =
+          "This period's teacher isn't the subject's allocated teacher. Saved as a substitution — marks for this subject can still only be entered by the allocated teacher.";
+      }
+    }
+    res.status(200).json({ success: true, data: slot, ...(warning ? { warning } : {}) });
   } catch (err: any) {
     res.status(400).json({ success: false, message: err?.message || "Failed to save timetable slot" });
   }

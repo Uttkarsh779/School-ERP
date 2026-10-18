@@ -8,8 +8,161 @@ interface ApiEnvelope<T> {
 
 const feeTags = ["Fee", "Parent", "Student"] as any;
 
+export interface FeeOverview {
+  month: { year: number; month: number };
+  collectedToday: number;
+  paymentsToday: number;
+  collectedThisMonth: number;
+  paymentsThisMonth: number;
+  byMode: Record<string, number>;
+  billedThisMonth: number;
+  collectionRate: number | null;
+  outstanding: number;
+  overdue: number;
+  defaulterCount: number;
+  pendingRefunds: number;
+  stalePendingOnlinePayments: number;
+  outstandingByClass: Array<{ classSection: string; outstanding: number; students: number }>;
+  recentPayments: Array<{
+    id: number;
+    receiptNumber: string;
+    amount: number;
+    mode: string;
+    paidAt: string;
+    student: { id: number; name: string; admissionNo: string; classSection: string | null };
+  }>;
+}
+
+export interface ReceiptDetails {
+  receiptNumber: string | null;
+  paymentNumber: string;
+  paymentDate: string;
+  mode: string;
+  status: string;
+  transactionRef: string | null;
+  razorpayPaymentId: string | null;
+  amountPaid: number;
+  student: {
+    id: number;
+    name: string;
+    admissionNo: string;
+    rollNo: string;
+    classSection: string;
+    fatherName: string | null;
+    contact: string | null;
+  };
+  settledItems: Array<{ feeHead: string; billingPeriod: string; amountAllocated: number }>;
+}
+
+export interface RefundRecord {
+  id: number;
+  refundNumber: string;
+  studentId: number;
+  paymentId: number | null;
+  amount: number;
+  reason: string;
+  status: "REFUND_REQUESTED" | "REFUND_APPROVED" | "REFUND_PROCESSED" | "REFUND_REJECTED";
+  createdAt: string;
+  processedAt: string | null;
+  student?: { id: number; name: string; admissionNo: string; rollNo?: string };
+  requestedByUser?: { id: number; name: string; role?: string };
+  approvedByUser?: { id: number; name: string } | null;
+}
+
+export interface LateFeeRule {
+  id: number;
+  sessionId: number;
+  gracePeriodDays: number;
+  feeType: "FIXED" | "DAILY" | "SLAB";
+  amount: number;
+  slabsJson: string | null;
+  createdAt: string;
+}
+
+export interface LedgerEntry {
+  date: string;
+  description: string;
+  type: "CHARGE" | "PAYMENT" | "ADJUSTMENT" | "REFUND";
+  debit: number;
+  credit: number;
+  balance: number;
+  referenceNo?: string;
+  paymentId?: number;
+}
+
+export interface StudentLedger {
+  student: { id: number; name: string; admissionNo: string; rollNo: string; classSection: string };
+  entries: LedgerEntry[];
+  finalBalance: number;
+}
+
+// Charge as returned by the due summary (late fee + outstanding computed server-side).
+export interface DueCharge {
+  id: number;
+  billingMonth: number;
+  billingYear: number;
+  dueDate: string;
+  baseAmount: number;
+  discountAmount: number;
+  paidAmount: number;
+  calculatedLateFee: number;
+  outstandingAmount: number;
+  feeHead?: { name: string };
+}
+
+export interface CollectionPeriodPreview {
+  collectionPeriodCode: string;
+  totalEligible: number;
+  alreadyBilled: number;
+  newlyGenerated: number;
+  expectedAmount: number;
+}
+
 export const feesApi = erpApi.injectEndpoints({
   endpoints: (builder) => ({
+    getFeeOverview: builder.query<FeeOverview, void>({
+      query: () => ({ url: "fees/overview" }),
+      transformResponse: (res: ApiEnvelope<FeeOverview>) => res.data,
+      providesTags: feeTags,
+    }),
+    getReceipt: builder.query<ReceiptDetails, number>({
+      query: (paymentId) => ({ url: `payments/${paymentId}/receipt` }),
+      transformResponse: (res: ApiEnvelope<ReceiptDetails>) => res.data,
+      providesTags: feeTags,
+    }),
+    getRefunds: builder.query<RefundRecord[], { studentId?: number } | void>({
+      query: (params) => ({ url: "refunds", params: params ?? undefined }),
+      transformResponse: (res: ApiEnvelope<RefundRecord[]>) => res.data,
+      providesTags: feeTags,
+    }),
+    requestRefund: builder.mutation<RefundRecord, { studentId: number; paymentId?: number; amount: number; reason: string }>({
+      query: (body) => ({ url: "refunds", method: "POST", body }),
+      transformResponse: (res: ApiEnvelope<RefundRecord>) => res.data,
+      invalidatesTags: feeTags,
+    }),
+    decideRefund: builder.mutation<RefundRecord, { id: number; approved: boolean }>({
+      query: ({ id, approved }) => ({ url: `refunds/${id}/approve`, method: "PATCH", body: { approved } }),
+      transformResponse: (res: ApiEnvelope<RefundRecord>) => res.data,
+      invalidatesTags: feeTags,
+    }),
+    processRefund: builder.mutation<RefundRecord, number>({
+      query: (id) => ({ url: `refunds/${id}/process`, method: "PATCH" }),
+      transformResponse: (res: ApiEnvelope<RefundRecord>) => res.data,
+      invalidatesTags: feeTags,
+    }),
+    getLateFeeRules: builder.query<LateFeeRule[], number>({
+      query: (sessionId) => ({ url: "fees/late-fee-rules", params: { sessionId } }),
+      transformResponse: (res: ApiEnvelope<LateFeeRule[]>) => res.data,
+      providesTags: feeTags,
+    }),
+    createLateFeeRule: builder.mutation<
+      LateFeeRule,
+      { sessionId: number; gracePeriodDays: number; feeType: string; amount: number; slabsJson?: Array<{ uptoDays: number | null; amount: number }> }
+    >({
+      query: (body) => ({ url: "fees/late-fee-rules", method: "POST", body }),
+      transformResponse: (res: ApiEnvelope<LateFeeRule>) => res.data,
+      invalidatesTags: feeTags,
+    }),
     getFeeHeads: builder.query<IFeeHead[], void>({
       query: () => ({ url: "fees/heads" }),
       transformResponse: (res: ApiEnvelope<IFeeHead[]>) => res.data,
@@ -74,7 +227,10 @@ export const feesApi = erpApi.injectEndpoints({
       transformResponse: (res: ApiEnvelope<IDueSummary>) => res.data,
       providesTags: feeTags,
     }),
-    createRazorpayOrder: builder.mutation<{ orderId: string; amount: number; keyId: string }, { studentId: number; requestedAmount?: number }>({
+    createRazorpayOrder: builder.mutation<
+      { orderId: string; amount: number; amountInPaise: number; currency: string; keyId: string; paymentId: number; mock: boolean },
+      { studentId: number; requestedAmount?: number }
+    >({
       query: (body) => ({ url: "payments/razorpay/order", method: "POST", body }),
       transformResponse: (res: ApiEnvelope<any>) => res.data,
     }),
@@ -88,12 +244,7 @@ export const feesApi = erpApi.injectEndpoints({
       transformResponse: (res: ApiEnvelope<IPayment>) => res.data,
       invalidatesTags: feeTags,
     }),
-    recordFamilyPayment: builder.mutation<any, { parentGuardianId: number; totalAmount: number; mode: string; transactionRef?: string; notes?: string; allocations: Array<{ studentId: number; amount: number; feeBillId?: number }> }>({
-      query: (body) => ({ url: "fees/family-payment", method: "POST", body }),
-      transformResponse: (res: ApiEnvelope<any>) => res.data,
-      invalidatesTags: feeTags,
-    }),
-    getStudentLedger: builder.query<any, number>({
+    getStudentLedger: builder.query<StudentLedger, number>({
       query: (studentId) => ({ url: `fees/ledger/${studentId}` }),
       transformResponse: (res: ApiEnvelope<any>) => res.data,
       providesTags: feeTags,
@@ -152,6 +303,19 @@ export const feesApi = erpApi.injectEndpoints({
       transformResponse: (res: ApiEnvelope<any>) => res.data,
       invalidatesTags: feeTags,
     }),
+    getStudentMonthsChart: builder.query<any, { studentId: number; sessionId?: number }>({
+      query: ({ studentId, sessionId }) => ({
+        url: `fees/student/${studentId}/months-chart`,
+        params: sessionId ? { sessionId } : undefined,
+      }),
+      transformResponse: (res: ApiEnvelope<any>) => res.data,
+      providesTags: feeTags,
+    }),
+    recordMultiMonthPayment: builder.mutation<any, any>({
+      query: (body) => ({ url: "fees/payments/multi-month", method: "POST", body }),
+      transformResponse: (res: ApiEnvelope<any>) => res.data,
+      invalidatesTags: feeTags,
+    }),
   }),
 });
 
@@ -172,7 +336,6 @@ export const {
   useCreateRazorpayOrderMutation,
   useVerifyRazorpayPaymentMutation,
   useCreateManualPaymentMutation,
-  useRecordFamilyPaymentMutation,
   useGetStudentLedgerQuery,
   useGetInvoicesQuery,
   useGetFeeDefaultersQuery,
@@ -185,4 +348,14 @@ export const {
   useGenerateCollectionPeriodBillsMutation,
   useWaiveLateFeeMutation,
   useExtendDueDateMutation,
+  useGetStudentMonthsChartQuery,
+  useRecordMultiMonthPaymentMutation,
+  useGetFeeOverviewQuery,
+  useGetReceiptQuery,
+  useGetRefundsQuery,
+  useRequestRefundMutation,
+  useDecideRefundMutation,
+  useProcessRefundMutation,
+  useGetLateFeeRulesQuery,
+  useCreateLateFeeRuleMutation,
 } = feesApi;

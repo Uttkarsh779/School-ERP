@@ -1,72 +1,50 @@
 import type { Response } from "express";
 import type { CustomRequest } from "../../middleware/auth";
-import { findStaffByUserId } from "../staff/service";
-import { getStudentByUserId } from "../students/service";
+import { httpError } from "../../utils/httpError";
 import * as assignmentService from "./service";
 
+const idOf = (v: unknown, field = "id") => {
+  const n = Number(v);
+  if (!Number.isInteger(n) || n <= 0) throw httpError(400, `Invalid ${field}`);
+  return n;
+};
+
 export const getAssignments = async (req: CustomRequest, res: Response): Promise<void> => {
-  try {
-    let classSectionId = req.query.classSectionId ? Number(req.query.classSectionId) : undefined;
-    const subjectId = req.query.subjectId ? Number(req.query.subjectId) : undefined;
-
-    // If student, automatically filter by student's class section
-    if (req.user?.role === "STUDENT") {
-      const student = await getStudentByUserId(req.user.id);
-      if (student) {
-        classSectionId = student.classSectionId;
-      }
-    }
-
-    const assignments = await assignmentService.listAssignments(classSectionId, subjectId);
-    res.json({ success: true, data: assignments });
-  } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message || "Failed to fetch assignments" });
-  }
+  const data = await assignmentService.listAssignments(req.user!, {
+    classSectionId: req.query.classSectionId ? Number(req.query.classSectionId) : undefined,
+    subjectId: req.query.subjectId ? Number(req.query.subjectId) : undefined,
+  });
+  res.json({ success: true, data });
 };
 
 export const postAssignment = async (req: CustomRequest, res: Response): Promise<void> => {
-  try {
-    const { title, description, classSectionId, subjectId, dueDate, endDate, attachmentUrl } = req.body;
+  res.status(201).json({ success: true, data: await assignmentService.createAssignment(req.user!, req.body ?? {}) });
+};
 
-    if (!title || !description || !classSectionId || !subjectId || !dueDate) {
-      res.status(400).json({
-        success: false,
-        message: "title, description, classSectionId, subjectId, and dueDate are required",
-      });
-      return;
-    }
-
-    let assignedById = 1;
-    if (req.user?.role === "TEACHER") {
-      const staff = await findStaffByUserId(req.user.id);
-      if (staff) {
-        assignedById = staff.id;
-      }
-    }
-
-    const assignment = await assignmentService.createAssignment({
-      title,
-      description,
-      classSectionId: Number(classSectionId),
-      subjectId: Number(subjectId),
-      assignedById,
-      dueDate: new Date(dueDate),
-      endDate: endDate ? new Date(endDate) : new Date(dueDate),
-      attachmentUrl,
-    });
-
-    res.status(201).json({ success: true, data: assignment });
-  } catch (err: any) {
-    res.status(400).json({ success: false, message: err.message || "Failed to post assignment" });
-  }
+export const putAssignment = async (req: CustomRequest, res: Response): Promise<void> => {
+  res.json({ success: true, data: await assignmentService.updateAssignment(req.user!, idOf(req.params.id), req.body ?? {}) });
 };
 
 export const deleteAssignment = async (req: CustomRequest, res: Response): Promise<void> => {
-  try {
-    const id = Number(req.params.id);
-    await assignmentService.deleteAssignment(id);
-    res.json({ success: true, message: "Assignment deleted successfully" });
-  } catch (err: any) {
-    res.status(400).json({ success: false, message: err.message || "Failed to delete assignment" });
-  }
+  await assignmentService.deleteAssignment(req.user!, idOf(req.params.id));
+  res.json({ success: true, message: "Homework deleted" });
+};
+
+export const getSubmissions = async (req: CustomRequest, res: Response): Promise<void> => {
+  res.json({ success: true, data: await assignmentService.listSubmissions(req.user!, idOf(req.params.id)) });
+};
+
+export const postSubmission = async (req: CustomRequest, res: Response): Promise<void> => {
+  res.status(201).json({
+    success: true,
+    message: "Homework submitted",
+    data: await assignmentService.submitHomework(req.user!, idOf(req.params.id), req.body ?? {}),
+  });
+};
+
+export const patchSubmissionReview = async (req: CustomRequest, res: Response): Promise<void> => {
+  res.json({
+    success: true,
+    data: await assignmentService.reviewSubmission(req.user!, idOf(req.params.id), idOf(req.params.studentId, "student"), req.body ?? {}),
+  });
 };

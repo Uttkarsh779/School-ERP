@@ -5,6 +5,7 @@ import {
   Badge,
   Button,
   Card,
+  ConfirmDialog,
   EmptyState,
   FormGrid,
   FormSection,
@@ -27,15 +28,21 @@ import {
   useEnterExamResultsMutation,
   useGetExamResultsQuery,
   useGetExamsQuery,
+  useSetExamLockMutation,
+  useSetResultsPublishedMutation,
   type EnterExamResultInput,
 } from "../../../../store/api/exams.api";
 import { useAppSelector } from "../../../../store/store";
 import styles from "./AdminExamsPage.module.css";
+import ExamResultsView from "./ExamResultsView";
+import RemarksEditor from "./RemarksEditor";
+import { isAbsentText, validateMarksCell } from "./marksCell";
 
 interface NewExamFormInputs {
   name: string;
   sessionId: string;
   classSectionId: string;
+  passPercentage: string;
 }
 
 interface MarksCell {
@@ -63,6 +70,26 @@ const AdminExamsPage = () => {
   const [selectedExam, setSelectedExam] = useState<IExam | null>(null);
   const [marks, setMarks] = useState<Record<string, MarksCell>>({});
   const [lastOutcomes, setLastOutcomes] = useState<IExamResultOutcome[] | null>(null);
+  const [resultsExamId, setResultsExamId] = useState<number | null>(null);
+  const [remarksExamId, setRemarksExamId] = useState<number | null>(null);
+  const [pendingPublish, setPendingPublish] = useState<IExam | null>(null);
+  const [setPublished, { isLoading: publishing }] = useSetResultsPublishedMutation();
+  const [pendingLock, setPendingLock] = useState<IExam | null>(null);
+  const [lockingId, setLockingId] = useState<number | null>(null);
+  const [setExamLock] = useSetExamLockMutation();
+
+  const toggleLock = async (exam: IExam) => {
+    setLockingId(exam.id);
+    try {
+      await setExamLock({ examId: exam.id, locked: !exam.isLocked }).unwrap();
+      toast.success(exam.isLocked ? "Marks unlocked — teachers can edit again." : "Marks locked — teachers can no longer edit.");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Failed to update the lock."));
+    } finally {
+      setLockingId(null);
+      setPendingLock(null);
+    }
+  };
 
   const csId = classSectionId ? Number(classSectionId) : undefined;
   const examCsId = selectedExam?.classSectionId;
@@ -93,7 +120,7 @@ const AdminExamsPage = () => {
     const seeded: Record<string, MarksCell> = {};
     for (const result of existingResults) {
       seeded[cellKey(result.studentId, result.subjectId)] = {
-        marksObtained: String(result.marksObtained),
+        marksObtained: result.isAbsent ? "AB" : String(result.marksObtained),
         maxMarks: String(result.maxMarks),
       };
     }
@@ -115,13 +142,18 @@ const AdminExamsPage = () => {
   const currentClassSection = classSections?.find((cs) => cs.id === examCsId);
 
   const openModal = () => {
-    reset({ name: "", sessionId: String(sessions?.[0]?.id || ""), classSectionId: classSectionId || "" });
+    reset({
+      name: "",
+      sessionId: String(sessions?.[0]?.id || ""),
+      classSectionId: classSectionId || "",
+      passPercentage: "33",
+    });
     setIsModalOpen(true);
   };
 
   const closeModal = () => {
     setIsModalOpen(false);
-    reset({ name: "", sessionId: "", classSectionId: "" });
+    reset({ name: "", sessionId: "", classSectionId: "", passPercentage: "33" });
   };
 
   const onCreateExam = async (values: NewExamFormInputs) => {
@@ -134,6 +166,7 @@ const AdminExamsPage = () => {
         name: values.name,
         sessionId: Number(values.sessionId),
         classSectionId: Number(values.classSectionId),
+        passPercentage: Number(values.passPercentage),
       }).unwrap();
       toast.success("Exam created successfully.");
       closeModal();
@@ -174,12 +207,19 @@ const AdminExamsPage = () => {
     for (const student of students) {
       for (const subject of subjects) {
         const cell = marks[cellKey(student.id, subject.id)];
-        if (!cell || cell.marksObtained === "" || cell.maxMarks === "") continue;
+        if (!cell || cell.marksObtained.trim() === "" || cell.maxMarks === "") continue;
+        const error = validateMarksCell(cell.marksObtained, cell.maxMarks);
+        if (error) {
+          toast.error(`${student.name} — ${subject.name}: ${error}`);
+          return;
+        }
+        const absent = isAbsentText(cell.marksObtained);
         results.push({
           studentId: student.id,
           subjectId: subject.id,
-          marksObtained: Number(cell.marksObtained),
+          marksObtained: absent ? 0 : Number(cell.marksObtained),
           maxMarks: Number(cell.maxMarks),
+          isAbsent: absent,
         });
       }
     }
@@ -213,7 +253,16 @@ const AdminExamsPage = () => {
   }, [exams, searchQuery]);
 
   const examColumns: TableColumn<IExam>[] = [
-    { key: "name", label: "Exam Name" },
+    {
+      key: "name",
+      label: "Exam Name",
+      render: (exam) => (
+        <span style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem" }}>
+          {exam.name}
+          {exam.resultsPublished ? <Badge tone="success">Published</Badge> : exam.isLocked && <Badge tone="warning">Locked</Badge>}
+        </span>
+      ),
+    },
     {
       key: "classSection",
       label: "Class & Section",
@@ -221,18 +270,45 @@ const AdminExamsPage = () => {
         exam.classSection ? `${exam.classSection.className} - ${exam.classSection.section}` : "Global Class",
     },
     { key: "session", label: "Academic Session", render: (exam) => exam.session?.name ?? "2026-27" },
+    { key: "passPercentage", label: "Pass Mark", render: (exam) => `${exam.passPercentage ?? 33}%` },
     {
       key: "actions",
       label: "Actions",
       render: (exam) => (
-        <Button
-          type="button"
-          size="sm"
-          variant={isTeacher ? "primary" : "outline"}
-          onClick={() => openMarksEntry(exam)}
-        >
-          {isTeacher ? "Enter Marks →" : "View Marks 👁️"}
-        </Button>
+        <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
+          <Button
+            type="button"
+            size="sm"
+            variant={isTeacher ? "primary" : "outline"}
+            onClick={() => openMarksEntry(exam)}
+          >
+            {isTeacher ? "Enter Marks →" : "View Marks 👁️"}
+          </Button>
+          <Button type="button" size="sm" variant="primary" onClick={() => setResultsExamId(exam.id)}>
+            Results &amp; Ranks
+          </Button>
+          {!isTeacher && (
+            <Button type="button" size="sm" variant="outline" onClick={() => setRemarksExamId(exam.id)}>
+              Remarks
+            </Button>
+          )}
+          {!isTeacher && (
+            <Button type="button" size="sm" variant={exam.resultsPublished ? "outline" : "primary"} onClick={() => setPendingPublish(exam)}>
+              {exam.resultsPublished ? "Unpublish" : "Publish results"}
+            </Button>
+          )}
+          {!isTeacher && !exam.resultsPublished && (
+            <Button
+              type="button"
+              size="sm"
+              variant={exam.isLocked ? "outline" : "ghost"}
+              isLoading={lockingId === exam.id}
+              onClick={() => setPendingLock(exam)}
+            >
+              {exam.isLocked ? "Unlock" : "Lock marks"}
+            </Button>
+          )}
+        </div>
       ),
     },
   ];
@@ -244,6 +320,10 @@ const AdminExamsPage = () => {
   }, [students]);
 
   const failures = (lastOutcomes ?? []).filter((o) => !o.success);
+
+  if (resultsExamId !== null) {
+    return <ExamResultsView examId={resultsExamId} onBack={() => setResultsExamId(null)} />;
+  }
 
   return (
     <div>
@@ -381,9 +461,9 @@ const AdminExamsPage = () => {
                             <Fragment key={subject.id}>
                               <td>
                                 <input
-                                  type="number"
+                                  type="text"
+                                  inputMode="decimal"
                                   className={styles.cellInput}
-                                  min={0}
                                   disabled={!isTeacher}
                                   value={cell.marksObtained}
                                   onChange={(e) => setCell(student.id, subject.id, "marksObtained", e.target.value)}
@@ -420,6 +500,49 @@ const AdminExamsPage = () => {
         </Card>
       )}
 
+      {remarksExamId !== null && <RemarksEditor examId={remarksExamId} onClose={() => setRemarksExamId(null)} />}
+
+      {pendingPublish && (
+        <ConfirmDialog
+          title={pendingPublish.resultsPublished ? "Unpublish results?" : "Publish results?"}
+          message={
+            pendingPublish.resultsPublished
+              ? `Students will no longer see their "${pendingPublish.name}" report card until you publish again. The class teacher can then edit remarks.`
+              : `Students will see their "${pendingPublish.name}" report card with marks, rank and the class teacher's remarks. Marks are locked when published.`
+          }
+          confirmLabel={pendingPublish.resultsPublished ? "Unpublish" : "Publish"}
+          tone={pendingPublish.resultsPublished ? "danger" : "primary"}
+          isLoading={publishing}
+          onCancel={() => setPendingPublish(null)}
+          onConfirm={async () => {
+            try {
+              await setPublished({ examId: pendingPublish.id, published: !pendingPublish.resultsPublished }).unwrap();
+              toast.success(pendingPublish.resultsPublished ? "Results unpublished" : "Results published — students can now see their report cards");
+            } catch (err) {
+              toast.error(getErrorMessage(err, "Couldn't update"));
+            } finally {
+              setPendingPublish(null);
+            }
+          }}
+        />
+      )}
+
+      {pendingLock && (
+        <ConfirmDialog
+          title={pendingLock.isLocked ? "Unlock marks?" : "Lock marks?"}
+          message={
+            pendingLock.isLocked
+              ? `Teachers will be able to edit marks for "${pendingLock.name}" again. Every change is recorded in the change history.`
+              : `Teachers will no longer be able to enter or edit marks for "${pendingLock.name}". You can unlock it later for corrections.`
+          }
+          confirmLabel={pendingLock.isLocked ? "Unlock" : "Lock marks"}
+          tone={pendingLock.isLocked ? "danger" : "primary"}
+          isLoading={lockingId === pendingLock.id}
+          onCancel={() => setPendingLock(null)}
+          onConfirm={() => toggleLock(pendingLock)}
+        />
+      )}
+
       {isModalOpen && (
         <Modal title="Create New Exam" onClose={closeModal}>
           <form onSubmit={handleSubmit(onCreateExam)}>
@@ -445,6 +568,18 @@ const AdminExamsPage = () => {
                   placeholder="Select Session..."
                   error={errors.sessionId?.message}
                   {...register("sessionId", { required: "Session is required" })}
+                />
+                <Input
+                  label="Pass Mark (% per subject) *"
+                  type="number"
+                  min={0}
+                  max={100}
+                  step="0.5"
+                  error={errors.passPercentage?.message}
+                  {...register("passPercentage", {
+                    required: "Pass mark is required",
+                    validate: (v) => (Number(v) >= 0 && Number(v) <= 100) || "Enter a value between 0 and 100",
+                  })}
                 />
               </FormGrid>
             </FormSection>

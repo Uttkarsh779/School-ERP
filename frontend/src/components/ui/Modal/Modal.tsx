@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import styles from "./Modal.module.css";
 
 interface ModalProps {
+  isOpen?: boolean;
   title: string;
   onClose: () => void;
   children: ReactNode;
@@ -9,7 +10,9 @@ interface ModalProps {
   maxWidth?: string;
 }
 
-const Modal = ({ title, onClose, children, size = "md", maxWidth }: ModalProps) => {
+const Modal = ({ isOpen = true, title, onClose, children, size = "md", maxWidth }: ModalProps) => {
+  if (!isOpen) return null;
+
   const getMaxWidth = () => {
     if (maxWidth) return maxWidth;
     switch (size) {

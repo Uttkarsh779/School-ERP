@@ -1,0 +1,274 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--erp-text);
+  margin: 0.4rem 0 0.15rem;
+}
+
+.muted {
+  font-size: 0.78rem;
+  color: var(--erp-text-muted);
+  margin: 0;
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.statusRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.statusChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.35rem 0.75rem 0.35rem 0.4rem;
+  border: 1px solid var(--erp-border);
+  border-radius: 999px;
+  background: var(--erp-surface);
+  font: inherit;
+  font-size: 0.82rem;
+  color: var(--erp-text);
+  cursor: pointer;
+  transition: border-color var(--erp-transition-fast);
+}
+
+.statusChip:hover,
+.statusChipActive {
+  border-color: var(--erp-primary-600);
+}
+
+.statusChipActive {
+  background: var(--erp-primary-50);
+}
+
+.twoCol {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.25rem;
+  align-items: stretch;
+}
+
+.twoCol > * {
+  height: 100%;
+}
+
+.topperList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.topperItem {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.7rem 0.9rem;
+  border-radius: var(--erp-radius-md);
+  background: var(--erp-bg);
+  border: 1px solid var(--erp-border);
+}
+
+.topperName {
+  flex: 1;
+  min-width: 0;
+}
+
+.topperScore {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.medal {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.9rem;
+  flex-shrink: 0;
+  background: var(--erp-surface);
+  border: 1px solid var(--erp-border);
+  color: var(--erp-text);
+}
+
+.medal1 {
+  background: var(--erp-primary-100);
+  border-color: var(--erp-primary-600);
+  color: var(--erp-primary-700);
+}
+
+.medal2 {
+  background: var(--erp-info-bg);
+  border-color: transparent;
+  color: var(--erp-info);
+}
+
+.medal3 {
+  background: var(--erp-warning-bg);
+  border-color: transparent;
+  color: var(--erp-warning);
+}
+
+.rules {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  font-size: 0.85rem;
+  color: var(--erp-text);
+  line-height: 1.45;
+}
+
+.filters {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 1rem;
+  align-items: end;
+  margin-bottom: 1.25rem;
+  max-width: 640px;
+}
+
+.linkButton {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  color: var(--erp-primary-700);
+  cursor: pointer;
+  text-align: left;
+}
+
+.linkButton:hover {
+  text-decoration: underline;
+}
+
+.rank {
+  font-weight: 700;
+}
+
+.rankTop {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 50%;
+  background: var(--erp-primary-100);
+  color: var(--erp-primary-700);
+  font-weight: 700;
+  font-size: 0.82rem;
+}
+
+.outOf {
+  color: var(--erp-text-muted);
+  font-weight: 400;
+  font-size: 0.78em;
+}
+
+.absent {
+  font-weight: 700;
+  color: var(--erp-warning);
+}
+
+.failMark {
+  font-weight: 600;
+  color: var(--erp-danger);
+}
+
+/* Student result modal */
+.modalHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.modalBadges {
+  display: inline-flex;
+  gap: 0.4rem;
+}
+
+.cardTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.cardTable th,
+.cardTable td {
+  text-align: left;
+  padding: 0.55rem 0.5rem;
+  border-bottom: 1px solid var(--erp-border);
+}
+
+.cardTable th {
+  font-size: 0.78rem;
+  color: var(--erp-text-muted);
+  font-weight: 600;
+}
+
+.cardTable tfoot td {
+  font-weight: 700;
+  border-bottom: none;
+}
+
+.failNote {
+  margin: 0.9rem 0 0;
+  font-size: 0.85rem;
+  color: var(--erp-danger);
+}
+
+.modalActions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 1.25rem;
+}
+
+@media (max-width: 600px) {
+  .filters {
+    grid-template-columns: 1fr;
+  }
+}
+
+.lockBadge {
+  display: inline-flex;
+  vertical-align: middle;
+  margin-left: 0.6rem;
+}
+
+.scopeNote {
+  padding: 0.75rem 1rem;
+  border-radius: var(--erp-radius-sm);
+  background: var(--erp-info-bg);
+  color: var(--erp-info);
+  font-size: 0.85rem;
+}

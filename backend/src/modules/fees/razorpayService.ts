@@ -1,105 +1,104 @@
 import crypto from "crypto";
 import { prisma } from "../../config/prisma";
 import { FeeMode, PaymentStatus } from "../../generated/prisma/enums";
-import { allocatePaymentToCharges } from "./paymentAllocationService";
-import { generateReceiptNumber } from "./receiptService";
+import { allocatePaymentToChargesTransactionally } from "./paymentAllocationService";
+import { receiptNumberFor, withLateFees } from "./lateFeeService";
+import { httpError } from "../../utils/httpError";
 
-const getRazorpayCredentials = () => {
-  const keyId = process.env.RAZORPAY_KEY_ID || "rzp_test_mock_key_id";
-  const keySecret = process.env.RAZORPAY_KEY_SECRET || "mock_razorpay_secret_key";
-  const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET || "mock_razorpay_webhook_secret";
-  return { keyId, keySecret, webhookSecret };
+// Online fee payments via Razorpay.
+//
+// Security model:
+// - Real mode (RAZORPAY_KEY_ID + RAZORPAY_KEY_SECRET set): orders are created with Razorpay
+//   and every checkout is verified with the HMAC signature. No signature, no payment.
+// - Mock mode is for local development ONLY: it must be switched on explicitly with
+//   RAZORPAY_MOCK_MODE=true and is refused when NODE_ENV=production.
+// - Neither configured: online payment is unavailable (503) — it never silently "succeeds".
+// - Webhooks are accepted only when RAZORPAY_WEBHOOK_SECRET is set and the signature matches.
+
+const isRealMode = () => Boolean(process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET);
+const isMockMode = () =>
+  !isRealMode() && process.env.RAZORPAY_MOCK_MODE === "true" && process.env.NODE_ENV !== "production";
+
+const assertConfigured = () => {
+  if (!isRealMode() && !isMockMode()) {
+    throw httpError(503, "Online payment is not available right now. Please pay at the school fee counter.");
+  }
+};
+
+const signatureMatches = (payload: string, signature: string, secret: string) => {
+  const expected = crypto.createHmac("sha256", secret).update(payload).digest("hex");
+  const a = Buffer.from(expected);
+  const b = Buffer.from(String(signature ?? ""));
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+};
+
+// Current outstanding for a student (optionally limited to some charges), incl. late fees.
+const outstandingFor = async (studentId: number, chargeIds?: number[]) => {
+  const charges = await prisma.feeCharge.findMany({
+    where: {
+      studentId,
+      status: { in: ["UNPAID", "PARTIALLY_PAID"] },
+      ...(chargeIds && chargeIds.length > 0 ? { id: { in: chargeIds } } : {}),
+    },
+  });
+  const computed = await withLateFees(prisma, charges as any[]);
+  return computed.reduce((sum, r) => sum + r.outstanding, 0);
 };
 
 export const createRazorpayOrderForStudent = async (data: {
   studentId: number;
-  requestedAmount?: number; // Optional partial amount requested by student
+  requestedAmount?: number; // optional partial amount
   invoiceIds?: number[];
   chargeIds?: number[];
 }) => {
-  const { studentId, requestedAmount, invoiceIds, chargeIds } = data;
+  assertConfigured();
+  const { studentId, requestedAmount, chargeIds } = data;
 
-  // 1. Calculate actual server-side outstanding amount
-  const dueSummary = await prisma.feeCharge.findMany({
-    where: {
-      studentId,
-      status: { in: ["UNPAID", "PARTIALLY_PAID"] },
-      id: chargeIds && chargeIds.length > 0 ? { in: chargeIds } : undefined,
-    },
-  });
-
-  let totalOutstanding = dueSummary.reduce((sum: number, c: any) => {
-    const net = Number(c.netAmount || c.baseAmount || 0);
-    const paid = Number(c.paidAmount || 0);
-    return sum + Math.max(0, net - paid);
-  }, 0);
-
+  const totalOutstanding = await outstandingFor(studentId, chargeIds);
   if (totalOutstanding <= 0) {
-    // Fallback: Check issued Invoices (Fee Bills)
-    const dueInvoices = await prisma.invoice.findMany({
-      where: {
-        studentId,
-        status: { in: ["ISSUED", "PARTIALLY_PAID", "OVERDUE"] },
-      },
-    });
-
-    totalOutstanding = dueInvoices.reduce((sum: number, inv: any) => {
-      const tot = Number(inv.totalAmount || 0);
-      const pd = Number(inv.paidAmount || 0);
-      return sum + Math.max(0, tot - pd);
-    }, 0);
+    throw httpError(400, "There is no outstanding fee to pay right now.");
   }
 
-  if (totalOutstanding <= 0) {
-    if (requestedAmount && requestedAmount > 0) {
-      totalOutstanding = requestedAmount;
-    } else {
-      throw new Error("No outstanding fee balance to pay for this student.");
-    }
-  }
-
-  // 2. Validate payment amount — if partial payment requested, ensure requestedAmount <= totalOutstanding
   let payableAmount = totalOutstanding;
-  if (requestedAmount && requestedAmount > 0) {
-    payableAmount = Math.min(requestedAmount, totalOutstanding > 0 ? totalOutstanding : requestedAmount);
+  if (requestedAmount !== undefined && requestedAmount !== null) {
+    const req = Number(requestedAmount);
+    if (!Number.isFinite(req) || req <= 0) throw httpError(400, "Enter an amount greater than zero.");
+    if (req > totalOutstanding) {
+      throw httpError(400, `You can pay at most ₹${totalOutstanding.toLocaleString("en-IN")} (your current outstanding).`);
+    }
+    payableAmount = req;
   }
-
-  const { keyId, keySecret } = getRazorpayCredentials();
-
-  // 3. Call Razorpay API to create order (or mock in test/dev if credentials not configured)
+  payableAmount = Math.round(payableAmount * 100) / 100;
   const amountInPaise = Math.round(payableAmount * 100);
-  let razorpayOrderId = `order_mock_${Date.now()}_${studentId}`;
 
-  if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {
-    const authHeader = Buffer.from(`${keyId}:${keySecret}`).toString("base64");
+  let razorpayOrderId: string;
+  let keyId: string;
+  if (isRealMode()) {
+    keyId = process.env.RAZORPAY_KEY_ID!;
+    const authHeader = Buffer.from(`${keyId}:${process.env.RAZORPAY_KEY_SECRET}`).toString("base64");
     const response = await fetch("https://api.razorpay.com/v1/orders", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Basic ${authHeader}`,
-      },
+      headers: { "Content-Type": "application/json", Authorization: `Basic ${authHeader}` },
       body: JSON.stringify({
         amount: amountInPaise,
         currency: "INR",
-        receipt: `rcpt_${studentId}_${Date.now()}`,
-        notes: { studentId: studentId.toString() },
+        receipt: `stu_${studentId}_${Date.now()}`,
+        notes: { studentId: String(studentId) },
       }),
     });
-
     if (!response.ok) {
-      const errText = await response.text();
-      throw new Error(`Razorpay Order Creation Failed: ${errText}`);
+      throw httpError(502, "Could not start the online payment. Please try again in a moment.");
     }
-
-    const orderData = (await response.json()) as any;
+    const orderData = (await response.json()) as { id: string };
     razorpayOrderId = orderData.id;
+  } else {
+    keyId = "rzp_test_mock";
+    razorpayOrderId = `order_mock_${Date.now()}_${studentId}`;
   }
 
-  // 4. Create pending Payment record in database
-  const paymentNumber = `PAY-${Date.now()}-${studentId}`;
   const payment = await prisma.payment.create({
     data: {
-      paymentNumber,
+      paymentNumber: `PAY-ONLINE-${Date.now()}-${studentId}`,
       studentId,
       amount: payableAmount,
       mode: FeeMode.GATEWAY,
@@ -115,56 +114,22 @@ export const createRazorpayOrderForStudent = async (data: {
     currency: "INR",
     keyId,
     paymentId: payment.id,
+    mock: isMockMode(),
   };
 };
 
-export const verifyAndConfirmRazorpayPayment = async (data: {
-  razorpayOrderId: string;
-  razorpayPaymentId: string;
-  razorpaySignature: string;
-  studentId: number;
-}) => {
-  const { razorpayOrderId, razorpayPaymentId, razorpaySignature, studentId } = data;
-  const { keySecret } = getRazorpayCredentials();
-
-  // 1. Verify Razorpay HMAC-SHA256 signature
-  const generatedSignature = crypto
-    .createHmac("sha256", keySecret)
-    .update(`${razorpayOrderId}|${razorpayPaymentId}`)
-    .digest("hex");
-
-  const isSignatureValid =
-    process.env.RAZORPAY_KEY_SECRET ? generatedSignature === razorpaySignature : true;
-
-  if (!isSignatureValid) {
-    throw new Error("Invalid Razorpay payment signature! Security verification failed.");
-  }
-
-  // 2. Fetch pending payment record
-  const payment = await prisma.payment.findFirst({
-    where: {
-      OR: [{ razorpayOrderId }, { studentId, status: PaymentStatus.PENDING }],
-    },
-  });
-
-  if (!payment) {
-    throw new Error("Pending payment order not found.");
-  }
-
-  // Idempotency check: if payment already marked SUCCESS, return existing record
-  if (payment.status === PaymentStatus.SUCCESS && payment.receiptNumber) {
-    return {
-      success: true,
-      message: "Payment already verified and processed.",
-      payment,
-      receiptNumber: payment.receiptNumber,
-    };
-  }
-
-  // 3. Execute atomic DB Transaction: Mark SUCCESS -> Generate Receipt -> Allocate Payment
-  const receiptNumber = await generateReceiptNumber();
-
-  const updatedPayment = await prisma.$transaction(async (tx: any) => {
+// Marks a pending online payment successful and allocates it to the student's charges —
+// one transaction, idempotent (a second call returns the already-confirmed payment).
+const confirmPendingPayment = async (razorpayOrderId: string, razorpayPaymentId: string, razorpaySignature: string | null) =>
+  prisma.$transaction(async (tx: any) => {
+    const payment = await tx.payment.findUnique({ where: { razorpayOrderId } });
+    if (!payment) throw httpError(404, "Payment order not found.");
+    if (payment.status === PaymentStatus.SUCCESS) {
+      return { payment, receiptNumber: payment.receiptNumber, alreadyProcessed: true };
+    }
+    if (payment.status !== PaymentStatus.PENDING) {
+      throw httpError(409, "This payment order can no longer be completed.");
+    }
     const updated = await tx.payment.update({
       where: { id: payment.id },
       data: {
@@ -172,64 +137,62 @@ export const verifyAndConfirmRazorpayPayment = async (data: {
         razorpayPaymentId,
         razorpaySignature,
         paidAt: new Date(),
-        receiptNumber,
+        receiptNumber: receiptNumberFor(payment.id),
       },
     });
-
-    return updated;
+    await allocatePaymentToChargesTransactionally(tx, {
+      paymentId: updated.id,
+      studentId: updated.studentId,
+      amount: Number(updated.amount),
+    });
+    return { payment: updated, receiptNumber: updated.receiptNumber, alreadyProcessed: false };
   });
 
-  // Run payment allocation FIFO algorithm
-  await allocatePaymentToCharges(updatedPayment.id, studentId, updatedPayment.amount);
+export const verifyAndConfirmRazorpayPayment = async (data: {
+  razorpayOrderId: string;
+  razorpayPaymentId: string;
+  razorpaySignature: string;
+  studentId: number;
+}) => {
+  assertConfigured();
+  const { razorpayOrderId, razorpayPaymentId, razorpaySignature, studentId } = data;
+  if (!razorpayOrderId || !razorpayPaymentId) throw httpError(400, "Missing payment details.");
 
+  // The order must belong to this student — never match "any pending payment".
+  const pending = await prisma.payment.findUnique({ where: { razorpayOrderId } });
+  if (!pending || pending.studentId !== Number(studentId)) {
+    throw httpError(404, "Payment order not found.");
+  }
+
+  if (isRealMode()) {
+    const ok = signatureMatches(`${razorpayOrderId}|${razorpayPaymentId}`, razorpaySignature, process.env.RAZORPAY_KEY_SECRET!);
+    if (!ok) throw httpError(400, "Payment could not be verified. If money was deducted, contact the school office with your transaction ID.");
+  }
+
+  const result = await confirmPendingPayment(razorpayOrderId, razorpayPaymentId, razorpaySignature ?? null);
   return {
     success: true,
-    message: "Payment successfully verified and allocated.",
-    payment: updatedPayment,
-    receiptNumber,
+    message: result.alreadyProcessed ? "Payment already verified." : "Payment verified and recorded.",
+    payment: result.payment,
+    receiptNumber: result.receiptNumber,
   };
 };
 
 export const processRazorpayWebhook = async (rawBody: string, signature: string) => {
-  const { webhookSecret } = getRazorpayCredentials();
-
-  // 1. Verify webhook signature
-  if (process.env.RAZORPAY_WEBHOOK_SECRET) {
-    const expectedSignature = crypto
-      .createHmac("sha256", webhookSecret)
-      .update(rawBody)
-      .digest("hex");
-
-    if (expectedSignature !== signature) {
-      throw new Error("Invalid webhook signature!");
-    }
-  }
+  const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
+  if (!secret) throw httpError(503, "Webhook is not configured.");
+  if (!signatureMatches(rawBody, signature, secret)) throw httpError(401, "Invalid webhook signature.");
 
   const event = JSON.parse(rawBody);
-
-  // Idempotently handle payment.captured
   if (event.event === "payment.captured") {
-    const paymentEntity = event.payload.payment.entity;
-    const razorpayOrderId = paymentEntity.order_id;
-    const razorpayPaymentId = paymentEntity.id;
-
-    const existingPayment = await prisma.payment.findFirst({
-      where: { razorpayOrderId },
-    });
-
-    if (existingPayment && existingPayment.status === PaymentStatus.SUCCESS) {
-      return { success: true, message: "Webhook already processed." };
-    }
-
-    if (existingPayment) {
-      await verifyAndConfirmRazorpayPayment({
-        razorpayOrderId,
-        razorpayPaymentId,
-        razorpaySignature: "WEBHOOK_VERIFIED",
-        studentId: existingPayment.studentId,
-      });
+    const entity = event.payload?.payment?.entity;
+    if (entity?.order_id && entity?.id) {
+      const exists = await prisma.payment.findUnique({ where: { razorpayOrderId: entity.order_id } });
+      if (exists) {
+        // The webhook signature (checked above) authenticates this event.
+        await confirmPendingPayment(entity.order_id, entity.id, null);
+      }
     }
   }
-
   return { success: true, event: event.event };
 };

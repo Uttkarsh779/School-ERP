@@ -71,7 +71,7 @@ const FeeReceipt = ({ data }: FeeReceiptProps) => {
         </div>
         <div className={styles.titleBadgeBlock}>
           <div className={styles.receiptTitle}>Fee Receipt</div>
-          <div className={styles.paidBadge}>✓ PAID &amp; VERIFIED</div>
+          <div className={styles.paidBadge}>PAID &amp; VERIFIED</div>
         </div>
       </div>
 

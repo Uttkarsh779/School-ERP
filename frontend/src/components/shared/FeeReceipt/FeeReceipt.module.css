@@ -12,7 +12,7 @@
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  border-bottom: 3px double #0284c7;
+  border-bottom: 3px double #0a1f42;
   padding-bottom: 1rem;
   margin-bottom: 1.25rem;
 }
@@ -32,7 +32,7 @@
 .schoolName {
   font-size: 1.4rem;
   font-weight: 800;
-  color: #0284c7;
+  color: #0a1f42;
   letter-spacing: 0.02em;
   margin: 0;
   text-transform: uppercase;
@@ -130,8 +130,8 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: #f0f9ff;
-  border: 1.5px solid #0284c7;
+  background: #f8fafc;
+  border: 1.5px solid #0a1f42;
   border-radius: 8px;
   padding: 0.85rem 1.25rem;
   margin-bottom: 1.25rem;
@@ -140,14 +140,14 @@
 .amountLabel {
   font-weight: 700;
   font-size: 0.95rem;
-  color: #0369a1;
+  color: #0a1f42;
   text-transform: uppercase;
 }
 
 .amountValue {
   font-weight: 800;
   font-size: 1.35rem;
-  color: #0284c7;
+  color: #0a1f42;
 }
 
 .wordsBox {

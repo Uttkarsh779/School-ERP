@@ -1,280 +1,360 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "react-toastify";
-import {
-  Button,
-  Card,
-  EmptyState,
-  Icon,
-  Input,
-  Modal,
-  PageHeader,
-  Select,
-  Spinner,
-  Table,
-} from "../../../../components/ui";
+import { Badge, Button, Card, ConfirmDialog, EmptyState, Icon, Input, Modal, PageHeader, Select, Spinner, Table } from "../../../../components/ui";
+import type { TableColumn } from "../../../../components/ui";
+import FileUploadField from "../../../../components/shared/FileUploadField/FileUploadField";
 import {
   useCreateAssignmentMutation,
   useDeleteAssignmentMutation,
   useGetAssignmentsQuery,
+  useGetSubmissionsQuery,
+  useReviewSubmissionMutation,
+  useUpdateAssignmentMutation,
+  type IAssignment,
 } from "../../../../store/api/assignments.api";
-import { useGetMyClassSectionsQuery } from "../../../../store/api/classSections.api";
+import { useGetClassSectionsQuery, useGetMyClassSectionsQuery } from "../../../../store/api/classSections.api";
 import { useGetSubjectsQuery } from "../../../../store/api/subjects.api";
+import { useAppSelector } from "../../../../store/store";
 import styles from "./TeacherAssignmentsPage.module.css";
 
-const formatDate = (isoStr: string) => {
-  return new Date(isoStr).toLocaleDateString("en-IN", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-};
+const fmt = (iso?: string | null) => (iso ? new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—");
+const errorOf = (err: unknown, fallback: string) => (err as { data?: { message?: string } })?.data?.message ?? fallback;
+const toInputDate = (iso?: string) => (iso ? iso.slice(0, 10) : "");
 
+type FormState = { id?: number; classSectionId: string; subjectId: string; title: string; description: string; dueDate: string; endDate: string; attachmentUrl: string | null };
+const emptyForm = (classSectionId = ""): FormState => ({ classSectionId, subjectId: "", title: "", description: "", dueDate: "", endDate: "", attachmentUrl: null });
+
+// Homework for teachers (and admins at /admin/assignments): set, edit, delete, and review
+// submissions — Checked / Redo with a comment, or record work handed in on paper.
 const TeacherAssignmentsPage = () => {
-  const [selectedClassId, setSelectedClassId] = useState<string>("");
-  const [showCreateModal, setShowCreateModal] = useState(false);
+  const role = useAppSelector((s) => s.auth.user?.role);
+  const isStaffAdmin = role === "SUPER_ADMIN" || role === "ADMIN";
+  const mine = useGetMyClassSectionsQuery(undefined, { skip: isStaffAdmin });
+  const all = useGetClassSectionsQuery(undefined, { skip: !isStaffAdmin });
+  const classes = (isStaffAdmin ? all.data : mine.data) ?? [];
 
-  // Form State
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [formSubjectId, setFormSubjectId] = useState("");
-  const [dueDate, setDueDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [attachmentUrl, setAttachmentUrl] = useState("");
+  const [classId, setClassId] = useState("");
+  const { data: assignments = [], isLoading } = useGetAssignmentsQuery(classId ? { classSectionId: Number(classId) } : undefined);
+  const [form, setForm] = useState<FormState | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<IAssignment | null>(null);
+  const [reviewing, setReviewing] = useState<IAssignment | null>(null);
 
-  const csId = selectedClassId ? Number(selectedClassId) : undefined;
+  const { data: subjects = [] } = useGetSubjectsQuery({ classSectionId: Number(form?.classSectionId || 0) }, { skip: !form?.classSectionId });
+  const [create, { isLoading: creating }] = useCreateAssignmentMutation();
+  const [update, { isLoading: updating }] = useUpdateAssignmentMutation();
+  const [remove, { isLoading: deleting }] = useDeleteAssignmentMutation();
 
-  const { data: classSections, isLoading: isLoadingSections } = useGetMyClassSectionsQuery();
-  const { data: assignments, isLoading: isLoadingAssignments } = useGetAssignmentsQuery(
-    csId ? { classSectionId: csId } : undefined
-  );
-  const { data: subjects } = useGetSubjectsQuery({ classSectionId: csId ?? 0 }, { skip: !csId });
-
-  const [createAssignment, { isLoading: isCreating }] = useCreateAssignmentMutation();
-  const [deleteAssignment] = useDeleteAssignmentMutation();
-
-  const handleOpenModal = () => {
-    if (!csId) {
-      toast.error("Please select a class section first");
-      return;
-    }
-    setTitle("");
-    setDescription("");
-    setFormSubjectId(subjects?.[0]?.id.toString() || "");
-    setDueDate("");
-    setEndDate("");
-    setAttachmentUrl("");
-    setShowCreateModal(true);
-  };
-
-  const handlePostAssignment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!csId || !title || !description || !formSubjectId || !dueDate) {
-      toast.error("Please fill in all required fields");
-      return;
-    }
-
+  const save = async () => {
+    if (!form) return;
+    if (!form.classSectionId || !form.subjectId) return toast.error("Choose the class and subject");
+    if (form.title.trim().length < 3) return toast.error("Title must be at least 3 characters");
+    if (!form.description.trim()) return toast.error("Add the instructions");
+    if (!form.dueDate) return toast.error("Choose the due date");
+    if (form.endDate && form.endDate < form.dueDate) return toast.error("Closing date can't be before the due date");
+    const body = {
+      title: form.title.trim(),
+      description: form.description.trim(),
+      classSectionId: Number(form.classSectionId),
+      subjectId: Number(form.subjectId),
+      dueDate: form.dueDate,
+      endDate: form.endDate || form.dueDate,
+      attachmentUrl: form.attachmentUrl,
+    };
     try {
-      await createAssignment({
-        classSectionId: csId,
-        subjectId: Number(formSubjectId),
-        title,
-        description,
-        dueDate,
-        endDate: endDate || dueDate,
-        attachmentUrl: attachmentUrl || undefined,
-      }).unwrap();
-
-      toast.success("Homework assignment posted successfully!");
-      setShowCreateModal(false);
-    } catch (err: any) {
-      toast.error(err?.data?.message || "Failed to post assignment");
+      if (form.id) await update({ id: form.id, ...body }).unwrap();
+      else await create(body).unwrap();
+      toast.success(form.id ? "Homework updated" : "Homework posted");
+      setForm(null);
+    } catch (e) {
+      toast.error(errorOf(e, "Couldn't save the homework"));
     }
   };
 
-  const handleDelete = async (id: number, name: string) => {
-    if (window.confirm(`Are you sure you want to delete assignment "${name}"?`)) {
-      try {
-        await deleteAssignment(id).unwrap();
-        toast.success("Assignment deleted");
-      } catch (err: any) {
-        toast.error(err?.data?.message || "Failed to delete assignment");
-      }
-    }
-  };
-
-  const classOptions = [
-    { label: "All My Classes", value: "" },
-    ...(classSections ?? []).map((cs) => ({
-      label: `${cs.className} - ${cs.section}`,
-      value: cs.id.toString(),
-    })),
+  const columns: TableColumn<IAssignment>[] = [
+    {
+      key: "title",
+      label: "Homework",
+      render: (a) => (
+        <div>
+          <div className={styles.title}>{a.title}</div>
+          <div className={styles.muted}>
+            {a.classSection ? `${a.classSection.className} - ${a.classSection.section}` : ""} · {a.subject?.name}
+            {a.assignedBy?.user?.name ? ` · by ${a.assignedBy.user.name}` : ""}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "dueDate",
+      label: "Due",
+      render: (a) => (
+        <div>
+          {fmt(a.dueDate)}
+          {a.endDate && a.endDate !== a.dueDate && <div className={styles.muted}>closes {fmt(a.endDate)}</div>}
+        </div>
+      ),
+    },
+    {
+      key: "stats",
+      label: "Submitted",
+      render: (a) =>
+        a.stats ? (
+          <div>
+            {a.stats.submitted}/{a.stats.students}
+            {a.stats.toReview > 0 && (
+              <div>
+                <Badge tone="warning">{a.stats.toReview} to check</Badge>
+              </div>
+            )}
+          </div>
+        ) : (
+          "—"
+        ),
+    },
+    {
+      key: "actions",
+      label: "",
+      render: (a) => (
+        <div className={styles.rowActions}>
+          <Button size="sm" onClick={() => setReviewing(a)}>
+            Submissions
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() =>
+              setForm({
+                id: a.id,
+                classSectionId: String(a.classSectionId),
+                subjectId: String(a.subjectId),
+                title: a.title,
+                description: a.description,
+                dueDate: toInputDate(a.dueDate),
+                endDate: toInputDate(a.endDate),
+                attachmentUrl: a.attachmentUrl ?? null,
+              })
+            }
+          >
+            Edit
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setPendingDelete(a)}>
+            Delete
+          </Button>
+        </div>
+      ),
+    },
   ];
 
   return (
-    <div>
+    <div className={styles.page}>
       <PageHeader
-        title="Homework & Assignments Management"
-        subtitle="Post daily class assignments, homework tasks & reference links"
+        title="Homework"
+        subtitle="Set homework, then check what students hand in"
         actions={
-          <Button
-            variant="primary"
-            icon={<Icon name="plus" size={16} />}
-            onClick={handleOpenModal}
-          >
-            + Post Homework
+          <Button icon={<Icon name="plus" size={16} />} onClick={() => setForm(emptyForm(classId))} disabled={classes.length === 0}>
+            Set homework
           </Button>
         }
       />
 
-      <Card title="Class Filter & Homework Roster">
-        <div style={{ maxWidth: "300px", marginBottom: "1.25rem" }}>
+      <Card title="Homework list">
+        <div className={styles.filters}>
           <Select
-            label="Select Class Section"
-            value={selectedClassId}
-            onChange={(e) => setSelectedClassId(e.target.value)}
-            options={classOptions}
+            label="Class"
+            value={classId}
+            onChange={(e) => setClassId(e.target.value)}
+            options={[{ label: isStaffAdmin ? "All classes" : "All my classes", value: "" }, ...classes.map((c) => ({ label: `${c.className} - ${c.section}`, value: String(c.id) }))]}
           />
         </div>
-
-        {isLoadingAssignments ? (
+        {isLoading ? (
           <Spinner />
-        ) : !assignments || assignments.length === 0 ? (
-          <EmptyState
-            title="No assignments found"
-            description="No homework tasks posted for the selected filter."
-          />
+        ) : assignments.length === 0 ? (
+          <EmptyState title="No homework yet" description="Set homework for a class and students will see it in their portal." />
         ) : (
-          <Table
-            keyField="id"
-            columns={[
-              {
-                key: "classSection",
-                label: "Class Section",
-                render: (a: any) => `${a.classSection?.className} - ${a.classSection?.section}`,
-              },
-              {
-                key: "subject",
-                label: "Subject",
-                render: (a: any) => <strong>{a.subject?.name}</strong>,
-              },
-              {
-                key: "title",
-                label: "Assignment Title",
-                render: (a: any) => <strong>{a.title}</strong>,
-              },
-              {
-                key: "dueDate",
-                label: "Submission Due Date",
-                render: (a: any) => formatDate(a.dueDate),
-              },
-              {
-                key: "assignedBy",
-                label: "Assigned By",
-                render: (a: any) => a.assignedBy?.user?.name || "Teacher",
-              },
-              {
-                key: "action",
-                label: "Actions",
-                render: (a: any) => (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleDelete(a.id, a.title)}
-                  >
-                    Delete
-                  </Button>
-                ),
-              },
-            ]}
-            data={assignments}
-          />
+          <Table columns={columns} data={assignments} keyField="id" />
         )}
       </Card>
 
-      {/* CREATE HOMEWORK MODAL */}
-      {showCreateModal && (
-        <Modal title="Post New Homework Assignment" onClose={() => setShowCreateModal(false)}>
-          <form onSubmit={handlePostAssignment} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-            <Select
-              label="Subject *"
-              required
-              value={formSubjectId}
-              onChange={(e) => setFormSubjectId(e.target.value)}
-              options={(subjects ?? []).map((s) => ({ label: s.name, value: s.id.toString() }))}
-            />
-
-            <Input
-              label="Assignment Title *"
-              type="text"
-              required
-              placeholder="e.g. Chapter 4 Exercises 1-10"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-            />
-
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
-              <Input
-                label="Submission Due Date *"
-                type="date"
+      {form && (
+        <Modal title={form.id ? "Edit homework" : "Set homework"} size="lg" onClose={() => setForm(null)}>
+          <div className={styles.form}>
+            <div className={styles.formRow}>
+              <Select
+                label="Class"
                 required
-                value={dueDate}
-                onChange={(e) => {
-                  setDueDate(e.target.value);
-                  if (!endDate) setEndDate(e.target.value);
-                }}
+                value={form.classSectionId}
+                disabled={Boolean(form.id)}
+                onChange={(e) => setForm({ ...form, classSectionId: e.target.value, subjectId: "" })}
+                options={[{ label: "Select…", value: "" }, ...classes.map((c) => ({ label: `${c.className} - ${c.section}`, value: String(c.id) }))]}
               />
-              <Input
-                label="Display End Date (Visibility)"
-                type="date"
-                placeholder="Last date visible on student board"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
+              <Select
+                label="Subject"
+                required
+                value={form.subjectId}
+                disabled={Boolean(form.id) || !form.classSectionId}
+                onChange={(e) => setForm({ ...form, subjectId: e.target.value })}
+                options={[{ label: "Select…", value: "" }, ...subjects.map((s) => ({ label: s.name, value: String(s.id) }))]}
               />
             </div>
-
-            <div>
-              <label style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--erp-text)", display: "block", marginBottom: "0.35rem" }}>
-                Detailed Instructions / Homework Description *
+            <Input label="Title" required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="e.g. Chapter 3 — exercise 3.2" />
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor="hw-desc">
+                Instructions<span className={styles.required}>*</span>
               </label>
-              <textarea
-                required
-                rows={4}
-                style={{
-                  width: "100%",
-                  padding: "0.65rem 0.85rem",
-                  borderRadius: "var(--erp-radius-sm)",
-                  border: "1px solid var(--erp-border)",
-                  fontFamily: "inherit",
-                  fontSize: "0.88rem",
-                  color: "var(--erp-text)",
-                  background: "var(--erp-surface)",
-                }}
-                placeholder="Explain exact problem numbers, reading assignments or submission instructions..."
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-              />
+              <textarea id="hw-desc" rows={4} className={styles.textarea} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
             </div>
-
-            <Input
-              label="Optional Reference Link / Attachment URL"
-              type="url"
-              placeholder="e.g. https://drive.google.com/doc..."
-              value={attachmentUrl}
-              onChange={(e) => setAttachmentUrl(e.target.value)}
-            />
-
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginTop: "0.5rem" }}>
-              <Button type="button" variant="outline" onClick={() => setShowCreateModal(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" variant="primary" isLoading={isCreating}>
-                Post Assignment
-              </Button>
+            <div className={styles.formRow}>
+              <Input label="Due date" type="date" required value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} />
+              <Input label="Closes on (optional)" type="date" value={form.endDate} min={form.dueDate} onChange={(e) => setForm({ ...form, endDate: e.target.value })} hint="Late submissions accepted until this date" />
             </div>
-          </form>
+            <FileUploadField label="Attachment (optional)" value={form.attachmentUrl} onChange={(url) => setForm({ ...form, attachmentUrl: url })} folder="school_erp/homework" />
+          </div>
+          <div className={styles.formActions}>
+            <Button variant="outline" onClick={() => setForm(null)}>Cancel</Button>
+            <Button onClick={save} isLoading={creating || updating}>{form.id ? "Save changes" : "Post homework"}</Button>
+          </div>
         </Modal>
       )}
+
+      {reviewing && <SubmissionsModal assignment={reviewing} onClose={() => setReviewing(null)} />}
+
+      {pendingDelete && (
+        <ConfirmDialog
+          title="Delete homework?"
+          message={`"${pendingDelete.title}" and all its submissions will be deleted.`}
+          confirmLabel="Delete"
+          isLoading={deleting}
+          onCancel={() => setPendingDelete(null)}
+          onConfirm={async () => {
+            try {
+              await remove(pendingDelete.id).unwrap();
+              toast.success("Homework deleted");
+            } catch (e) {
+              toast.error(errorOf(e, "Couldn't delete"));
+            } finally {
+              setPendingDelete(null);
+            }
+          }}
+        />
+      )}
     </div>
+  );
+};
+
+const SubmissionsModal = ({ assignment, onClose }: { assignment: IAssignment; onClose: () => void }) => {
+  const { data, isLoading } = useGetSubmissionsQuery(assignment.id);
+  const [review, { isLoading: saving }] = useReviewSubmissionMutation();
+  const [filter, setFilter] = useState("");
+  const [comments, setComments] = useState<Record<number, string>>({});
+
+  const rows = useMemo(() => {
+    const all = data?.rows ?? [];
+    if (filter === "pending") return all.filter((r) => r.submission?.status === "SUBMITTED");
+    if (filter === "missing") return all.filter((r) => !r.submission);
+    return all;
+  }, [data, filter]);
+
+  const act = async (studentId: number, action: "CHECKED" | "REDO" | "OFFLINE") => {
+    const comment = comments[studentId]?.trim();
+    if (action === "REDO" && !comment) return toast.error("Write what the student should fix");
+    try {
+      await review({ id: assignment.id, studentId, action, comment: comment || undefined }).unwrap();
+      toast.success(action === "CHECKED" ? "Marked checked" : action === "REDO" ? "Sent back to redo" : "Recorded as handed in on paper");
+    } catch (e) {
+      toast.error(errorOf(e, "Couldn't save"));
+    }
+  };
+
+  const counts = {
+    submitted: (data?.rows ?? []).filter((r) => r.submission).length,
+    pending: (data?.rows ?? []).filter((r) => r.submission?.status === "SUBMITTED").length,
+    total: data?.rows.length ?? 0,
+  };
+
+  return (
+    <Modal title={`Submissions · ${assignment.title}`} size="xl" onClose={onClose}>
+      {isLoading || !data ? (
+        <Spinner />
+      ) : (
+        <div className={styles.form}>
+          <div className={styles.reviewHead}>
+            <span className={styles.muted}>
+              {counts.submitted}/{counts.total} handed in · {counts.pending} waiting to be checked · due {fmt(assignment.dueDate)}
+            </span>
+            <Select
+              aria-label="Show"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              options={[
+                { label: "Everyone", value: "" },
+                { label: "Waiting to check", value: "pending" },
+                { label: "Not handed in", value: "missing" },
+              ]}
+            />
+          </div>
+          <ul className={styles.subList}>
+            {rows.map((r) => {
+              const s = r.submission;
+              return (
+                <li key={r.studentId} className={styles.subItem}>
+                  <div className={styles.subTop}>
+                    <div>
+                      <strong>{r.name}</strong> <span className={styles.muted}>Roll {r.rollNo}</span>
+                    </div>
+                    {!s ? (
+                      <Badge tone="neutral">Not handed in</Badge>
+                    ) : (
+                      <span className={styles.badges}>
+                        {s.isLate && <Badge tone="danger">Late</Badge>}
+                        {s.submittedOffline && <Badge tone="neutral">On paper</Badge>}
+                        <Badge tone={s.status === "CHECKED" ? "success" : s.status === "REDO" ? "warning" : "info"}>
+                          {s.status === "CHECKED" ? "Checked" : s.status === "REDO" ? "Redo requested" : "Submitted"}
+                        </Badge>
+                      </span>
+                    )}
+                  </div>
+                  {s && !s.submittedOffline && (
+                    <div className={styles.answer}>
+                      {s.text && <p>{s.text}</p>}
+                      {s.attachmentUrl && (
+                        <a href={s.attachmentUrl} target="_blank" rel="noreferrer">
+                          View attachment
+                        </a>
+                      )}
+                      <div className={styles.muted}>Submitted {new Date(s.submittedAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</div>
+                    </div>
+                  )}
+                  {s?.teacherComment && <div className={styles.comment}>Your comment: {s.teacherComment}</div>}
+                  <div className={styles.reviewRow}>
+                    <input
+                      className={styles.commentInput}
+                      placeholder={s ? "Comment for the student (required for Redo)" : "Optional note"}
+                      value={comments[r.studentId] ?? ""}
+                      onChange={(e) => setComments({ ...comments, [r.studentId]: e.target.value })}
+                    />
+                    {s ? (
+                      <>
+                        <Button size="sm" onClick={() => act(r.studentId, "CHECKED")} disabled={saving}>
+                          Checked
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => act(r.studentId, "REDO")} disabled={saving}>
+                          Redo
+                        </Button>
+                      </>
+                    ) : (
+                      <Button size="sm" variant="outline" onClick={() => act(r.studentId, "OFFLINE")} disabled={saving}>
+                        Handed in on paper
+                      </Button>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+            {rows.length === 0 && <li className={styles.muted}>Nobody in this list.</li>}
+          </ul>
+        </div>
+      )}
+    </Modal>
   );
 };
 

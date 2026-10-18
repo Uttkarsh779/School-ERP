@@ -3,7 +3,7 @@ import { useState } from "react";
 import { PageHeader, Button, Badge, Spinner, EmptyState, Icon, Table, Card, StatCard } from "../../../../components/ui";
 import type { TableColumn } from "../../../../components/ui";
 import { useGetParentByIdQuery, useGetParentDuesSummaryQuery } from "../../../../store/api/parents.api";
-import RecordFamilyPaymentModal from "./RecordFamilyPaymentModal.tsx";
+import RecordStudentPaymentModal from "./RecordStudentPaymentModal.tsx";
 import LinkChildModal from "./LinkChildModal.tsx";
 import styles from "./FamilyProfilePage.module.css";
 
@@ -12,7 +12,10 @@ const FamilyProfilePage = () => {
   const navigate = useNavigate();
   const parentId = Number(id);
   const [activeTab, setActiveTab] = useState("dues");
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [selectedStudentForPayment, setSelectedStudentForPayment] = useState<{
+    student: any;
+    netDue: number;
+  } | null>(null);
   const [showLinkChildModal, setShowLinkChildModal] = useState(false);
 
   const { data: parent, isLoading: isLoadingParent } = useGetParentByIdQuery(parentId);
@@ -44,9 +47,11 @@ const FamilyProfilePage = () => {
     { key: "admissionNo", label: "Admission No", render: (r) => r.student.admissionNo },
     { key: "relationship", label: "Relationship", render: (r) => r.relationshipType || "—" },
     { key: "actions", label: "", render: (r) => (
-      <Button size="sm" variant="outline" onClick={() => navigate(`/admin/students/${r.student.id}`)}>
-        View Ledger
-      </Button>
+      <div style={{ display: "flex", gap: "8px" }}>
+        <Button size="sm" variant="outline" onClick={() => navigate(`/admin/students/${r.student.id}`)}>
+          View Ledger
+        </Button>
+      </div>
     )}
   ];
 
@@ -64,9 +69,6 @@ const FamilyProfilePage = () => {
             </Button>
             <Button icon={<Icon name="plus" size={16} />} variant="outline" onClick={() => setShowLinkChildModal(true)}>
               Link Student
-            </Button>
-            <Button icon={<Icon name="wallet" size={16} />} onClick={() => setShowPaymentModal(true)}>
-              Record Family Payment
             </Button>
           </div>
         }
@@ -104,16 +106,30 @@ const FamilyProfilePage = () => {
             <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
               {duesSummary.childrenSummaries.map((childSummary) => (
                 <div key={childSummary.student.id} style={{ border: "1px solid var(--erp-border)", borderRadius: "var(--erp-radius-lg)", padding: "16px", background: "var(--erp-surface)" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", flexWrap: "wrap", gap: "10px" }}>
                     <div>
                       <h3 style={{ margin: "0 0 4px 0", fontSize: "1.1rem", color: "var(--erp-text)" }}>{childSummary.student.name}</h3>
                       <div style={{ fontSize: "0.875rem", color: "var(--erp-text-muted)" }}>
                         Class {childSummary.student.classSection?.className} {childSummary.student.classSection?.section} • Roll No: {childSummary.student.rollNo}
                       </div>
                     </div>
-                    <Badge tone={childSummary.dueSummary.netPayable > 0 ? "danger" : "success"}>
-                      Due: ₹{childSummary.dueSummary.netPayable.toLocaleString()}
-                    </Badge>
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                      <Badge tone={childSummary.dueSummary.netPayable > 0 ? "danger" : "success"}>
+                        Due: ₹{childSummary.dueSummary.netPayable.toLocaleString()}
+                      </Badge>
+                      {childSummary.dueSummary.netPayable > 0 && (
+                        <Button
+                          size="sm"
+                          icon={<Icon name="wallet" size={14} />}
+                          onClick={() => setSelectedStudentForPayment({
+                            student: childSummary.student,
+                            netDue: childSummary.dueSummary.netPayable
+                          })}
+                        >
+                          Record Payment
+                        </Button>
+                      )}
+                    </div>
                   </div>
 
                   {childSummary.dueSummary.charges.length > 0 ? (
@@ -141,9 +157,23 @@ const FamilyProfilePage = () => {
                         keyField="id"
                         emptyMessage="No outstanding charges."
                       />
-                      <div style={{ display: "flex", justifyContent: "space-between", padding: "16px", fontWeight: 700, color: "var(--erp-text)", borderTop: "1px solid var(--erp-border)", background: "var(--erp-primary-50)" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px", fontWeight: 700, color: "var(--erp-text)", borderTop: "1px solid var(--erp-border)", background: "var(--erp-primary-50)", flexWrap: "wrap", gap: "10px" }}>
                         <span>Net Payable for {childSummary.student.name}</span>
-                        <span style={{ fontSize: "1.1rem" }}>₹{childSummary.dueSummary.netPayable.toLocaleString()}</span>
+                        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                          <span style={{ fontSize: "1.1rem" }}>₹{childSummary.dueSummary.netPayable.toLocaleString()}</span>
+                          {childSummary.dueSummary.netPayable > 0 && (
+                            <Button
+                              size="sm"
+                              icon={<Icon name="wallet" size={14} />}
+                              onClick={() => setSelectedStudentForPayment({
+                                student: childSummary.student,
+                                netDue: childSummary.dueSummary.netPayable
+                              })}
+                            >
+                              Record Payment
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ) : (
@@ -167,11 +197,11 @@ const FamilyProfilePage = () => {
         </Card>
       )}
 
-      {showPaymentModal && (
-        <RecordFamilyPaymentModal 
-          parentId={parentId} 
-          duesSummary={duesSummary}
-          onClose={() => setShowPaymentModal(false)} 
+      {selectedStudentForPayment && (
+        <RecordStudentPaymentModal 
+          student={selectedStudentForPayment.student}
+          netDue={selectedStudentForPayment.netDue}
+          onClose={() => setSelectedStudentForPayment(null)} 
         />
       )}
       {showLinkChildModal && (

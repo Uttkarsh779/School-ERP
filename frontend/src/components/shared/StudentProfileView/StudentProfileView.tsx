@@ -1,6 +1,4 @@
 import { Badge, FormSection } from "../../ui";
-import TransportInfoCard from "../TransportInfoCard/TransportInfoCard";
-import StudentFeeHistoryCard from "../StudentFeeHistoryCard/StudentFeeHistoryCard";
 import styles from "./StudentProfileView.module.css";
 
 const formatDate = (value?: string | null) => {
@@ -19,10 +17,11 @@ const Field = ({ label, value }: { label: string; value?: string | null }) => (
 
 interface StudentProfileViewProps {
   student: IStudent;
-  onAssignTransport?: () => void;
 }
 
-const StudentProfileView = ({ student, onAssignTransport }: StudentProfileViewProps) => (
+// Personal/family/ID details. Fees, transport, attendance and marks live in their own
+// tabs on the admin student page (StudentDetailPage).
+const StudentProfileView = ({ student }: StudentProfileViewProps) => (
   <div>
     <div className={styles.header}>
       <div className={styles.avatar}>{student.name.charAt(0).toUpperCase()}</div>
@@ -67,10 +66,6 @@ const StudentProfileView = ({ student, onAssignTransport }: StudentProfileViewPr
         <Field label="Previous School" value={student.previousSchool} />
       </div>
     </FormSection>
-
-    <TransportInfoCard student={student} onAssignTransport={onAssignTransport} />
-
-    <StudentFeeHistoryCard student={student} />
   </div>
 );
 

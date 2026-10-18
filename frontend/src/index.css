@@ -3,19 +3,38 @@
 }
 
 :root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  line-height: 1.6;
   font-weight: 400;
 
-  /* Force light mode — School ERP uses light backgrounds */
+  /* Force light mode — School ERP & Website uses crisp modern light backgrounds */
   color-scheme: light;
-  color: #213547;
+  color: #0f172a;
   background-color: #ffffff;
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+
+  --font-display: 'Outfit', 'Plus Jakarta Sans', sans-serif;
+  --font-sans: 'Plus Jakarta Sans', sans-serif;
+
+  /* Prestigious Royal Academic Palette */
+  --school-navy-950: #06152d;
+  --school-navy-900: #0a1f42;
+  --school-navy-800: #0f2d5c;
+  --school-navy-700: #1a427f;
+  --school-navy-600: #2559a7;
+
+  --school-gold-600: #c28800;
+  --school-gold-500: #eab308;
+  --school-gold-400: #facc15;
+  --school-gold-100: #fef9c3;
+  --school-gold-50: #fefce8;
+
+  --school-accent: #ea580c;
+  --school-accent-hover: #c2410c;
 
   --primary-color: rgb(250 140 57);
   --secondary-color: rgb(255 235 220);
@@ -25,7 +44,7 @@
 
 #root {
   width: 100%;
-  height: 100vh;
+  min-height: 100vh;
 }
 
 h1 {

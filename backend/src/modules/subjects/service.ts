@@ -7,18 +7,19 @@ const withTeacher = {
 export const listSubjects = (classSectionId: number) =>
   prisma.subject.findMany({ where: { classSectionId }, orderBy: { name: "asc" }, ...withTeacher });
 
-export const listSubjectsForTeacher = (classSectionId: number, staffId: number) =>
-  prisma.subject.findMany({
+// Subjects a teacher sees for a class: the class teacher sees every subject (view-only for
+// the ones they don't teach); anyone else sees only the subjects allocated to them.
+export const listSubjectsForTeacher = async (classSectionId: number, staffId: number) => {
+  const classSection = await prisma.classSection.findUnique({ where: { id: classSectionId }, select: { classTeacherId: true } });
+  return prisma.subject.findMany({
     where: {
       classSectionId,
-      OR: [
-        { teacherSubjects: { some: { staffId } } },
-        { timetableSlots: { some: { staffId } } },
-      ],
+      ...(classSection?.classTeacherId === staffId ? {} : { teacherSubjects: { some: { staffId } } }),
     },
     orderBy: { name: "asc" },
     ...withTeacher,
   });
+};
 
 export const createSubject = (classSectionId: number, name: string) =>
   prisma.subject.create({ data: { classSectionId, name }, ...withTeacher });
@@ -37,10 +38,25 @@ export const unassignTeacherFromSubject = async (subjectId: number) => {
   return prisma.subject.findUniqueOrThrow({ where: { id: subjectId }, ...withTeacher });
 };
 
+// The subject allocation (Subjects screen) is the single source of truth for who may enter
+// a subject's marks. The timetable is deliberately NOT consulted: it also holds
+// substitutions and stale periods, which must not grant marks access.
 export const isTeacherAssignedToSubject = async (staffId: number, subjectId: number): Promise<boolean> => {
   const link = await prisma.teacherSubject.findFirst({ where: { staffId, subjectId } });
-  if (link !== null) return true;
+  return link !== null;
+};
 
-  const slot = await prisma.timetableSlot.findFirst({ where: { staffId, subjectId } });
-  return slot !== null;
+// Subject ids in a class allocated to this teacher.
+export const listAllocatedSubjectIds = async (staffId: number, classSectionId: number): Promise<number[]> => {
+  const links = await prisma.teacherSubject.findMany({
+    where: { staffId, subject: { classSectionId } },
+    select: { subjectId: true },
+  });
+  return links.map((l: { subjectId: number }) => l.subjectId);
+};
+
+// Allocated teacher (staffId) of a subject, or null when nobody is allocated.
+export const getAllocatedStaffId = async (subjectId: number): Promise<number | null> => {
+  const link = await prisma.teacherSubject.findFirst({ where: { subjectId }, select: { staffId: true } });
+  return link?.staffId ?? null;
 };

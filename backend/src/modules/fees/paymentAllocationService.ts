@@ -1,5 +1,6 @@
 import { prisma } from "../../config/prisma";
-import { ChargeStatus, InvoiceStatus, PaymentStatus } from "../../generated/prisma/enums";
+import { ChargeStatus, InvoiceStatus } from "../../generated/prisma/enums";
+import { persistAccruedLateFees } from "./lateFeeService";
 
 export const allocatePaymentToCharges = async (
   paymentId: number,
@@ -22,7 +23,12 @@ export const allocatePaymentToChargesTransactionally = async (
     targetChargeId?: number;
   }
 ) => {
-    const { paymentId, studentId, amount: paymentAmount, targetChargeId } = params;
+    const { paymentId, studentId, targetChargeId } = params;
+    const paymentAmount = Number(params.amount);
+
+    // Bring late fees up to date first so the payment settles the same amount the
+    // student/admin was shown, and the receipt matches.
+    await persistAccruedLateFees(tx, studentId, targetChargeId ? [targetChargeId] : undefined);
 
     // 1. Fetch unpaid/partially paid charges for student (ordered FIFO by billing period)
     const unpaidCharges = await tx.feeCharge.findMany({
@@ -116,9 +122,11 @@ export const allocatePaymentToChargesTransactionally = async (
         where: { id: { in: itemChargeIds } },
       });
 
-      const totalInvoicePaid = invoiceCharges.reduce((sum: number, c: any) => sum + c.paidAmount, 0);
+      // Number() on every Decimal — adding Prisma Decimals with `+` concatenates strings.
+      const totalInvoicePaid = invoiceCharges.reduce((sum: number, c: any) => sum + Number(c.paidAmount), 0);
+      const invoiceTotal = invoiceCharges.reduce((sum: number, c: any) => sum + Number(c.netAmount), 0) || Number(invoice.totalAmount);
       const invoiceStatus =
-        totalInvoicePaid >= invoice.totalAmount
+        totalInvoicePaid >= invoiceTotal
           ? InvoiceStatus.PAID
           : totalInvoicePaid > 0
           ? InvoiceStatus.PARTIALLY_PAID
@@ -127,7 +135,8 @@ export const allocatePaymentToChargesTransactionally = async (
       await tx.invoice.update({
         where: { id: invoice.id },
         data: {
-          paidAmount: Math.min(invoice.totalAmount, totalInvoicePaid),
+          totalAmount: invoiceTotal,
+          paidAmount: Math.min(invoiceTotal, totalInvoicePaid),
           status: invoiceStatus,
         },
       });

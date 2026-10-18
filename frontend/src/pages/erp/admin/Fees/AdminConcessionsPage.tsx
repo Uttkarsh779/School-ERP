@@ -698,26 +698,22 @@ const AdminConcessionsPage = () => {
               </div>
             )}
 
-            {/* Fee Impact Breakdown */}
+            {/* What the concession does — stated from the concession itself, no invented base fee */}
             <div style={{ padding: "1.25rem", background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: "var(--erp-radius-md)" }}>
-              <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--erp-text)", marginBottom: "0.85rem" }}>
-                Fee Impact Example
+              <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--erp-text)", marginBottom: "0.5rem" }}>
+                Effect on fees
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.9rem", color: "var(--erp-text)", marginBottom: "0.5rem" }}>
-                <span>Normal Fee Base</span>
-                <span style={{ fontWeight: 500 }}>₹3,000</span>
+              <div style={{ fontSize: "0.9rem", color: "var(--erp-text)" }}>
+                {selectedConcession.calculationType === "PERCENTAGE"
+                  ? `${Number(selectedConcession.value)}% off`
+                  : `₹${Number(selectedConcession.value).toLocaleString("en-IN")} off`}{" "}
+                {selectedConcession.applicableHeads && selectedConcession.applicableHeads.length > 0
+                  ? "the selected fee heads"
+                  : "each applicable fee"}{" "}
+                on every bill generated while the concession is active.
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.9rem", color: "var(--erp-success)", marginBottom: "0.75rem" }}>
-                <span>{selectedConcession.concessionScheme?.name || "Concession Discount"}</span>
-                <span style={{ fontWeight: 600 }}>
-                  -₹{selectedConcession.calculationType === "PERCENTAGE" ? (3000 * selectedConcession.value) / 100 : selectedConcession.value}
-                </span>
-              </div>
-              <div style={{ borderTop: "1px solid var(--erp-border)", paddingTop: "0.75rem", display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: "1rem", color: "var(--erp-text)" }}>
-                <span>Student Pays</span>
-                <span style={{ color: "var(--erp-primary-600)" }}>
-                  ₹{Math.max(0, 3000 - (selectedConcession.calculationType === "PERCENTAGE" ? (3000 * selectedConcession.value) / 100 : selectedConcession.value)).toLocaleString("en-IN")}
-                </span>
+              <div style={{ fontSize: "0.8rem", color: "var(--erp-text-muted)", marginTop: "0.5rem" }}>
+                The exact rupee amount appears on each bill and in the student's fee history.
               </div>
             </div>
 
