@@ -1,9 +1,11 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { toast } from "react-toastify";
 import {
   Badge,
   Button,
+  ConfirmDialog,
   EmptyState,
   FormGrid,
   FormSection,
@@ -19,6 +21,7 @@ import {
   useGetSessionsQuery,
   useSetCurrentSessionMutation,
 } from "../../../../store/api/sessions.api";
+import { useAppSelector } from "../../../../store/store";
 import styles from "./SessionsPage.module.css";
 
 interface SessionFormInputs {
@@ -48,6 +51,8 @@ const SessionsPage = () => {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [settingCurrentId, setSettingCurrentId] = useState<number | null>(null);
+  const [confirmSwitch, setConfirmSwitch] = useState<IAcademicSession | null>(null);
+  const isSuperAdmin = useAppSelector((s) => s.auth.user?.role) === "SUPER_ADMIN";
 
   const {
     register,
@@ -98,12 +103,12 @@ const SessionsPage = () => {
       label: "",
       width: "10rem",
       render: (row) =>
-        row.isCurrent ? null : (
+        row.isCurrent || !isSuperAdmin ? null : (
           <Button
             variant="outline"
             size="sm"
             isLoading={settingCurrentId === row.id}
-            onClick={() => handleSetCurrent(row.id)}
+            onClick={() => setConfirmSwitch(row)}
           >
             Set as current
           </Button>
@@ -117,11 +122,33 @@ const SessionsPage = () => {
         title="Academic Sessions"
         subtitle="Manage the school's academic years and mark the active one"
         actions={
-          <Button variant="primary" onClick={() => setIsModalOpen(true)}>
-            + New Session
-          </Button>
+          isSuperAdmin ? (
+            <div className={styles.headerActions}>
+              <Button variant="outline" onClick={() => setIsModalOpen(true)}>
+                + New Session
+              </Button>
+              <Link to="/admin/sessions/setup" className={styles.setupLink}>
+                Start new academic year →
+              </Link>
+            </div>
+          ) : undefined
         }
       />
+
+      {isSuperAdmin && (
+        <div className={styles.setupBanner}>
+          <div>
+            <strong>Moving to a new academic year?</strong>
+            <p>
+              Use the setup wizard: it copies classes, subjects, teachers, the timetable and fee structures into the new session, promotes students
+              class by class, then switches the current session. Old records are never deleted.
+            </p>
+          </div>
+          <Link to="/admin/sessions/setup" className={styles.setupLink}>
+            Open setup wizard
+          </Link>
+        </div>
+      )}
 
       {isLoading ? (
         <Spinner />
@@ -139,6 +166,21 @@ const SessionsPage = () => {
         />
       ) : (
         <Table columns={columns} data={sessions} keyField="id" />
+      )}
+
+      {confirmSwitch && (
+        <ConfirmDialog
+          title={`Make ${confirmSwitch.name} the current session?`}
+          message={`Classes, attendance, timetable, teacher views, fee collection and dashboards will follow ${confirmSwitch.name}. Students are not moved automatically — use "Start new academic year" to copy the setup and promote students first. No data is deleted.`}
+          confirmLabel="Switch session"
+          tone="primary"
+          onConfirm={() => {
+            const id = confirmSwitch.id;
+            setConfirmSwitch(null);
+            handleSetCurrent(id);
+          }}
+          onCancel={() => setConfirmSwitch(null)}
+        />
       )}
 
       {isModalOpen && (

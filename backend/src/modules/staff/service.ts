@@ -69,7 +69,7 @@ export const createStaff = (data: {
   });
 };
 
-export const updateStaff = (
+export const updateStaff = async (
   id: number,
   data: { name?: string; email?: string; qualifications?: string; contact?: string; staffCategory?: any }
 ) => {
@@ -77,10 +77,13 @@ export const updateStaff = (
     qualifications: data.qualifications,
     contact: data.contact,
   };
+  const userUpdate: any = {};
   if (data.staffCategory) {
     updateData.staffCategory = data.staffCategory;
+    // Login access follows the role: a staff member moved to a no-login role loses it.
+    const current = await prisma.staff.findUniqueOrThrow({ where: { id } });
+    userUpdate.isActive = current.isActive && isAccountRequiredRole(data.staffCategory);
   }
-  const userUpdate: any = {};
   if (data.name !== undefined) userUpdate.name = data.name;
   if (data.email !== undefined) userUpdate.email = data.email;
 
@@ -90,9 +93,14 @@ export const updateStaff = (
   return prisma.staff.update({ where: { id }, data: updateData, ...staffWithUser });
 };
 
+// Employment status. The login is enabled only for roles that sign in.
 export const setStaffActive = async (id: number, isActive: boolean) => {
   const staff = await prisma.staff.findUniqueOrThrow({ where: { id } });
-  return prisma.user.update({ where: { id: staff.userId }, data: { isActive } });
+  return prisma.staff.update({
+    where: { id },
+    data: { isActive, user: { update: { isActive: isActive && isAccountRequiredRole(staff.staffCategory) } } },
+    ...staffWithUser,
+  });
 };
 
 export const findUserByEmail = (email: string) => prisma.user.findUnique({ where: { email } });

@@ -42,7 +42,9 @@ const getErrorMessage = (err: unknown, fallback: string) => {
 };
 
 const ClassSectionsPage = () => {
-  const { data: classSections, isLoading, isError } = useGetClassSectionsQuery();
+  // "" = current session (server default); next year's classes can be managed before switching.
+  const [sessionFilter, setSessionFilter] = useState("");
+  const { data: classSections, isLoading, isError } = useGetClassSectionsQuery(sessionFilter ? { sessionId: Number(sessionFilter) } : undefined);
   const { data: sessions } = useGetSessionsQuery();
   const { data: staffList } = useGetStaffListQuery();
 
@@ -80,7 +82,7 @@ const ClassSectionsPage = () => {
     reset({
       className: "",
       section: "",
-      sessionId: currentSession ? String(currentSession.id) : "",
+      sessionId: sessionFilter || (currentSession ? String(currentSession.id) : ""),
       classTeacherId: "",
     });
     setIsModalOpen(true);
@@ -157,7 +159,7 @@ const ClassSectionsPage = () => {
       key: "actions",
       label: "Actions",
       render: (row) => (
-        <div style={{ display: "flex", gap: "0.5rem" }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
           <Button size="sm" variant="outline" onClick={() => openEditModal(row)}>
             Edit
           </Button>
@@ -175,9 +177,22 @@ const ClassSectionsPage = () => {
         title="Class Sections"
         subtitle="Manage classes, sections and their assigned class teachers"
         actions={
-          <Button variant="primary" onClick={openCreateModal}>
-            + New Class Section
-          </Button>
+          <div style={{ display: "flex", gap: "0.6rem", alignItems: "flex-end", flexWrap: "wrap" }}>
+            <div style={{ minWidth: "11rem" }}>
+              <Select
+                aria-label="Academic session"
+                value={sessionFilter}
+                onChange={(e) => setSessionFilter(e.target.value)}
+                options={[
+                  { label: currentSession ? `${currentSession.name} (current)` : "Current session", value: "" },
+                  ...(sessions ?? []).filter((s) => !s.isCurrent).map((s) => ({ label: s.name, value: String(s.id) })),
+                ]}
+              />
+            </div>
+            <Button variant="primary" onClick={openCreateModal}>
+              + New Class Section
+            </Button>
+          </div>
         }
       />
 

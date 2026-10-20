@@ -201,10 +201,7 @@ const StaffPage = () => {
       await setStaffActive({ id: staff.id, isActive }).unwrap();
       toast.success(isActive ? "Staff member activated" : "Staff member deactivated");
       if (profileStaff && profileStaff.id === staff.id) {
-        setProfileStaff({
-          ...profileStaff,
-          user: { ...profileStaff.user, isActive },
-        });
+        setProfileStaff({ ...profileStaff, isActive });
       }
     } catch (err) {
       toast.error(getErrorMessage(err, "Failed to update staff status"));
@@ -214,7 +211,7 @@ const StaffPage = () => {
   };
 
   const handleToggleActive = (staff: IStaff) => {
-    if (staff.user.isActive) {
+    if (staff.isActive) {
       setPendingDeactivate(staff);
     } else {
       setActive(staff, true);
@@ -245,8 +242,8 @@ const StaffPage = () => {
       if (selectedRoleFilter !== "ALL" && details.value !== selectedRoleFilter) return false;
 
       // Status Filter
-      if (statusFilter === "ACTIVE" && !staff.user.isActive) return false;
-      if (statusFilter === "INACTIVE" && staff.user.isActive) return false;
+      if (statusFilter === "ACTIVE" && !staff.isActive) return false;
+      if (statusFilter === "INACTIVE" && staff.isActive) return false;
 
       return true;
     });
@@ -259,7 +256,7 @@ const StaffPage = () => {
       total: staffList.length,
       teaching: staffList.filter((s) => getRoleDetails(s.staffCategory).group === "Teaching").length,
       nonTeaching: staffList.filter((s) => getRoleDetails(s.staffCategory).group === "Non-Teaching").length,
-      active: staffList.filter((s) => s.user.isActive).length,
+      active: staffList.filter((s) => s.isActive).length,
     };
   }, [staffList]);
 
@@ -305,24 +302,24 @@ const StaffPage = () => {
       key: "status",
       label: "Status",
       render: (row) =>
-        row.user.isActive ? <Badge tone="success">Active</Badge> : <Badge tone="neutral">Inactive</Badge>,
+        row.isActive ? <Badge tone="success">Active</Badge> : <Badge tone="neutral">Inactive</Badge>,
     },
     {
       key: "actions",
       label: "Actions",
       width: "12rem",
       render: (row) => (
-        <div style={{ display: "flex", gap: "0.5rem" }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
           <Button variant="outline" size="sm" onClick={() => openProfile(row)}>
             Edit Profile
           </Button>
           <Button
-            variant={row.user.isActive ? "outline" : "primary"}
+            variant={row.isActive ? "outline" : "primary"}
             size="sm"
             isLoading={togglingId === row.id}
             onClick={() => handleToggleActive(row)}
           >
-            {row.user.isActive ? "Deactivate" : "Activate"}
+            {row.isActive ? "Deactivate" : "Activate"}
           </Button>
         </div>
       ),
@@ -571,19 +568,19 @@ const StaffPage = () => {
                   {editForm.name ? editForm.name.charAt(0).toUpperCase() : "S"}
                 </div>
                 <div className={styles.profileMeta}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "0.5rem" }}>
                     <span className={styles.profileName}>{editForm.name || "Staff Member"}</span>
                     <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", fontWeight: 500 }}>
                       (STF-{profileStaff.id})
                     </span>
                   </div>
                   <div className={styles.profileEmail}>{editForm.email}</div>
-                  <div style={{ marginTop: "0.35rem", display: "flex", gap: "0.4rem", alignItems: "center" }}>
+                  <div style={{ marginTop: "0.35rem", display: "flex", flexWrap: "wrap", gap: "0.4rem", alignItems: "center" }}>
                     <Badge tone="neutral">
                       {editForm.group === "TEACHING" ? "Teaching Staff" : "Non-Teaching Staff"}
                     </Badge>
-                    <Badge tone={profileStaff.user.isActive ? "success" : "neutral"} dot>
-                      {profileStaff.user.isActive ? "Active Account" : "Inactive Account"}
+                    <Badge tone={profileStaff.isActive ? "success" : "neutral"} dot>
+                      {profileStaff.isActive ? "Active" : "Inactive"}
                     </Badge>
                   </div>
                 </div>
@@ -648,14 +645,14 @@ const StaffPage = () => {
               <div className={styles.formActions} style={{ justifyContent: "space-between", alignItems: "center" }}>
                 <Button
                   type="button"
-                  variant={profileStaff.user.isActive ? "outline" : "primary"}
+                  variant={profileStaff.isActive ? "outline" : "primary"}
                   onClick={() => {
                     handleToggleActive(profileStaff);
                   }}
                 >
-                  {profileStaff.user.isActive ? "Deactivate Account" : "Activate Account"}
+                  {profileStaff.isActive ? "Deactivate" : "Activate"}
                 </Button>
-                <div style={{ display: "flex", gap: "0.5rem" }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
                   <Button type="button" variant="ghost" onClick={closeProfile}>
                     Cancel
                   </Button>

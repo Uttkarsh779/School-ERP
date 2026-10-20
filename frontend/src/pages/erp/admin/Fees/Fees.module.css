@@ -55,13 +55,13 @@
 
 .statsGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
   gap: 1rem;
 }
 
 .twoCol {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
   gap: 1.25rem;
   align-items: stretch;
 }
@@ -72,7 +72,7 @@
 
 .filters {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr));
   gap: 1rem;
   align-items: end;
   margin-bottom: 1.25rem;
@@ -285,5 +285,122 @@
 @media (max-width: 600px) {
   .wide {
     grid-column: 1 / -1;
+  }
+}
+
+/* Phones: two-up instead of one long column */
+@media (max-width: 640px) {
+  .statsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.65rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .page,
+  .section {
+    gap: 1rem;
+  }
+
+  .tabs {
+    gap: 0;
+    margin: 0 -1rem;
+    padding: 0 1rem 2px;
+    scrollbar-width: none;
+  }
+
+  .tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .tab {
+    flex-shrink: 0;
+    padding: 0.7rem 0.85rem;
+  }
+
+  .filters {
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+
+  .listItem {
+    flex-wrap: wrap;
+    gap: 0.5rem 0.75rem;
+  }
+
+  .formActions > * {
+    flex: 1 1 auto;
+  }
+
+  .itemsTable {
+    font-size: 0.82rem;
+  }
+
+  .itemsTable th,
+  .itemsTable td {
+    padding: 0.45rem 0.3rem;
+  }
+
+  .cellInput {
+    min-width: 4rem;
+    font-size: 16px;
+  }
+}
+
+/* Section picker replaces the fee tab strip on phones */
+.tabSelectWrap {
+  display: none;
+}
+
+/* Tablets: all tabs visible on two rows instead of hidden off-screen */
+@media (min-width: 641px) and (max-width: 1100px) {
+  .tabs {
+    flex-wrap: wrap;
+    overflow: visible;
+    row-gap: 0.15rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .tabsWithPicker {
+    display: none;
+  }
+
+  .tabSelectWrap {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    position: sticky;
+    top: calc(3.6rem + env(safe-area-inset-top));
+    z-index: 6;
+    margin: 0 -1rem;
+    padding: 0.6rem 1rem;
+    background: var(--erp-bg);
+  }
+
+  .tabSelectLabel {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--erp-text-muted);
+  }
+
+  .tabSelect {
+    width: 100%;
+    min-height: 3rem;
+    padding: 0 2.6rem 0 0.9rem;
+    font: inherit;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--erp-text);
+    background: var(--erp-surface)
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%23d9701f' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+      no-repeat right 0.95rem center;
+    border: 1.5px solid var(--erp-primary-600);
+    border-radius: var(--erp-radius-md);
+    box-shadow: var(--erp-shadow-sm);
+    appearance: none;
+    -webkit-appearance: none;
   }
 }

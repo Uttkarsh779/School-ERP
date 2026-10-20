@@ -252,7 +252,7 @@ const StudentCheck = ({ classSectionId }: { classSectionId?: number }) => {
             <StatCard label="Paid so far" value={inr(chart.totals.totalPaidSoFar)} />
             <StatCard label="Outstanding" value={inr(chart.totals.totalOutstanding)} />
           </div>
-          <Table columns={columns} data={chart.months} keyField="periodCode" showPagination={false} />
+          <Table columns={columns} data={chart.months} keyField="periodCode" showPagination={false} stackBelow={900} />
         </>
       )}
     </Card>

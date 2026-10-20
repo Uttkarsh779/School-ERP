@@ -55,7 +55,7 @@ const LinkChildModal = ({ parentId, onClose }: LinkChildModalProps) => {
     <Modal title="Link Student to Family" onClose={onClose}>
       <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
         
-        <div style={{ display: "flex", gap: "1rem" }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "1rem" }}>
           <div style={{ flex: 1 }}>
             <Input 
               label="Search Student" 
@@ -85,7 +85,7 @@ const LinkChildModal = ({ parentId, onClose }: LinkChildModalProps) => {
           disabled={isLoading}
           required
         />
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: "1rem", marginTop: "1rem", paddingTop: "1rem", borderTop: "1px solid var(--erp-border)" }}>
+        <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "flex-end", gap: "1rem", marginTop: "1rem", paddingTop: "1rem", borderTop: "1px solid var(--erp-border)" }}>
           <Button variant="outline" type="button" onClick={onClose} disabled={isLinking}>
             Cancel
           </Button>

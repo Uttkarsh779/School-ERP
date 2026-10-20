@@ -37,7 +37,11 @@ const TransportHistoryTab = ({
 
   return (
     <div className={styles.tab}>
-      <TransportInfoCard student={student} onAssignTransport={onManageTransport} />
+      <TransportInfoCard
+        student={student}
+        activeAssignment={history.transport.find((a) => a.status === "ACTIVE") ?? null}
+        onAssignTransport={onManageTransport}
+      />
       <Card title="Transport history" subtitle="Every village / fee-location assignment, newest first">
         <Table columns={columns} data={history.transport} keyField="id" emptyMessage="This student has never used school transport." />
       </Card>

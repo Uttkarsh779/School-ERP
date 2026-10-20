@@ -43,3 +43,12 @@
   font-size: 0.78rem;
   color: var(--erp-danger);
 }
+
+/* 16px keeps iOS from zooming into the field; taller for thumbs */
+@media (max-width: 900px) {
+  .input,
+  .select {
+    font-size: 16px;
+    min-height: 2.75rem;
+  }
+}

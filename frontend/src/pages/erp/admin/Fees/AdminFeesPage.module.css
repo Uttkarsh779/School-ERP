@@ -70,13 +70,13 @@
 
 .statsGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
   gap: 1rem;
 }
 
 .cardGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
   gap: 1.25rem;
 }
 
@@ -170,4 +170,61 @@
   justify-content: flex-end;
   gap: 0.6rem;
   margin-top: 1rem;
+}
+
+/* Phones: two-up instead of one long column */
+@media (max-width: 640px) {
+  .statsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.65rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .page {
+    gap: 1rem;
+  }
+
+  .tabs {
+    gap: 0;
+    margin: 0 -1rem;
+    padding: 0 1rem 2px;
+    scrollbar-width: none;
+  }
+
+  .tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .tab {
+    flex-shrink: 0;
+    padding: 0.7rem 0.85rem;
+  }
+
+  .subPills {
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .subPill {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  .cardActions {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .previewCard {
+    padding: 1rem;
+  }
+
+  .formActions {
+    flex-direction: column-reverse;
+  }
+
+  .formActions > * {
+    width: 100%;
+  }
 }

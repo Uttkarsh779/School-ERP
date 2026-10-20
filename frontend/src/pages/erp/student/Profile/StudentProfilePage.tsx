@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { Fragment, useEffect } from "react";
 import { toast } from "react-toastify";
 import { Badge, Card, EmptyState, PageHeader, Spinner } from "../../../../components/ui";
 import { useGetMyStudentProfileQuery } from "../../../../store/api/students.api";
@@ -144,10 +144,18 @@ const StudentProfilePage = () => {
         </Card>
 
         <Card title="Transport">
-          {extras?.transport ? (
+          {extras?.transport || profile.transportRoute ? (
             <dl className={styles.fields}>
-              <Field label="Village / Stop" value={extras.transport.villageName} />
-              <Field label="Using Transport Since" value={formatDate(extras.transport.startDate)} />
+              <Field label="Village / Stop" value={extras?.transport?.villageName} />
+              <Field label="Using Transport Since" value={extras?.transport ? formatDate(extras.transport.startDate) : null} />
+              <Field label="Bus Route" value={profile.transportRoute?.routeName} />
+              {profile.transportRoute?.stops && <Field label="Route Stops" value={profile.transportRoute.stops} full />}
+              {(profile.transportRoute?.vehicles ?? []).map((v) => (
+                <Fragment key={v.id}>
+                  <Field label="Bus Number" value={v.vehicleNo} />
+                  <Field label="Driver" value={[v.driverName, v.driverContact].filter(Boolean).join(" · ") || null} />
+                </Fragment>
+              ))}
             </dl>
           ) : (
             <p className={styles.muted}>Not using school transport.</p>

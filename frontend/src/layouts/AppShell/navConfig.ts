@@ -74,8 +74,8 @@ export const getMobilePrimaryNav = (role: string): NavEntry[] => {
 };
 
 export const profilePathByRole: Record<string, string> = {
-  SUPER_ADMIN: "/admin/account",
-  ADMIN: "/admin/account",
+  SUPER_ADMIN: "/admin/profile",
+  ADMIN: "/admin/profile",
   TEACHER: "/teacher/profile",
   STUDENT: "/student/profile",
 };

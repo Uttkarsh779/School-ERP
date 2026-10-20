@@ -157,3 +157,46 @@ thead .stickyCol2 {
     padding: 0.4rem 0.5rem;
   }
 }
+
+@media (max-width: 640px) {
+  .filterRow {
+    max-width: none;
+  }
+
+  .stickyCol {
+    min-width: 3rem;
+  }
+
+  .stickyCol2 {
+    left: 3rem;
+    min-width: 7.5rem;
+    max-width: 9rem;
+    white-space: normal !important;
+  }
+
+  .cellInput {
+    width: 3.6rem;
+    height: 2.4rem;
+    font-size: 16px;
+  }
+
+  .saveBar {
+    position: sticky;
+    bottom: calc(4.6rem + env(safe-area-inset-bottom));
+    z-index: 3;
+    padding: 0.75rem 0 0;
+  }
+
+  .saveBar > * {
+    width: 100%;
+    box-shadow: var(--erp-shadow-md);
+  }
+
+  .formActions {
+    flex-direction: column-reverse;
+  }
+
+  .formActions > * {
+    width: 100%;
+  }
+}

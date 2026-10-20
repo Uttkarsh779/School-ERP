@@ -60,7 +60,7 @@ export const getStudentHistory = async (studentId: number) => {
     ]);
 
   // ---- Academic history: one row per session, from attendance + exams + current class.
-  const academic = new Map<number, { sessionId: number; sessionName: string; startDate: Date; classes: Set<string>; current: boolean }>();
+  const academic = new Map<number, { sessionId: number; sessionName: string; startDate: Date; classes: Set<string>; current: boolean; outcome?: string | null; remarks?: string | null }>();
   const addAcademic = (session: any, cs: { className: string; section: string }, current = false) => {
     if (!session) return;
     const row = academic.get(session.id) ?? { sessionId: session.id, sessionName: session.name, startDate: session.startDate, classes: new Set<string>(), current: false };
@@ -70,6 +70,14 @@ export const getStudentHistory = async (studentId: number) => {
   };
   addAcademic(student.classSection.session, student.classSection, true);
   for (const a of attendance as any[]) addAcademic(a.classSection.session, a.classSection);
+  // Enrollment history (class per session + year-end result from promotion).
+  const enrollments = await prisma.studentEnrollment.findMany({ where: { studentId }, include: { session: true, classSection: true } });
+  for (const e of enrollments as any[]) {
+    addAcademic(e.session, e.classSection);
+    const row = academic.get(e.session.id)!;
+    row.outcome = e.outcome;
+    row.remarks = e.remarks;
+  }
 
   // ---- Attendance by session, then month.
   type MonthRow = { year: number; month: number; counts: Counts; days: Record<string, string> };
@@ -230,7 +238,7 @@ export const getStudentHistory = async (studentId: number) => {
     studentId,
     academicHistory: [...academic.values()]
       .sort((a, b) => b.startDate.getTime() - a.startDate.getTime())
-      .map((a) => ({ sessionId: a.sessionId, sessionName: a.sessionName, classes: [...a.classes], current: a.current })),
+      .map((a) => ({ sessionId: a.sessionId, sessionName: a.sessionName, classes: [...a.classes], current: a.current, outcome: a.outcome ?? null, remarks: a.remarks ?? null })),
     attendance: {
       overall: { counts: overallCounts, marked: markedOf(overallCounts), percentage: percentage(overallCounts.PRESENT, markedOf(overallCounts)) },
       sessions: attendanceHistory,

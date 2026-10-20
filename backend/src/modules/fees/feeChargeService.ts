@@ -1,7 +1,7 @@
 import { prisma } from "../../config/prisma";
 import { withLateFees } from "./lateFeeService";
-import { ChargeStatus, FeeFrequency, JoiningPolicy } from "../../generated/prisma/enums";
-import { calculateTransportFeeForPeriod } from "../transport/transportVillageService";
+import { ChargeStatus } from "../../generated/prisma/enums";
+import { billMonth, computeMonthBill, loadBillingContext } from "./billingService";
 
 export const getOrCreateTransportFeeHead = async () => {
   let feeHead = await prisma.feeHead.findUnique({ where: { name: "Transport Fee" } });
@@ -19,190 +19,61 @@ export const getOrCreateTransportFeeHead = async () => {
   return feeHead;
 };
 
+// Bills one month for every active student of a class section (billingService rules:
+// students admitted after the month, or with nothing to bill, are skipped). Already-billed
+// heads are left untouched, so running it twice is safe.
 export const generateChargesForClassSection = async (data: {
   sessionId: number;
   classSectionId: number;
   billingMonth: number; // 1-12
   billingYear: number;  // e.g. 2026
+  appliedByUserId?: number;
 }) => {
   const { sessionId, classSectionId, billingMonth, billingYear } = data;
+  const appliedByUserId = data.appliedByUserId;
 
-  // 1. Fetch class students
   const students = await prisma.student.findMany({
     where: { classSectionId, isActive: true },
-    include: { feeAssignments: true },
+    select: { id: true, name: true },
   });
-
-  // 2. Fetch fee structures for this class section (or global session structure)
-  const structures = await prisma.feeStructure.findMany({
-    where: {
-      sessionId,
-      OR: [{ classSectionId }, { classSectionId: null }],
-    },
-    include: {
-      items: {
-        include: {
-          feeHead: true,
-        },
-      },
-    },
-  });
-
-  const transportHead = await getOrCreateTransportFeeHead();
 
   let generatedCount = 0;
   let skippedCount = 0;
+  const skippedStudents: Array<{ studentId: number; name: string; reason: string }> = [];
 
   for (const student of students) {
-    const admissionMonth = student.admissionDate ? new Date(student.admissionDate).getMonth() + 1 : null;
-    const admissionYear = student.admissionDate ? new Date(student.admissionDate).getFullYear() : null;
-
-    // 3. Prepare Base Line Items for Concession Calculation
-    const lineItems: Array<{ feeHeadId: number; headName: string; code: string; amount: number }> = [];
-
-    for (const structure of structures) {
-      for (const item of structure.items) {
-        if (!item.applicableMonths.includes(billingMonth)) continue;
-        let baseAmount = Number(item.amount);
-        if (admissionMonth && admissionYear && admissionYear === billingYear && admissionMonth === billingMonth) {
-          const assignment = student.feeAssignments.find((a: any) => a.feeStructureId === structure.id);
-          const policy = assignment?.joiningDatePolicy ?? JoiningPolicy.FULL_MONTH;
-          if (policy === JoiningPolicy.NEXT_MONTH) continue;
-          if (policy === JoiningPolicy.PRORATED && student.admissionDate) {
-            const daysInMonth = new Date(billingYear, billingMonth, 0).getDate();
-            const joinDay = new Date(student.admissionDate).getDate();
-            const activeDays = Math.max(1, daysInMonth - joinDay + 1);
-            baseAmount = Math.round((Number(item.amount) / daysInMonth) * activeDays);
-          }
-        }
-        lineItems.push({
-          feeHeadId: item.feeHeadId,
-          headName: item.feeHead?.name || "Fee",
-          code: item.feeHead?.code || "FEE",
-          amount: baseAmount,
-        });
-      }
+    const ctx = await loadBillingContext(prisma, student.id, sessionId);
+    const bill = computeMonthBill(ctx, billingMonth, billingYear);
+    if (!bill.eligible) {
+      skippedStudents.push({ studentId: student.id, name: student.name, reason: bill.reason ?? "Not billable" });
+      continue;
     }
-
-    const transportAmount = await calculateTransportFeeForPeriod(student.id, billingYear, billingMonth);
-    if (transportAmount > 0) {
-      lineItems.push({
-        feeHeadId: transportHead.id,
-        headName: "Transport Fee",
-        code: "TRANSPORT",
-        amount: transportAmount,
-      });
-    }
-
-    // 4. Calculate Concessions for these items
-    const { calculateConcessionsForStudent } = await import("../concessions/concessionCalculationService");
-    const appliedConcessions = await calculateConcessionsForStudent(student.id, billingMonth, billingYear, lineItems);
-
-    // Group concessions by headId
-    const concessionsByHead = appliedConcessions.reduce((acc, c) => {
-      if (!acc[c.feeHeadId]) acc[c.feeHeadId] = [];
-      acc[c.feeHeadId].push(c);
-      return acc;
-    }, {} as Record<number, typeof appliedConcessions>);
-
-    // 5. Create Charges and Adjustments
-    const dueDate = new Date(billingYear, billingMonth - 1, 10);
-    const systemUserId = 1; // Assuming super admin user id is 1, ideally should be passed from context
-
-    for (const item of lineItems) {
-      const existingCharge = await prisma.feeCharge.findUnique({
-        where: {
-          studentId_feeHeadId_sessionId_billingYear_billingMonth: {
-            studentId: student.id,
-            feeHeadId: item.feeHeadId,
-            sessionId,
-            billingYear,
-            billingMonth,
-          },
-        },
-      });
-
-      if (!existingCharge) {
-        try {
-          const concessions = concessionsByHead[item.feeHeadId] || [];
-          const totalDiscount = concessions.reduce((sum, c) => sum + c.amount, 0);
-          const netAmount = Math.max(0, item.amount - totalDiscount);
-
-          const feeStructureItemId = structures.flatMap(s => s.items).find(i => i.feeHeadId === item.feeHeadId)?.id;
-
-          await prisma.$transaction(async (tx) => {
-            const charge = await tx.feeCharge.create({
-              data: {
-                studentId: student.id,
-                feeHeadId: item.feeHeadId,
-                feeStructureItemId: feeStructureItemId || null,
-                sessionId,
-                billingMonth,
-                billingYear,
-                dueDate,
-                baseAmount: item.amount,
-                discountAmount: totalDiscount,
-                lateFeeAmount: 0,
-                netAmount: netAmount,
-                paidAmount: 0,
-                status: ChargeStatus.UNPAID,
-              },
-            });
-
-            for (const c of concessions) {
-              await tx.feeAdjustment.create({
-                data: {
-                  studentId: student.id,
-                  feeChargeId: charge.id,
-                  studentConcessionId: c.studentConcessionId || null,
-                  type: c.type,
-                  calculationType: "FIXED_AMOUNT", // Resolves all dynamic logic at this point
-                  value: c.amount,
-                  amount: c.amount,
-                  reason: c.reason,
-                  appliedByUserId: systemUserId,
-                }
-              });
-            }
-          });
-          generatedCount++;
-        } catch (err) {
-          skippedCount++;
-        }
-      } else {
-        skippedCount++;
-      }
-    }
+    const { created } = await prisma.$transaction((tx: any) => billMonth(tx, ctx, bill, appliedByUserId));
+    generatedCount += created.length;
+    skippedCount += bill.lines.length - created.length;
   }
 
   return {
     success: true,
     generatedCount,
     skippedCount,
-    message: `Generated ${generatedCount} fee charges for ${students.length} students.`,
+    skippedStudents,
+    message: `Generated ${generatedCount} fee charges for ${students.length - skippedStudents.length} of ${students.length} students.`,
   };
 };
 
 export const getStudentDueSummary = async (studentId: number) => {
-  const student = await prisma.student.findUniqueOrThrow({
-    where: { id: studentId },
-    include: {
-      classSection: true,
-      feeCharges: {
-        where: {
-          status: { in: [ChargeStatus.UNPAID, ChargeStatus.PARTIALLY_PAID] },
-        },
-        include: {
-          feeHead: true,
-          feeStructureItem: true,
-        },
-        orderBy: [{ billingYear: "asc" }, { billingMonth: "asc" }],
-      },
-      advances: {
-        where: { status: "AVAILABLE" },
-      },
-    },
-  });
+  // Three independent reads in parallel (one nested include would run them back to back).
+  const [studentRow, feeCharges, advances] = await Promise.all([
+    prisma.student.findUniqueOrThrow({ where: { id: studentId }, include: { classSection: true } }),
+    prisma.feeCharge.findMany({
+      where: { studentId, status: { in: [ChargeStatus.UNPAID, ChargeStatus.PARTIALLY_PAID] } },
+      include: { feeHead: true, feeStructureItem: true },
+      orderBy: [{ billingYear: "asc" }, { billingMonth: "asc" }],
+    }),
+    prisma.advancePayment.findMany({ where: { studentId, status: "AVAILABLE" } }),
+  ]);
+  const student = { ...studentRow, feeCharges, advances };
 
   // Late fees come from the session's configured rule (see lateFeeService) — the same
   // calculation the payment desk, ledger and defaulters list use.

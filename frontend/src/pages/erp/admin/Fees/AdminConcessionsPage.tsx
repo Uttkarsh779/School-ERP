@@ -199,6 +199,8 @@ const AdminConcessionsPage = () => {
           <Spinner />
         ) : (
           <Table<IStudentConcession>
+            mobilePrimary="student"
+            stackBelow={900}
             data={concessions}
             keyField="id"
             columns={[
@@ -289,7 +291,7 @@ const AdminConcessionsPage = () => {
                     { label: "Family", value: "FAMILY" },
                   ]}
                 />
-                <div style={{ marginTop: "1rem", display: "flex", justifyContent: "flex-end" }}>
+                <div style={{ marginTop: "1rem", display: "flex", flexWrap: "wrap", justifyContent: "flex-end" }}>
                   <Button type="button" onClick={() => setAddStep(2)}>Next</Button>
                 </div>
               </FormSection>
@@ -311,7 +313,7 @@ const AdminConcessionsPage = () => {
                     { label: "Other", value: "OTHER" },
                   ]}
                 />
-                <div style={{ marginTop: "1rem", display: "flex", gap: "1rem", justifyContent: "flex-end" }}>
+                <div style={{ marginTop: "1rem", display: "flex", flexWrap: "wrap", gap: "1rem", justifyContent: "flex-end" }}>
                   <Button type="button" variant="ghost" onClick={() => setAddStep(1)}>Back</Button>
                   <Button type="button" onClick={() => setAddStep(3)} disabled={!addType}>Next</Button>
                 </div>
@@ -354,7 +356,7 @@ const AdminConcessionsPage = () => {
                   <div style={{ padding: "0.5rem 1rem", backgroundColor: "var(--bg-secondary)", borderRadius: "var(--radius-md)", marginBottom: "1rem", fontSize: "0.9rem" }}>
                     <strong>Important:</strong> This concession will apply to new Fee Bills generated from the selected start date. Existing Fee Bills will not be changed.
                   </div>
-                  <FormGrid style={{ gridTemplateColumns: "1fr 1fr", gap: "1.25rem" }}>
+                  <FormGrid className="erp-stack-sm" style={{ gridTemplateColumns: "1fr 1fr", gap: "1.25rem" }}>
                     {isStaffChildRecipient && (
                       <div style={{ gridColumn: "1 / -1" }}>
                         <Select
@@ -368,7 +370,7 @@ const AdminConcessionsPage = () => {
                     )}
                     
                     {/* Class Filter & Autocomplete Student Search */}
-                    <div style={{ gridColumn: "1 / -1", display: "grid", gridTemplateColumns: "1fr 2fr", gap: "1rem", alignItems: "start" }}>
+                    <div className="erp-stack-sm" style={{ gridColumn: "1 / -1", display: "grid", gridTemplateColumns: "1fr 2fr", gap: "1rem", alignItems: "start" }}>
                       <Select
                         label="Filter By Class / Section"
                         value={selectedClassSectionId}
@@ -376,7 +378,7 @@ const AdminConcessionsPage = () => {
                         options={[
                           { label: "All Classes & Sections", value: "ALL" },
                           ...classSections.map((cs: any) => ({
-                            label: `Class ${cs.className} - ${cs.section}`,
+                            label: `${cs.className} - ${cs.section}`,
                             value: cs.id.toString(),
                           })),
                         ]}
@@ -480,7 +482,7 @@ const AdminConcessionsPage = () => {
                                         Adm: {st.admissionNo}
                                       </span>
                                     </div>
-                                    <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                                    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "0.4rem" }}>
                                       {isStaffChildRecipient && linkedChildStudentIds.includes(st.id) && (
                                         <Badge tone="success">Linked Child</Badge>
                                       )}
@@ -630,7 +632,7 @@ const AdminConcessionsPage = () => {
                   />
 
                 </FormGrid>
-                <div style={{ marginTop: "1.5rem", display: "flex", gap: "1rem", justifyContent: "flex-end" }}>
+                <div style={{ marginTop: "1.5rem", display: "flex", flexWrap: "wrap", gap: "1rem", justifyContent: "flex-end" }}>
                   <Button type="button" variant="ghost" onClick={() => setAddStep(2)}>Back</Button>
                   <Button type="submit" isLoading={isAssigning}>Assign Concession</Button>
                 </div>
@@ -646,7 +648,7 @@ const AdminConcessionsPage = () => {
         <Modal title="Concession Detail" onClose={() => setIsDetailModalOpen(false)}>
           <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
             {/* Student Header Card */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: "var(--erp-radius-md)", padding: "1rem 1.25rem" }}>
+            <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: "var(--erp-radius-md)", padding: "1rem 1.25rem" }}>
               <div>
                 <div style={{ fontWeight: 700, fontSize: "1.1rem", color: "var(--erp-text)" }}>
                   {selectedConcession.student?.name}
@@ -663,7 +665,7 @@ const AdminConcessionsPage = () => {
             </div>
 
             {/* 2-Column Summary */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: "var(--erp-radius-md)", padding: "1rem 1.25rem" }}>
+            <div className="erp-stack-sm" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: "var(--erp-radius-md)", padding: "1rem 1.25rem" }}>
               <div>
                 <div style={{ fontSize: "0.78rem", textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--erp-text-muted)", fontWeight: 600, marginBottom: "0.3rem" }}>
                   Benefit
@@ -718,7 +720,7 @@ const AdminConcessionsPage = () => {
             </div>
 
             {/* Modal Footer Actions */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid var(--erp-border)", paddingTop: "1rem", marginTop: "0.25rem" }}>
+            <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid var(--erp-border)", paddingTop: "1rem", marginTop: "0.25rem" }}>
               <div style={{ fontSize: "0.85rem", color: "var(--erp-text-muted)" }}>
                 Approved by <strong style={{ color: "var(--erp-text)" }}>{selectedConcession.approvedByUser?.name || "System Super Admin"}</strong>
               </div>
@@ -744,7 +746,7 @@ const AdminConcessionsPage = () => {
               value={endEffectiveDate}
               onChange={(e) => setEndEffectiveDate(e.target.value)}
             />
-            <div style={{ display: "flex", gap: "1rem", justifyContent: "flex-end", marginTop: "1rem" }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "1rem", justifyContent: "flex-end", marginTop: "1rem" }}>
               <Button variant="ghost" onClick={() => setIsEndConfirmOpen(false)}>Cancel</Button>
               <Button variant="danger" isLoading={isEnding} onClick={handleEndConcession} disabled={!endEffectiveDate}>Confirm End</Button>
             </div>

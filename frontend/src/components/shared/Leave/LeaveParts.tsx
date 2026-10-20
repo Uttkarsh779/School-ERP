@@ -50,7 +50,7 @@ export const ApplyLeaveCard = ({ who, hint }: { who: string; hint?: string }) =>
 
   return (
     <Card title={`Apply for leave · ${who}`} subtitle={hint}>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))", gap: "1rem", alignItems: "end" }}>
+      <div className="erp-two-up-sm" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))", gap: "1rem", alignItems: "end" }}>
         <Input label="From" type="date" value={form.fromDate} onChange={(e) => setForm({ ...form, fromDate: e.target.value })} />
         <Input label="To" type="date" value={form.toDate} min={form.fromDate} onChange={(e) => setForm({ ...form, toDate: e.target.value })} />
         <div style={{ gridColumn: "1 / -1" }}>
@@ -195,7 +195,7 @@ const DecisionModal = ({ leave, approve, onClose }: { leave: LeaveRequest; appro
         </p>
       )}
       <Input label={approve ? "Note (optional)" : "Reason for rejecting (optional)"} value={note} onChange={(e) => setNote(e.target.value)} />
-      <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.6rem", marginTop: "1rem" }}>
+      <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "flex-end", gap: "0.6rem", marginTop: "1rem" }}>
         <Button variant="outline" onClick={onClose}>Cancel</Button>
         <Button variant={approve ? "primary" : "danger"} onClick={submit} isLoading={isLoading}>
           {approve ? "Approve" : "Reject"}

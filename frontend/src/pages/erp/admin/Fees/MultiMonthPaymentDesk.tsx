@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "react-toastify";
 import { Badge, Button, Card, EmptyState, Input, Select, Spinner } from "../../../../components/ui";
 import ReceiptModal from "../../../../components/shared/FeeReceipt/ReceiptModal";
@@ -20,7 +20,8 @@ type MonthRow = {
   year: number;
   monthName: string;
   quarter: string;
-  status: "PAID" | "PARTIALLY_PAID" | "OVERDUE" | "DUE" | "UNBILLED";
+  status: "PAID" | "PARTIALLY_PAID" | "OVERDUE" | "DUE" | "UNBILLED" | "NOT_APPLICABLE";
+  statusReason?: string;
   baseAmount: number;
   lateFeeAmount: number;
   paidAmount: number;
@@ -34,20 +35,31 @@ const STATUS_META: Record<MonthRow["status"], { label: string; tone: "success" |
   OVERDUE: { label: "Overdue", tone: "danger" },
   DUE: { label: "Due", tone: "info" },
   UNBILLED: { label: "Upcoming", tone: "neutral" },
+  NOT_APPLICABLE: { label: "Not enrolled", tone: "neutral" },
 };
+
+// Months that can't be selected for payment: already paid, or the student wasn't on roll.
+const isLocked = (m: MonthRow) => m.status === "PAID" || m.status === "NOT_APPLICABLE";
 
 const keyOf = (m: { month: number; year: number }) => `${m.month}-${m.year}`;
 
 // Counter payment desk: pick a student, select months on the 12-month calendar, review the
 // amount and record the payment. Late fees come from the configured rule (server); waivers
-// and discounts are Super Admin only (also enforced by the server).
+// and discounts can be applied by Admins and Super Admins, each recorded with its reason.
+// Phone picker shows at most this many students; search or the class filter narrows the rest.
+const PICK_LIMIT = 50;
+
 const MultiMonthPaymentDesk = ({ initialStudentId, onPaymentSuccess }: MultiMonthPaymentDeskProps) => {
-  const isSuperAdmin = useAppSelector((s) => s.auth.user?.role) === "SUPER_ADMIN";
+  const role = useAppSelector((s) => s.auth.user?.role);
+  const canWaive = role === "SUPER_ADMIN" || role === "ADMIN";
 
   const [filterClassId, setFilterClassId] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState("");
+  // Phone student picker: list stays open until a student is chosen
+  const [pickerOpen, setPickerOpen] = useState(!initialStudentId);
   const [selectedStudentId, setSelectedStudentId] = useState<number | "">(initialStudentId ?? "");
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
+  const collectRef = useRef<HTMLDivElement>(null);
   const [expandedKeys, setExpandedKeys] = useState<string[]>([]);
 
   // Super Admin only
@@ -62,17 +74,22 @@ const MultiMonthPaymentDesk = ({ initialStudentId, onPaymentSuccess }: MultiMont
   const [notes, setNotes] = useState("");
   const [payAmount, setPayAmount] = useState("");
   const [receipt, setReceipt] = useState<{ paymentId: number; note: string } | null>(null);
+  // Session shown on the calendar: undefined = current; set to collect an older session's dues.
+  const [viewSessionId, setViewSessionId] = useState<number | undefined>(undefined);
 
   useEffect(() => {
     if (initialStudentId) setSelectedStudentId(initialStudentId);
   }, [initialStudentId]);
 
+  useEffect(() => setViewSessionId(undefined), [selectedStudentId]);
+
   const { data: classSections } = useGetClassSectionsQuery();
   const { data: students } = useGetStudentsQuery();
   const { data: chart, isFetching: chartLoading, refetch } = useGetStudentMonthsChartQuery(
-    { studentId: Number(selectedStudentId) },
+    { studentId: Number(selectedStudentId), sessionId: viewSessionId },
     { skip: !selectedStudentId }
   );
+  const otherDues: Array<{ sessionId: number; sessionName: string; outstanding: number; months: string[]; isPrevious: boolean }> = chart?.otherSessionDues ?? [];
   const [recordPayment, { isLoading: isSubmitting }] = useRecordMultiMonthPaymentMutation();
 
   const months: MonthRow[] = useMemo(() => chart?.months ?? [], [chart]);
@@ -90,7 +107,7 @@ const MultiMonthPaymentDesk = ({ initialStudentId, onPaymentSuccess }: MultiMont
 
   // New student / refreshed chart: preselect the earliest unpaid month, reset waivers.
   useEffect(() => {
-    const firstOpen = months.find((m) => m.status !== "PAID" && m.balanceDue > 0);
+    const firstOpen = months.find((m) => !isLocked(m) && m.balanceDue > 0);
     setSelectedKeys(firstOpen ? [keyOf(firstOpen)] : []);
     setHeadWaivers({});
     setLumpValue("");
@@ -103,30 +120,30 @@ const MultiMonthPaymentDesk = ({ initialStudentId, onPaymentSuccess }: MultiMont
   const summary = useMemo(() => {
     const due = selected.reduce((s, m) => s + Math.max(0, m.balanceDue - (m.lateFeeAmount || 0)), 0);
     const late = selected.reduce((s, m) => s + (m.lateFeeAmount || 0), 0);
-    const lateWaived = isSuperAdmin && waiveLateFines ? late : 0;
-    const heads = isSuperAdmin
+    const lateWaived = canWaive && waiveLateFines ? late : 0;
+    const heads = canWaive
       ? Object.entries(headWaivers)
           .filter(([k]) => selectedKeys.some((sk) => k.startsWith(`${sk}-`)))
           .reduce((s, [, w]) => s + (Number(w.amount) > 0 ? Number(w.amount) : 0), 0)
       : 0;
     const beforeLump = Math.max(0, due + late - lateWaived - heads);
     const lv = Number(lumpValue);
-    const lump = isSuperAdmin && lv > 0 ? (lumpType === "PERCENTAGE" ? Math.round((beforeLump * Math.min(lv, 100)) / 100) : Math.min(lv, beforeLump)) : 0;
+    const lump = canWaive && lv > 0 ? (lumpType === "PERCENTAGE" ? Math.round((beforeLump * Math.min(lv, 100)) / 100) : Math.min(lv, beforeLump)) : 0;
     return { due, late, lateWaived, heads, lump, net: Math.max(0, beforeLump - lump) };
-  }, [selected, selectedKeys, waiveLateFines, headWaivers, lumpType, lumpValue, isSuperAdmin]);
+  }, [selected, selectedKeys, waiveLateFines, headWaivers, lumpType, lumpValue, canWaive]);
 
   useEffect(() => {
     setPayAmount(summary.net > 0 ? String(Math.round(summary.net * 100) / 100) : "");
   }, [summary.net]);
 
   const toggle = (m: MonthRow) => {
-    if (m.status === "PAID") return;
+    if (isLocked(m)) return;
     const k = keyOf(m);
     setSelectedKeys((prev) => (prev.includes(k) ? prev.filter((x) => x !== k) : [...prev, k]));
   };
 
   const selectWhere = (pred: (m: MonthRow) => boolean) =>
-    setSelectedKeys(months.filter((m) => m.status !== "PAID" && pred(m)).map(keyOf));
+    setSelectedKeys(months.filter((m) => !isLocked(m) && pred(m)).map(keyOf));
 
   const submit = async () => {
     if (!student || selected.length === 0) return;
@@ -142,10 +159,11 @@ const MultiMonthPaymentDesk = ({ initialStudentId, onPaymentSuccess }: MultiMont
     try {
       const res = await recordPayment({
         studentId: student.id,
+        sessionId: chart?.session?.id,
         selectedMonths: selected.map((m) => ({
           month: m.month,
           year: m.year,
-          headWaivers: isSuperAdmin
+          headWaivers: canWaive
             ? Object.entries(headWaivers)
                 .filter(([k, w]) => k.startsWith(`${keyOf(m)}-`) && Number(w.amount) > 0)
                 .map(([k, w]) => ({
@@ -156,10 +174,10 @@ const MultiMonthPaymentDesk = ({ initialStudentId, onPaymentSuccess }: MultiMont
             : [],
         })),
         lumpSumDiscount:
-          isSuperAdmin && Number(lumpValue) > 0
+          canWaive && Number(lumpValue) > 0
             ? { type: lumpType, value: Number(lumpValue), reason: lumpReason.trim() || "Discount at payment desk" }
             : undefined,
-        waiveLateFines: isSuperAdmin && waiveLateFines,
+        waiveLateFines: canWaive && waiveLateFines,
         paymentAmount: amount,
         paymentMode,
         transactionRef: transactionRef.trim() || undefined,
@@ -191,11 +209,20 @@ const MultiMonthPaymentDesk = ({ initialStudentId, onPaymentSuccess }: MultiMont
             onChange={(e) => {
               setFilterClassId(e.target.value);
               setSelectedStudentId("");
+              setPickerOpen(true);
             }}
             options={[{ label: "All classes", value: "" }, ...(classSections ?? []).map((cs) => ({ label: classLabel(cs), value: String(cs.id) }))]}
           />
-          <Input label="Search" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Name, admission or roll no…" />
-          <div className={shared.wide}>
+          <Input
+            label="Search"
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setPickerOpen(true);
+            }}
+            placeholder="Name, admission or roll no…"
+          />
+          <div className={`${shared.wide} ${styles.studentSelect}`}>
             <Select
               label="Student"
               value={selectedStudentId === "" ? "" : String(selectedStudentId)}
@@ -208,6 +235,55 @@ const MultiMonthPaymentDesk = ({ initialStudentId, onPaymentSuccess }: MultiMont
                 })),
               ]}
             />
+          </div>
+
+          {/* Phones: a tappable list instead of a native dropdown that spills off-screen */}
+          <div className={`${shared.wide} ${styles.studentPicker}`}>
+            <span className={styles.pickerLabel}>Student</span>
+            {student && !pickerOpen ? (
+              <div className={`${styles.pickRow} ${styles.pickRowSelected}`}>
+                <span className={styles.pickMain}>
+                  <strong>{student.name}</strong>
+                  <small>
+                    {student.rollNo ? `Roll ${student.rollNo} · ` : ""}
+                    {classLabel(student.classSection)} · Adm {student.admissionNo}
+                  </small>
+                </span>
+                <Button size="sm" variant="outline" onClick={() => setPickerOpen(true)}>
+                  Change
+                </Button>
+              </div>
+            ) : filteredStudents.length === 0 ? (
+              <p className={shared.muted}>No matching students</p>
+            ) : (
+              <ul className={styles.pickList}>
+                {filteredStudents.slice(0, PICK_LIMIT).map((s) => (
+                  <li key={s.id}>
+                    <button
+                      type="button"
+                      className={`${styles.pickRow} ${s.id === selectedStudentId ? styles.pickRowSelected : ""}`}
+                      onClick={() => {
+                        setSelectedStudentId(s.id);
+                        setPickerOpen(false);
+                      }}
+                    >
+                      <span className={styles.pickMain}>
+                        <strong>{s.name}</strong>
+                        <small>
+                          {s.rollNo ? `Roll ${s.rollNo} · ` : ""}
+                          {classLabel(s.classSection)} · Adm {s.admissionNo}
+                        </small>
+                      </span>
+                    </button>
+                  </li>
+                ))}
+                {filteredStudents.length > PICK_LIMIT && (
+                  <li className={styles.pickMore}>
+                    Showing {PICK_LIMIT} of {filteredStudents.length} — pick a class or search to narrow down
+                  </li>
+                )}
+              </ul>
+            )}
           </div>
         </div>
       </Card>
@@ -240,9 +316,38 @@ const MultiMonthPaymentDesk = ({ initialStudentId, onPaymentSuccess }: MultiMont
             </div>
           </Card>
 
+          {!chart.session?.isCurrent && (
+            <div className={`${shared.notice} ${styles.sessionNotice}`}>
+              <span>
+                Showing session <strong>{chart.session?.name}</strong> (class {chart.student?.classSection}). Payments recorded here settle {chart.session?.name} fees.
+              </span>
+              <Button size="sm" variant="outline" onClick={() => setViewSessionId(undefined)}>
+                Back to current session
+              </Button>
+            </div>
+          )}
+
+          {otherDues.length > 0 && (
+            <div className={`${shared.notice} ${shared.noticeDanger} ${styles.sessionNotice}`}>
+              <span>
+                {otherDues.map((d) => (
+                  <span key={d.sessionId} className={styles.prevDue}>
+                    <strong>{d.isPrevious ? "Previous session dues" : "Other session dues"} · {d.sessionName}: {inr(d.outstanding)}</strong>
+                    <small> ({d.months.join(", ")})</small>
+                  </span>
+                ))}
+              </span>
+              {otherDues.map((d) => (
+                <Button key={d.sessionId} size="sm" onClick={() => setViewSessionId(d.sessionId)}>
+                  Collect {d.sessionName} dues
+                </Button>
+              ))}
+            </div>
+          )}
+
           {chart.feeStructureMissing && (
             <div className={`${shared.notice} ${shared.noticeDanger}`}>
-              No fee structure is set up for {classLabel(student.classSection)} in session {chart.session?.name}. Months that
+              No fee structure is set up for {chart.student?.classSection ?? classLabel(student.classSection)} in session {chart.session?.name}. Months that
               haven't been billed yet show ₹0 and can't be collected — create the class fee structure first (Fee Structures tab).
             </div>
           )}
@@ -255,7 +360,7 @@ const MultiMonthPaymentDesk = ({ initialStudentId, onPaymentSuccess }: MultiMont
                 : undefined
             }
             action={
-              <div className={shared.rowActions}>
+              <div className={`${shared.rowActions} ${styles.quickPicks}`}>
                 <Button size="sm" variant="ghost" onClick={() => selectWhere((m) => m.status === "OVERDUE")}>Overdue</Button>
                 <Button size="sm" variant="ghost" onClick={() => selectWhere((m) => m.balanceDue > 0 && m.status !== "UNBILLED")}>All due</Button>
                 <Button size="sm" variant="ghost" onClick={() => selectWhere((m) => m.month >= 4 && m.month <= 6)}>Q1</Button>
@@ -271,14 +376,16 @@ const MultiMonthPaymentDesk = ({ initialStudentId, onPaymentSuccess }: MultiMont
                 const k = keyOf(m);
                 const isSel = selectedKeys.includes(k);
                 const isPaid = m.status === "PAID";
+                const notEnrolled = m.status === "NOT_APPLICABLE";
                 const open = expandedKeys.includes(k);
                 return (
                   <div
                     key={k}
                     role="button"
-                    tabIndex={isPaid ? -1 : 0}
+                    tabIndex={isLocked(m) ? -1 : 0}
+                    title={notEnrolled ? m.statusReason : undefined}
                     aria-pressed={isSel}
-                    className={`${styles.month} ${isSel ? styles.monthSelected : ""} ${isPaid ? styles.monthPaid : ""}`}
+                    className={`${styles.month} ${isSel ? styles.monthSelected : ""} ${isLocked(m) ? styles.monthPaid : ""}`}
                     onClick={(e) => {
                       if ((e.target as HTMLElement).closest("button")) return;
                       toggle(m);
@@ -298,7 +405,7 @@ const MultiMonthPaymentDesk = ({ initialStudentId, onPaymentSuccess }: MultiMont
                     </div>
                     <div className={styles.monthAmount}>{isPaid ? inr(m.paidAmount) : inr(m.balanceDue)}</div>
                     <div className={shared.muted}>
-                      {isPaid ? "paid" : `of ${inr(m.baseAmount)} fee`}
+                      {notEnrolled ? "not on roll" : isPaid ? "paid" : `of ${inr(m.baseAmount)} fee`}
                       {m.lateFeeAmount > 0 && !isPaid && <span className={shared.danger}> · +{inr(m.lateFeeAmount)} late</span>}
                     </div>
                     {open && (
@@ -326,8 +433,8 @@ const MultiMonthPaymentDesk = ({ initialStudentId, onPaymentSuccess }: MultiMont
           </Card>
 
           <div className={shared.twoCol}>
-            {isSuperAdmin ? (
-              <Card title="Waivers & discounts" subtitle="Super Admin only · every waiver is recorded with its reason">
+            {canWaive ? (
+              <Card title="Waivers & discounts" subtitle="Every waiver is recorded with its reason and who applied it">
                 {selected.length === 0 ? (
                   <p className={shared.muted}>Select months to apply waivers.</p>
                 ) : (
@@ -401,12 +508,13 @@ const MultiMonthPaymentDesk = ({ initialStudentId, onPaymentSuccess }: MultiMont
             ) : (
               <Card title="Waivers & discounts">
                 <p className={shared.muted}>
-                  Waivers and discounts need Super Admin approval. Late fees shown are calculated from the school's late-fee
+                  Waivers and discounts can be applied by an Admin or Super Admin. Late fees shown are calculated from the school's late-fee
                   rule.
                 </p>
               </Card>
             )}
 
+            <div ref={collectRef} className={styles.collectAnchor}>
             <Card title="Collect payment">
               <div className={shared.formStack}>
                 <div className={shared.summaryBox}>
@@ -470,7 +578,22 @@ const MultiMonthPaymentDesk = ({ initialStudentId, onPaymentSuccess }: MultiMont
                 </Button>
               </div>
             </Card>
+            </div>
           </div>
+
+          {/* Phones/tablets: the payment form is far below the month grid, so keep the total in reach */}
+          {selected.length > 0 && <div className={styles.collectSpacer} aria-hidden="true" />}
+          {selected.length > 0 && (
+            <div className={styles.collectBar}>
+              <div className={styles.collectBarText}>
+                <span>
+                  {selected.length} month{selected.length > 1 ? "s" : ""} · {selected.map((m) => m.monthName.slice(0, 3)).join(", ")}
+                </span>
+                <strong>{inr(summary.net)}</strong>
+              </div>
+              <Button onClick={() => collectRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}>Collect</Button>
+            </div>
+          )}
         </>
       )}
 

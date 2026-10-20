@@ -5,7 +5,7 @@
 
 .statsRow {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(160px, 100%), 1fr));
   gap: 1rem;
   margin-bottom: 1.25rem;
 }
@@ -55,7 +55,7 @@
 
 .remarksGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
   gap: 1.25rem;
   margin-top: 1.25rem;
   align-items: stretch;
@@ -100,4 +100,35 @@
   margin-top: 0.5rem;
   font-size: 0.82rem;
   color: var(--erp-text-muted);
+}
+
+/* Phones: two-up instead of one long column */
+@media (max-width: 640px) {
+  .statsRow {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.65rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .filterRow {
+    max-width: none;
+    margin-bottom: 1rem;
+  }
+
+  .statsRow {
+    margin-bottom: 1rem;
+  }
+
+  .percentageCard {
+    padding: 0.9rem;
+  }
+
+  .percentageValue {
+    font-size: 1.5rem;
+  }
+
+  .remarksGrid {
+    gap: 1rem;
+  }
 }

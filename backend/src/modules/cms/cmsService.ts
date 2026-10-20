@@ -1,160 +1,224 @@
 import { prisma } from "../../config/prisma";
+import { httpError } from "../../utils/httpError";
+
+// Public school website content (CMS).
+//  - One settings row (school identity, home/about/contact copy, images, stats, socials).
+//  - Content collections (facilities, gallery, notices, testimonials, FAQs) share one
+//    config-driven CRUD with strict per-field validation — request bodies are never spread
+//    into Prisma, so only the listed fields can ever be written.
+//  - Admission enquiries from the public form.
 
 const DEFAULT_SETTINGS = {
   id: 1,
-  schoolName: "Delhi Public Academy",
+  schoolName: "RRS International School",
   tagline: "Empowering Minds, Inspiring Excellence",
-  heroTitle: "Welcome to Excellence in Modern Education",
-  heroSubtitle: "Nurturing global citizens with world-class academics, strong values, and state-of-the-art infrastructure.",
-  aboutText: "Delhi Public Academy is committed to fostering academic brilliance, character development, and holistic innovation. Established with a visionary approach, our campus provides an inspiring atmosphere where every child discovers their unique talents and excels in a rapidly changing world.",
+  heroTitle: "Where Curious Minds Grow Into Confident Leaders",
+  heroSubtitle: "A caring, future-ready school offering strong academics, sports, arts and values from Nursery to Class XII.",
+  aboutText:
+    "Our school is committed to academic excellence, character development and the joy of learning. Every child is known, valued and encouraged to discover their strengths in a safe, modern campus.",
   principalName: "Dr. S. K. Sharma",
-  principalMessage: "Education is not just about academic scores; it is the ignition of curiosity, empathy, and resilience. At our academy, we empower each student to dream boldly, think critically, and lead with compassion. We warmly invite you to be a part of our thriving school family.",
-  affiliationNo: "CBSE-2130892",
+  principalMessage:
+    "Education is not just about marks; it is about curiosity, empathy and resilience. We help every student dream boldly, think critically and lead with compassion. We warmly invite you to be a part of our school family.",
+  affiliationNo: "2130892",
   establishedYear: 1998,
   phone: "+91 98765 43210",
-  email: "admissions@dpa-school.edu.in",
-  address: "Sector 14, Knowledge Park, New Delhi, India - 110001",
+  email: "info@school.edu.in",
+  address: "Sector 14, Knowledge Park, New Delhi - 110001",
   admissionsOpen: true,
-  admissionNotice: "Admissions open for Academic Session 2026-27 from Nursery to Grade XII. Scholarships available for merit achievers.",
+  admissionNotice: "Admissions open for Nursery to Class XI. Visit the admissions office or send an online enquiry.",
   heroCtaText: "Apply for Admission",
-  heroCtaLink: "#admissions",
+  heroCtaLink: "/admissions",
 };
 
 const DEFAULT_FACILITIES = [
-  {
-    title: "Smart Digital Classrooms",
-    description: "Interactive smart boards, high-speed connectivity, and ergonomic acoustic setups for engaging visual learning.",
-    iconName: "building",
-    order: 1,
-    isActive: true,
-  },
-  {
-    title: "Advanced STEM & Computer Labs",
-    description: "Cutting-edge physics, chemistry, biology, robotics, and coding labs with hands-on experimentation kits.",
-    iconName: "layers",
-    order: 2,
-    isActive: true,
-  },
-  {
-    title: "Sports Complex & Athletic Track",
-    description: "Dedicated courts for basketball, badminton, football turf, cricket nets, and indoor games supervised by NIS coaches.",
-    iconName: "dashboard",
-    order: 3,
-    isActive: true,
-  },
-  {
-    title: "Comprehensive Digital Library",
-    description: "Over 15,000 physical volumes, research journals, e-book readers, and serene reading spaces for curious minds.",
-    iconName: "graduationCap",
-    order: 4,
-    isActive: true,
-  },
-  {
-    title: "GPS-Monitored Safe Transport",
-    description: "Air-conditioned bus fleet equipped with real-time GPS tracking, speed governors, CCTV cameras, and trained female attendants.",
-    iconName: "bus",
-    order: 5,
-    isActive: true,
-  },
-  {
-    title: "Visual & Performing Arts Studio",
-    description: "Acoustically treated auditorium, classical & western music rooms, dance studio, and pottery & fine arts creative workshop.",
-    iconName: "users",
-    order: 6,
-    isActive: true,
-  },
+  { title: "Smart Classrooms", description: "Interactive panels and well-ventilated, well-lit rooms designed for engaging, visual learning.", iconName: "building", order: 1 },
+  { title: "Science & Computer Labs", description: "Fully equipped physics, chemistry, biology and computer labs for hands-on experiments and coding.", iconName: "layers", order: 2 },
+  { title: "Sports & Playgrounds", description: "Large playground, courts for basketball and badminton, and trained coaches for athletics and games.", iconName: "star", order: 3 },
+  { title: "Library", description: "Thousands of books, magazines and reference titles with a quiet reading area for every age group.", iconName: "graduationCap", order: 4 },
+  { title: "Safe Transport", description: "GPS-tracked school buses with trained drivers and attendants covering nearby villages and towns.", iconName: "bus", order: 5 },
+  { title: "Music, Art & Dance", description: "Dedicated rooms for music, dance and fine arts, plus a stage for annual functions and assemblies.", iconName: "users", order: 6 },
 ];
 
-const DEFAULT_NOTICES = [
-  {
-    title: "Admission Open for Academic Session 2026-27",
-    content: "Registrations are now open for Nursery through Grade XI. Prospective parents can submit the online enquiry form or visit the school admissions desk between 9:00 AM and 2:00 PM on all working days.",
-    category: "Admission",
-    isPinned: true,
-    publishedAt: new Date(),
-    isActive: true,
-  },
-  {
-    title: "Annual Sports Meet & Athletic Championship",
-    content: "The annual inter-house athletics tournament will be held on the school sports grounds. Parents are cordially invited to cheer the young athletes during the opening ceremony.",
-    category: "Event",
-    isPinned: false,
-    publishedAt: new Date(),
-    isActive: true,
-  },
-  {
-    title: "CBSE Regional Science Exhibition Winners",
-    content: "We proudly congratulate our Grade X and XII students for securing 1st prize in the National Science & Innovation Fair with their Automated Water Purification model.",
-    category: "Academic",
-    isPinned: false,
-    publishedAt: new Date(),
-    isActive: true,
-  },
-];
+// ---------------------------------------------------------------------------
+// Field validation
+// ---------------------------------------------------------------------------
+
+type FieldSpec =
+  | { type: "text"; max: number; required?: boolean; min?: number }
+  | { type: "url"; required?: boolean }
+  | { type: "int"; min?: number; max?: number }
+  | { type: "bool" }
+  | { type: "date" }
+  | { type: "enum"; values: readonly string[] };
+
+const URL_RE = /^https?:\/\/[^\s<>"']+$/i;
+
+export const ICON_NAMES = ["building", "layers", "graduationCap", "bus", "users", "calendar", "star", "globe", "clipboardCheck", "bell", "fileText", "dashboard"] as const;
+
+const label = (key: string) => key.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase()).replace(/ Url$/, " link");
+
+const parseField = (key: string, spec: FieldSpec, raw: unknown): unknown => {
+  const name = label(key);
+  switch (spec.type) {
+    case "text": {
+      if (raw === null || raw === undefined || raw === "") {
+        if (spec.required) throw httpError(400, `${name} is required`);
+        return null;
+      }
+      if (typeof raw !== "string" && typeof raw !== "number") throw httpError(400, `${name} must be text`);
+      const t = String(raw).trim();
+      if (spec.required && !t) throw httpError(400, `${name} is required`);
+      if (spec.min && t.length < spec.min) throw httpError(400, `${name} must be at least ${spec.min} characters`);
+      if (t.length > spec.max) throw httpError(400, `${name} must be at most ${spec.max} characters`);
+      return t || null;
+    }
+    case "url": {
+      if (raw === null || raw === undefined || raw === "") {
+        if (spec.required) throw httpError(400, `${name} is required`);
+        return null;
+      }
+      const t = String(raw).trim();
+      if (t.length > 1000 || !URL_RE.test(t)) throw httpError(400, `${name} must be a valid http(s) link`);
+      return t;
+    }
+    case "int": {
+      const n = raw === "" || raw === null || raw === undefined ? 0 : Number(raw);
+      if (!Number.isInteger(n)) throw httpError(400, `${name} must be a whole number`);
+      if (spec.min !== undefined && n < spec.min) throw httpError(400, `${name} must be at least ${spec.min}`);
+      if (spec.max !== undefined && n > spec.max) throw httpError(400, `${name} must be at most ${spec.max}`);
+      return n;
+    }
+    case "bool":
+      if (typeof raw === "boolean") return raw;
+      if (raw === "true" || raw === 1 || raw === "1") return true;
+      if (raw === "false" || raw === 0 || raw === "0") return false;
+      throw httpError(400, `${name} must be true or false`);
+    case "date": {
+      const d = new Date(String(raw));
+      if (!raw || Number.isNaN(d.getTime())) throw httpError(400, `${name} must be a valid date`);
+      return d;
+    }
+    case "enum":
+      if (!spec.values.includes(String(raw))) throw httpError(400, `${name} is not a valid option`);
+      return String(raw);
+  }
+};
+
+// partial=true (updates): only the fields present in the body are validated and written.
+const parseFields = (specs: Record<string, FieldSpec>, body: Record<string, unknown>, partial: boolean) => {
+  const out: Record<string, unknown> = {};
+  for (const [key, spec] of Object.entries(specs)) {
+    if (body[key] === undefined) {
+      if (!partial && "required" in spec && spec.required) throw httpError(400, `${label(key)} is required`);
+      continue;
+    }
+    out[key] = parseField(key, spec, body[key]);
+  }
+  return out;
+};
+
+// ---------------------------------------------------------------------------
+// Settings
+// ---------------------------------------------------------------------------
+
+const SETTINGS_FIELDS: Record<string, FieldSpec> = {
+  schoolName: { type: "text", max: 120, required: true, min: 2 },
+  tagline: { type: "text", max: 160, required: true },
+  boardName: { type: "text", max: 60, required: true },
+  affiliationNo: { type: "text", max: 60, required: true },
+  schoolCode: { type: "text", max: 60 },
+  establishedYear: { type: "int", min: 1800, max: 2100 },
+  academicSession: { type: "text", max: 20 },
+  logoUrl: { type: "url" },
+  heroTitle: { type: "text", max: 160, required: true },
+  heroSubtitle: { type: "text", max: 400, required: true },
+  heroCtaText: { type: "text", max: 40, required: true },
+  heroCtaLink: { type: "text", max: 300, required: true },
+  heroImageUrl: { type: "url" },
+  admissionsOpen: { type: "bool" },
+  admissionNotice: { type: "text", max: 400 },
+  aboutText: { type: "text", max: 4000, required: true },
+  aboutImageUrl: { type: "url" },
+  vision: { type: "text", max: 1000 },
+  mission: { type: "text", max: 1500 },
+  principalName: { type: "text", max: 80, required: true },
+  principalTitle: { type: "text", max: 80, required: true },
+  principalMessage: { type: "text", max: 3000, required: true },
+  principalPhotoUrl: { type: "url" },
+  phone: { type: "text", max: 40, required: true },
+  whatsapp: { type: "text", max: 20 },
+  email: { type: "text", max: 120, required: true },
+  address: { type: "text", max: 300, required: true },
+  officeHours: { type: "text", max: 120 },
+  facebookUrl: { type: "url" },
+  instagramUrl: { type: "url" },
+  youtubeUrl: { type: "url" },
+  twitterUrl: { type: "url" },
+};
+
+// Admins usually paste the whole <iframe> Google gives them — keep only the embed URL,
+// and only from Google Maps, so the public site never frames arbitrary pages.
+export const parseMapEmbed = (raw: unknown): string | null => {
+  if (raw === null || raw === undefined || String(raw).trim() === "") return null;
+  const text = String(raw).trim();
+  const src = /src\s*=\s*["']([^"']+)["']/i.exec(text)?.[1] ?? text;
+  let url: URL;
+  try {
+    url = new URL(src.replace(/&amp;/g, "&"));
+  } catch {
+    throw httpError(400, "Map must be a Google Maps embed link");
+  }
+  const okHost = url.hostname === "www.google.com" || url.hostname === "maps.google.com" || url.hostname === "google.com";
+  if (url.protocol !== "https:" || !okHost || !url.pathname.startsWith("/maps")) {
+    throw httpError(400, "Map must be a Google Maps embed link (Share → Embed a map → copy HTML)");
+  }
+  return url.toString();
+};
+
+export const parseStats = (raw: unknown) => {
+  if (raw === null || raw === undefined || raw === "") return null;
+  if (!Array.isArray(raw)) throw httpError(400, "Stats must be a list");
+  if (raw.length > 6) throw httpError(400, "Add at most 6 stats");
+  return raw
+    .map((s: any) => ({ value: String(s?.value ?? "").trim(), label: String(s?.label ?? "").trim() }))
+    .filter((s) => s.value || s.label)
+    .map((s) => {
+      if (!s.value || !s.label) throw httpError(400, "Each stat needs a value and a label");
+      if (s.value.length > 12 || s.label.length > 50) throw httpError(400, "Stat value max 12 and label max 50 characters");
+      return s;
+    });
+};
+
+export const parseSettingsUpdate = (body: Record<string, unknown>) => {
+  const out = parseFields(SETTINGS_FIELDS, body, true);
+  if (body.mapEmbedUrl !== undefined) out.mapEmbedUrl = parseMapEmbed(body.mapEmbedUrl);
+  if (body.stats !== undefined) out.stats = parseStats(body.stats);
+  if (typeof out.email === "string" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(out.email)) throw httpError(400, "Enter a valid email address");
+  return out;
+};
 
 let tablesEnsured = false;
+// Older installs created the base CMS tables lazily; kept so a fresh database still works.
 export const ensureCmsTables = async () => {
   if (tablesEnsured) return;
   try {
     await prisma.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS "WebsiteSetting" (
-        "id" SERIAL PRIMARY KEY,
-        "schoolName" TEXT NOT NULL DEFAULT 'Delhi Public Academy',
-        "tagline" TEXT NOT NULL DEFAULT 'Empowering Minds, Inspiring Excellence',
-        "heroTitle" TEXT NOT NULL DEFAULT 'Welcome to Excellence in Modern Education',
-        "heroSubtitle" TEXT NOT NULL DEFAULT 'Nurturing global citizens with world-class academics, strong values, and advanced infrastructure.',
-        "aboutText" TEXT NOT NULL,
-        "principalName" TEXT NOT NULL DEFAULT 'Dr. S. K. Sharma',
-        "principalMessage" TEXT NOT NULL,
-        "affiliationNo" TEXT NOT NULL DEFAULT 'CBSE-2130892',
-        "establishedYear" INTEGER NOT NULL DEFAULT 1998,
-        "phone" TEXT NOT NULL DEFAULT '+91 98765 43210',
-        "email" TEXT NOT NULL DEFAULT 'admissions@dpa-school.edu.in',
-        "address" TEXT NOT NULL DEFAULT 'Sector 14, Knowledge Park, New Delhi, India - 110001',
-        "admissionsOpen" BOOLEAN NOT NULL DEFAULT true,
-        "admissionNotice" TEXT DEFAULT 'Admissions open for Academic Session 2026-27 from Nursery to Grade XII.',
-        "heroCtaText" TEXT NOT NULL DEFAULT 'Apply for Admission',
-        "heroCtaLink" TEXT NOT NULL DEFAULT '#admissions',
-        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
-      );
-
       CREATE TABLE IF NOT EXISTS "WebsiteFacility" (
-        "id" SERIAL PRIMARY KEY,
-        "title" TEXT NOT NULL,
-        "description" TEXT NOT NULL,
-        "iconName" TEXT NOT NULL DEFAULT 'building',
-        "imageUrl" TEXT,
-        "order" INTEGER NOT NULL DEFAULT 0,
-        "isActive" BOOLEAN NOT NULL DEFAULT true,
-        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "id" SERIAL PRIMARY KEY, "title" TEXT NOT NULL, "description" TEXT NOT NULL,
+        "iconName" TEXT NOT NULL DEFAULT 'building', "imageUrl" TEXT, "order" INTEGER NOT NULL DEFAULT 0,
+        "isActive" BOOLEAN NOT NULL DEFAULT true, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
         "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
       );
-
       CREATE TABLE IF NOT EXISTS "WebsitePublicNotice" (
-        "id" SERIAL PRIMARY KEY,
-        "title" TEXT NOT NULL,
-        "content" TEXT NOT NULL,
-        "category" TEXT NOT NULL DEFAULT 'General',
-        "fileUrl" TEXT,
-        "isPinned" BOOLEAN NOT NULL DEFAULT false,
-        "publishedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "isActive" BOOLEAN NOT NULL DEFAULT true,
-        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+        "id" SERIAL PRIMARY KEY, "title" TEXT NOT NULL, "content" TEXT NOT NULL,
+        "category" TEXT NOT NULL DEFAULT 'General', "fileUrl" TEXT, "isPinned" BOOLEAN NOT NULL DEFAULT false,
+        "publishedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "isActive" BOOLEAN NOT NULL DEFAULT true,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
       );
-
       CREATE TABLE IF NOT EXISTS "AdmissionInquiry" (
-        "id" SERIAL PRIMARY KEY,
-        "studentName" TEXT NOT NULL,
-        "parentName" TEXT NOT NULL,
-        "email" TEXT NOT NULL,
-        "phone" TEXT NOT NULL,
-        "gradeApplyingFor" TEXT NOT NULL,
-        "currentSchool" TEXT,
-        "message" TEXT,
-        "status" TEXT NOT NULL DEFAULT 'NEW',
-        "notes" TEXT,
-        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "id" SERIAL PRIMARY KEY, "studentName" TEXT NOT NULL, "parentName" TEXT NOT NULL, "email" TEXT NOT NULL,
+        "phone" TEXT NOT NULL, "gradeApplyingFor" TEXT NOT NULL, "currentSchool" TEXT, "message" TEXT,
+        "status" TEXT NOT NULL DEFAULT 'NEW', "notes" TEXT, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
         "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
       );
     `);
@@ -164,215 +228,225 @@ export const ensureCmsTables = async () => {
   }
 };
 
-export const getPublicWebsiteData = async () => {
-  await ensureCmsTables();
-  let settings: any = null;
-  try {
-    settings = await prisma.websiteSetting.findFirst();
-  } catch (err) {
-    // If table not populated yet
-  }
-
-  if (!settings) {
-    try {
-      settings = await prisma.websiteSetting.create({
-        data: DEFAULT_SETTINGS,
-      });
-    } catch {
-      settings = DEFAULT_SETTINGS;
-    }
-  }
-
-  let facilities: any[] = [];
-  try {
-    facilities = await prisma.websiteFacility.findMany({
-      where: { isActive: true },
-      orderBy: { order: "asc" },
-    });
-  } catch {}
-
-  if (facilities.length === 0) {
-    try {
-      for (const fac of DEFAULT_FACILITIES) {
-        await prisma.websiteFacility.create({ data: fac });
-      }
-      facilities = await prisma.websiteFacility.findMany({
-        where: { isActive: true },
-        orderBy: { order: "asc" },
-      });
-    } catch {
-      facilities = DEFAULT_FACILITIES;
-    }
-  }
-
-  let notices: any[] = [];
-  try {
-    notices = await prisma.websitePublicNotice.findMany({
-      where: { isActive: true },
-      orderBy: [{ isPinned: "desc" }, { publishedAt: "desc" }],
-      take: 8,
-    });
-  } catch {}
-
-  if (notices.length === 0) {
-    try {
-      for (const not of DEFAULT_NOTICES) {
-        await prisma.websitePublicNotice.create({ data: not });
-      }
-      notices = await prisma.websitePublicNotice.findMany({
-        where: { isActive: true },
-        orderBy: [{ isPinned: "desc" }, { publishedAt: "desc" }],
-      });
-    } catch {
-      notices = DEFAULT_NOTICES;
-    }
-  }
-
-  return {
-    settings,
-    facilities,
-    notices,
-  };
-};
-
+// The settings row is created (with starter facilities) only the very first time; after that
+// whatever the school deletes stays deleted.
 export const getWebsiteSettings = async () => {
-  let settings = await prisma.websiteSetting.findFirst();
-  if (!settings) {
-    settings = await prisma.websiteSetting.create({
-      data: DEFAULT_SETTINGS,
-    });
+  await ensureCmsTables();
+  const existing = await prisma.websiteSetting.findFirst();
+  if (existing) return existing;
+  const created = await prisma.websiteSetting.create({ data: DEFAULT_SETTINGS });
+  if ((await prisma.websiteFacility.count()) === 0) {
+    await prisma.websiteFacility.createMany({ data: DEFAULT_FACILITIES });
   }
-  return settings;
+  return created;
 };
 
-export const updateWebsiteSettings = async (data: any) => {
+export const updateWebsiteSettings = async (body: Record<string, unknown>) => {
+  const data = parseSettingsUpdate(body ?? {});
   const existing = await getWebsiteSettings();
-  const updated = await prisma.websiteSetting.update({
-    where: { id: existing.id },
-    data: {
-      ...data,
-      establishedYear: data.establishedYear ? Number(data.establishedYear) : existing.establishedYear,
-      admissionsOpen: data.admissionsOpen !== undefined ? Boolean(data.admissionsOpen) : existing.admissionsOpen,
+  return prisma.websiteSetting.update({ where: { id: existing.id }, data: data as any });
+};
+
+// ---------------------------------------------------------------------------
+// Collections
+// ---------------------------------------------------------------------------
+
+interface CollectionConfig {
+  model: string;
+  fields: Record<string, FieldSpec>;
+  orderBy: Record<string, "asc" | "desc">[];
+  publicLimit?: number;
+  noun: string;
+}
+
+export const COLLECTIONS: Record<string, CollectionConfig> = {
+  facilities: {
+    model: "websiteFacility",
+    noun: "Facility",
+    fields: {
+      title: { type: "text", max: 120, required: true, min: 2 },
+      description: { type: "text", max: 1000, required: true },
+      iconName: { type: "enum", values: ICON_NAMES },
+      imageUrl: { type: "url" },
+      order: { type: "int", min: 0, max: 9999 },
+      isActive: { type: "bool" },
     },
-  });
-  return updated;
-};
-
-export const getFacilities = async (includeInactive = true) => {
-  const where = includeInactive ? {} : { isActive: true };
-  return await prisma.websiteFacility.findMany({
-    where,
-    orderBy: { order: "asc" },
-  });
-};
-
-export const createFacility = async (data: any) => {
-  return await prisma.websiteFacility.create({
-    data: {
-      title: data.title,
-      description: data.description,
-      iconName: data.iconName || "building",
-      imageUrl: data.imageUrl || null,
-      order: Number(data.order) || 0,
-      isActive: data.isActive !== undefined ? Boolean(data.isActive) : true,
+    orderBy: [{ order: "asc" }, { id: "asc" }],
+  },
+  gallery: {
+    model: "websiteGalleryItem",
+    noun: "Photo",
+    fields: {
+      title: { type: "text", max: 120, required: true, min: 2 },
+      category: { type: "text", max: 40, required: true },
+      imageUrl: { type: "url", required: true },
+      description: { type: "text", max: 500 },
+      order: { type: "int", min: 0, max: 9999 },
+      isActive: { type: "bool" },
     },
-  });
-};
-
-export const updateFacility = async (id: number, data: any) => {
-  return await prisma.websiteFacility.update({
-    where: { id },
-    data: {
-      ...data,
-      order: data.order !== undefined ? Number(data.order) : undefined,
-      isActive: data.isActive !== undefined ? Boolean(data.isActive) : undefined,
+    orderBy: [{ order: "asc" }, { id: "desc" }],
+    publicLimit: 60,
+  },
+  notices: {
+    model: "websitePublicNotice",
+    noun: "Notice",
+    fields: {
+      title: { type: "text", max: 160, required: true, min: 3 },
+      content: { type: "text", max: 4000, required: true },
+      category: { type: "text", max: 40, required: true },
+      fileUrl: { type: "url" },
+      isPinned: { type: "bool" },
+      publishedAt: { type: "date" },
+      isActive: { type: "bool" },
     },
-  });
-};
-
-export const deleteFacility = async (id: number) => {
-  return await prisma.websiteFacility.delete({ where: { id } });
-};
-
-export const getPublicNotices = async (includeInactive = true) => {
-  const where = includeInactive ? {} : { isActive: true };
-  return await prisma.websitePublicNotice.findMany({
-    where,
     orderBy: [{ isPinned: "desc" }, { publishedAt: "desc" }],
-  });
-};
-
-export const createPublicNotice = async (data: any) => {
-  return await prisma.websitePublicNotice.create({
-    data: {
-      title: data.title,
-      content: data.content,
-      category: data.category || "General",
-      fileUrl: data.fileUrl || null,
-      isPinned: Boolean(data.isPinned),
-      publishedAt: data.publishedAt ? new Date(data.publishedAt) : new Date(),
-      isActive: data.isActive !== undefined ? Boolean(data.isActive) : true,
+    publicLimit: 30,
+  },
+  testimonials: {
+    model: "websiteTestimonial",
+    noun: "Testimonial",
+    fields: {
+      name: { type: "text", max: 80, required: true, min: 2 },
+      relation: { type: "text", max: 120 },
+      quote: { type: "text", max: 800, required: true, min: 10 },
+      photoUrl: { type: "url" },
+      order: { type: "int", min: 0, max: 9999 },
+      isActive: { type: "bool" },
     },
-  });
-};
-
-export const updatePublicNotice = async (id: number, data: any) => {
-  return await prisma.websitePublicNotice.update({
-    where: { id },
-    data: {
-      ...data,
-      isPinned: data.isPinned !== undefined ? Boolean(data.isPinned) : undefined,
-      isActive: data.isActive !== undefined ? Boolean(data.isActive) : undefined,
-      publishedAt: data.publishedAt ? new Date(data.publishedAt) : undefined,
+    orderBy: [{ order: "asc" }, { id: "asc" }],
+    publicLimit: 12,
+  },
+  faqs: {
+    model: "websiteFaq",
+    noun: "FAQ",
+    fields: {
+      question: { type: "text", max: 200, required: true, min: 5 },
+      answer: { type: "text", max: 2000, required: true },
+      order: { type: "int", min: 0, max: 9999 },
+      isActive: { type: "bool" },
     },
-  });
+    orderBy: [{ order: "asc" }, { id: "asc" }],
+    publicLimit: 30,
+  },
 };
 
-export const deletePublicNotice = async (id: number) => {
-  return await prisma.websitePublicNotice.delete({ where: { id } });
+const collection = (name: string) => {
+  const cfg = COLLECTIONS[name];
+  if (!cfg) throw httpError(404, "Unknown content type");
+  return cfg;
+};
+const delegate = (cfg: CollectionConfig) => (prisma as any)[cfg.model];
+
+export const parseCollectionInput = (name: string, body: Record<string, unknown>, partial: boolean) =>
+  parseFields(collection(name).fields, body ?? {}, partial);
+
+export const listCollection = async (name: string) => {
+  const cfg = collection(name);
+  await ensureCmsTables();
+  return delegate(cfg).findMany({ orderBy: cfg.orderBy });
 };
 
-export const submitAdmissionInquiry = async (data: {
-  studentName: string;
-  parentName: string;
-  email: string;
-  phone: string;
-  gradeApplyingFor: string;
-  currentSchool?: string;
-  message?: string;
-}) => {
-  if (!data.studentName || !data.parentName || !data.phone || !data.gradeApplyingFor) {
-    throw new Error("Student name, parent name, phone number, and grade are required.");
+export const createCollectionItem = async (name: string, body: Record<string, unknown>) => {
+  const cfg = collection(name);
+  return delegate(cfg).create({ data: parseCollectionInput(name, body, false) });
+};
+
+export const updateCollectionItem = async (name: string, id: number, body: Record<string, unknown>) => {
+  const cfg = collection(name);
+  if (!Number.isInteger(id) || id <= 0) throw httpError(400, "Invalid id");
+  const data = parseCollectionInput(name, body, true);
+  if (Object.keys(data).length === 0) throw httpError(400, "Nothing to update");
+  const existing = await delegate(cfg).findUnique({ where: { id } });
+  if (!existing) throw httpError(404, `${cfg.noun} not found`);
+  return delegate(cfg).update({ where: { id }, data });
+};
+
+export const deleteCollectionItem = async (name: string, id: number) => {
+  const cfg = collection(name);
+  if (!Number.isInteger(id) || id <= 0) throw httpError(400, "Invalid id");
+  const existing = await delegate(cfg).findUnique({ where: { id } });
+  if (!existing) throw httpError(404, `${cfg.noun} not found`);
+  await delegate(cfg).delete({ where: { id } });
+  return cfg.noun;
+};
+
+// A missing table (SQL not applied yet) must not take the whole website down.
+const publicList = async (name: string) => {
+  const cfg = collection(name);
+  try {
+    return await delegate(cfg).findMany({ where: { isActive: true }, orderBy: cfg.orderBy, take: cfg.publicLimit });
+  } catch (e) {
+    console.warn(`[CMS] ${name} unavailable:`, (e as any)?.message);
+    return [];
   }
+};
 
-  return await prisma.admissionInquiry.create({
-    data: {
-      studentName: data.studentName.trim(),
-      parentName: data.parentName.trim(),
-      email: data.email?.trim() || "",
-      phone: data.phone.trim(),
-      gradeApplyingFor: data.gradeApplyingFor.trim(),
-      currentSchool: data.currentSchool?.trim() || null,
-      message: data.message?.trim() || null,
-      status: "NEW",
+export const getPublicWebsiteData = async () => {
+  let settings: any;
+  try {
+    settings = await getWebsiteSettings();
+  } catch (e) {
+    console.warn("[CMS] settings unavailable:", (e as any)?.message);
+    settings = DEFAULT_SETTINGS;
+  }
+  const [facilities, notices, gallery, testimonials, faqs] = await Promise.all(
+    ["facilities", "notices", "gallery", "testimonials", "faqs"].map(publicList)
+  );
+  return { settings, facilities, notices, gallery, testimonials, faqs };
+};
+
+// ---------------------------------------------------------------------------
+// Admission enquiries
+// ---------------------------------------------------------------------------
+
+export const INQUIRY_STATUSES = ["NEW", "CONTACTED", "ADMITTED", "REJECTED"] as const;
+const PHONE_RE = /^[+]?[\d\s-]{7,15}$/;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export const parseInquiry = (body: Record<string, unknown>) => {
+  const data = parseFields(
+    {
+      studentName: { type: "text", max: 80, required: true, min: 2 },
+      parentName: { type: "text", max: 80, required: true, min: 2 },
+      phone: { type: "text", max: 20, required: true },
+      email: { type: "text", max: 120 },
+      gradeApplyingFor: { type: "text", max: 40, required: true },
+      currentSchool: { type: "text", max: 120 },
+      message: { type: "text", max: 1000 },
     },
+    body ?? {},
+    false
+  ) as Record<string, string | null>;
+  if (!PHONE_RE.test(data.phone!)) throw httpError(400, "Enter a valid phone number");
+  if (data.email && !EMAIL_RE.test(data.email)) throw httpError(400, "Enter a valid email address");
+  return data;
+};
+
+export const submitAdmissionInquiry = async (body: Record<string, unknown>) => {
+  const data = parseInquiry(body);
+  await ensureCmsTables();
+  const created = await prisma.admissionInquiry.create({
+    data: { ...data, email: data.email ?? "", status: "NEW" } as any,
   });
+  return { id: created.id };
 };
 
 export const getAdmissionInquiries = async (status?: string) => {
+  await ensureCmsTables();
   const where = status && status !== "ALL" ? { status } : {};
-  return await prisma.admissionInquiry.findMany({
-    where,
-    orderBy: { createdAt: "desc" },
-  });
+  return prisma.admissionInquiry.findMany({ where, orderBy: { createdAt: "desc" } });
 };
 
-export const updateInquiryStatus = async (id: number, status: string, notes?: string) => {
-  return await prisma.admissionInquiry.update({
+export const updateInquiryStatus = async (id: number, status: unknown, notes?: unknown) => {
+  if (!Number.isInteger(id) || id <= 0) throw httpError(400, "Invalid id");
+  if (!INQUIRY_STATUSES.includes(status as any)) throw httpError(400, "Invalid status");
+  if (notes !== undefined && notes !== null && (typeof notes !== "string" || notes.length > 2000)) {
+    throw httpError(400, "Notes must be text up to 2000 characters");
+  }
+  const existing = await prisma.admissionInquiry.findUnique({ where: { id } });
+  if (!existing) throw httpError(404, "Enquiry not found");
+  return prisma.admissionInquiry.update({
     where: { id },
-    data: {
-      status,
-      notes: notes !== undefined ? notes : undefined,
-    },
+    data: { status: status as string, ...(notes !== undefined ? { notes: (notes as string | null)?.trim() || null } : {}) },
   });
 };

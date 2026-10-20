@@ -112,9 +112,11 @@ body {
 }
 
 /* Mobile PWA & Touch UX Enhancements */
+/* No overflow-x on html/body: setting it on both turns <body> into its own scroll
+   container and the page stops scrolling on phones. Sideways overflow is clipped
+   inside the layouts instead (.site in site.module.css, .content in AppShell). */
 @media (max-width: 900px) {
   html, body {
-    overflow-x: hidden;
     touch-action: manipulation;
   }
 }

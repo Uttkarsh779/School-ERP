@@ -25,6 +25,12 @@ export const registerUser = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
+    // Parents don't get logins — families use the student's login.
+    if (role === Role.PARENT) {
+      res.status(400).json({ success: false, message: "Parent accounts are not supported; families sign in with the student's login" });
+      return;
+    }
+
     const existingUser = await findUserByEmail(email);
     if (existingUser) {
       res.status(409).json({ success: false, message: "User already exists" });
@@ -67,7 +73,7 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
     }
 
     if (user.role === Role.PARENT) {
-      res.status(403).json({ success: false, message: "Parent login is currently disabled." });
+      res.status(403).json({ success: false, message: "Parents don't have a login. Please sign in with the student's admission number." });
       return;
     }
 
@@ -131,7 +137,7 @@ export const refreshToken = async (req: Request, res: Response): Promise<void> =
 
     jwt.verify(token, JWT_REFRESH_SECRET, (err, decoded: any) => {
       if (err) {
-        res.status(403).json({ success: false, message: "Invalid or expired refresh token" });
+        res.status(401).json({ success: false, message: "Invalid or expired refresh token" });
         return;
       }
 

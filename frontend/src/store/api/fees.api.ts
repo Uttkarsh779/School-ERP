@@ -51,7 +51,21 @@ export interface ReceiptDetails {
     fatherName: string | null;
     contact: string | null;
   };
-  settledItems: Array<{ feeHead: string; billingPeriod: string; amountAllocated: number }>;
+  settledItems: Array<{ feeHead: string; billingPeriod: string; periodLabel?: string; amountAllocated: number }>;
+  sessionName?: string | null;
+  receivedBy?: string | null;
+  advanceAmount?: number;
+  school?: {
+    name: string;
+    tagline: string | null;
+    logoUrl: string | null;
+    address: string | null;
+    phone: string | null;
+    email: string | null;
+    boardName: string | null;
+    affiliationNo: string | null;
+    schoolCode: string | null;
+  };
 }
 
 export interface RefundRecord {

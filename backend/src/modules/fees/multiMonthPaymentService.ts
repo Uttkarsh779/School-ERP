@@ -8,8 +8,8 @@ import {
   PaymentStatus,
   TransportAssignmentStatus,
 } from "../../generated/prisma/enums";
-import { getOrCreateTransportFeeHead } from "./feeChargeService";
-import { calculateTransportFeeForPeriod } from "../transport/transportVillageService";
+import { billMonth, computeMonthBill, loadBillingContext } from "./billingService";
+import { classSectionForSession } from "../sessions/enrollmentService";
 
 export interface IHeadWaiverInput {
   chargeId?: number;
@@ -54,6 +54,30 @@ const getQuarterName = (month: number): string => {
   if (month >= 7 && month <= 9) return "Q2 (Jul-Sep)";
   if (month >= 10 && month <= 12) return "Q3 (Oct-Dec)";
   return "Q4 (Jan-Mar)";
+};
+
+// Unpaid billed fees in sessions other than `sessionId`, grouped by session (incl. late fees).
+export const getOtherSessionDues = async (studentId: number, session: { id: number; startDate: Date }) => {
+  const sessionId = session.id;
+  const charges = await prisma.feeCharge.findMany({
+    where: { studentId, sessionId: { not: sessionId }, status: { in: [ChargeStatus.UNPAID, ChargeStatus.PARTIALLY_PAID] } },
+    include: { session: { select: { id: true, name: true, startDate: true } } },
+    orderBy: [{ billingYear: "asc" }, { billingMonth: "asc" }],
+  });
+  if (charges.length === 0) return [];
+  const computed = await withLateFees(prisma, charges as any[]);
+  const bySession = new Map<number, { sessionId: number; sessionName: string; startDate: Date; outstanding: number; months: string[] }>();
+  for (const { charge, outstanding } of computed as any[]) {
+    if (outstanding <= 0) continue;
+    const row = bySession.get(charge.sessionId) ?? { sessionId: charge.sessionId, sessionName: charge.session.name, startDate: charge.session.startDate, outstanding: 0, months: [] as string[] };
+    row.outstanding = Math.round((row.outstanding + outstanding) * 100) / 100;
+    const label = `${MONTH_NAMES[charge.billingMonth - 1].substring(0, 3)} ${charge.billingYear}`;
+    if (!row.months.includes(label)) row.months.push(label);
+    bySession.set(charge.sessionId, row);
+  }
+  return [...bySession.values()]
+    .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())
+    .map(({ startDate, ...r }) => ({ ...r, isPrevious: new Date(startDate) < new Date(session.startDate) }));
 };
 
 /**
@@ -109,92 +133,31 @@ export const getStudentMonthsChart = async (studentId: number, sessionId?: numbe
     },
   });
 
-  // 1. Identify Candidate Class Sections for this student's class (e.g. Class 1 - A, Class 1 - B)
-  const candidateClassSectionIds: number[] = [];
-  if (student.classSectionId) {
-    candidateClassSectionIds.push(student.classSectionId);
-  }
-  if (student.classSection?.className) {
-    const siblingSections = await prisma.classSection.findMany({
-      where: {
-        sessionId: activeSessionId,
-        className: student.classSection.className,
-      },
-      select: { id: true },
-    });
-    siblingSections.forEach((s) => {
-      if (!candidateClassSectionIds.includes(s.id)) {
-        candidateClassSectionIds.push(s.id);
-      }
-    });
-  }
+  // Billing rules (structure, transport, concessions, admission month) — the same ones used
+  // when the month is actually billed, so the projection matches the real bill.
+  const billing = await loadBillingContext(prisma, studentId, activeSessionId);
+  const feeStructure = billing.feeStructure;
 
-  // 2. Fetch Fee Structures specifically for this student's class
-  const classStructures = await prisma.feeStructure.findMany({
-    where: {
-      sessionId: activeSessionId,
-      OR: [
-        { classSectionId: { in: candidateClassSectionIds } },
-        { classSectionId: null },
-      ],
-    },
-    include: {
-      items: {
-        include: { feeHead: true },
-      },
-    },
-    orderBy: [
-      { classSectionId: "desc" },
-      { id: "desc" },
-    ],
-  });
-
-  // Prioritize class-specific fee structure over generic global fallback
-  const feeStructure =
-    classStructures.find((s) => s.classSectionId !== null && candidateClassSectionIds.includes(s.classSectionId!)) ||
-    classStructures.find((s) => s.classSectionId === null) ||
-    classStructures[0] ||
-    null;
-
-  // 3. Extract ONLY available fee heads configured for this class
-  const classFeeHeads: Array<{
-    feeHeadId: number;
-    headName: string;
-    headCode: string;
-    amount: number;
-    applicableMonths: number[];
-  }> = [];
-
-  if (feeStructure && feeStructure.items) {
-    for (const item of feeStructure.items) {
-      if (!classFeeHeads.some((h) => h.feeHeadId === item.feeHeadId)) {
-        classFeeHeads.push({
-          feeHeadId: item.feeHeadId,
-          headName: item.feeHead?.name || "Fee Head",
-          headCode: item.feeHead?.code || "FEE",
-          amount: Number(item.amount),
-          applicableMonths: item.applicableMonths || [],
-        });
-      }
-    }
-  }
-
-  // Active Transport is added ONLY if student has an active transport assignment with a village
-  const activeTransport = student.transportAssignments?.[0];
-  const hasActiveTransport = Boolean(activeTransport && activeTransport.village);
-  const transportHead = await getOrCreateTransportFeeHead();
-
-  if (hasActiveTransport && activeTransport?.village) {
-    const transAmt = Number(activeTransport.village.monthlyFee || 0);
-    if (!classFeeHeads.some((h) => h.feeHeadId === transportHead.id)) {
+  // Fee heads configured for this class (+ transport while the student uses the bus).
+  const classFeeHeads: Array<{ feeHeadId: number; headName: string; headCode: string; amount: number }> = [];
+  for (const item of feeStructure?.items ?? []) {
+    if (!classFeeHeads.some((h) => h.feeHeadId === item.feeHeadId)) {
       classFeeHeads.push({
-        feeHeadId: transportHead.id,
-        headName: `Transport (${activeTransport.village.name})`,
-        headCode: "TRANSPORT",
-        amount: transAmt,
-        applicableMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+        feeHeadId: item.feeHeadId,
+        headName: item.feeHead?.name || "Fee Head",
+        headCode: item.feeHead?.code || "FEE",
+        amount: Number(item.amount),
       });
     }
+  }
+  const activeTransport = student.transportAssignments?.[0];
+  if (activeTransport?.village) {
+    classFeeHeads.push({
+      feeHeadId: billing.transportHead.id,
+      headName: `Transport (${activeTransport.village.name})`,
+      headCode: "TRANSPORT",
+      amount: Number(activeTransport.village.monthlyFee || 0),
+    });
   }
 
   // Fetch all existing FeeCharge records for this student in this session
@@ -315,34 +278,42 @@ export const getStudentMonthsChart = async (studentId: number, sessionId?: numbe
         heads,
       };
     } else {
-      // Projected from Fee Structure & Transport
-      const projectedHeads: any[] = [];
-      let baseTotal = 0;
-
-      if (classFeeHeads.length > 0) {
-        for (const item of classFeeHeads) {
-          const isMonthApplicable =
-            item.applicableMonths.length === 0 || item.applicableMonths.includes(month);
-
-          if (isMonthApplicable) {
-            baseTotal += item.amount;
-            projectedHeads.push({
-              chargeId: null,
-              feeHeadId: item.feeHeadId,
-              headName: item.headName,
-              headCode: item.headCode,
-              baseAmount: item.amount,
-              discountAmount: 0,
-              lateFeeAmount: 0,
-              paidAmount: 0,
-              netAmount: item.amount,
-              balanceDue: item.amount,
-              status: "UNBILLED",
-              isProjected: true,
-            });
-          }
-        }
+      // Not billed yet: project it with the billing rules (incl. concessions).
+      const bill = computeMonthBill(billing, month, year);
+      if (bill.notEnrolled) {
+        return {
+          month,
+          year,
+          monthName,
+          periodCode,
+          quarter,
+          dueDate,
+          isBilled: false,
+          status: "NOT_APPLICABLE",
+          statusReason: bill.reason,
+          baseAmount: 0,
+          discountAmount: 0,
+          lateFeeAmount: 0,
+          paidAmount: 0,
+          netAmount: 0,
+          balanceDue: 0,
+          heads: [],
+        };
       }
+      const projectedHeads = bill.lines.map((l) => ({
+        chargeId: null,
+        feeHeadId: l.feeHeadId,
+        headName: l.headName,
+        headCode: l.code,
+        baseAmount: l.baseAmount,
+        discountAmount: l.discountAmount,
+        lateFeeAmount: 0,
+        paidAmount: 0,
+        netAmount: l.netAmount,
+        balanceDue: l.netAmount,
+        status: "UNBILLED",
+        isProjected: true,
+      }));
 
       return {
         month,
@@ -353,12 +324,12 @@ export const getStudentMonthsChart = async (studentId: number, sessionId?: numbe
         dueDate,
         isBilled: false,
         status: "UNBILLED",
-        baseAmount: baseTotal,
-        discountAmount: 0,
+        baseAmount: bill.baseTotal,
+        discountAmount: bill.discountTotal,
         lateFeeAmount: 0,
         paidAmount: 0,
-        netAmount: baseTotal,
-        balanceDue: baseTotal,
+        netAmount: bill.total,
+        balanceDue: bill.total,
         heads: projectedHeads,
       };
     }
@@ -382,6 +353,12 @@ export const getStudentMonthsChart = async (studentId: number, sessionId?: numbe
     0
   );
 
+  // The class the student was in for this session (differs from today's class once promoted).
+  const sessionClass = billing.student.classSection?.sessionId === activeSessionId
+    ? billing.student.classSection
+    : await classSectionForSession(prisma, student, activeSessionId);
+  const otherSessionDues = await getOtherSessionDues(studentId, session);
+
   return {
     student: {
       id: student.id,
@@ -389,8 +366,8 @@ export const getStudentMonthsChart = async (studentId: number, sessionId?: numbe
       admissionNo: student.admissionNo,
       rollNo: student.rollNo,
       classSectionId: student.classSectionId,
-      classSection: student.classSection
-        ? `Class ${student.classSection.className} - ${student.classSection.section}`
+      classSection: sessionClass
+        ? `${sessionClass.className} - ${sessionClass.section}`
         : "Unassigned",
       fatherName: student.fatherName || "Parent",
       contact: student.fatherContact || student.contactNumber || "",
@@ -399,8 +376,12 @@ export const getStudentMonthsChart = async (studentId: number, sessionId?: numbe
       id: session.id,
       name: session.name,
       startYear,
+      isCurrent: session.isCurrent,
     },
     months: monthsData,
+    // Unpaid fees from other sessions (previous-year dues carried forward), so every fee
+    // screen can show and collect them alongside this session.
+    otherSessionDues,
     feeStructureMissing,
     classFeeHeads: classFeeHeads.map((h) => ({
       feeHeadId: h.feeHeadId,
@@ -470,57 +451,8 @@ export const recordMultiMonthPayment = async (
       },
     });
 
-    // 1. Identify Candidate Class Sections for this student's class
-    const candidateClassSectionIds: number[] = [];
-    if (student.classSectionId) {
-      candidateClassSectionIds.push(student.classSectionId);
-    }
-    if (student.classSection?.className) {
-      const siblingSections = await tx.classSection.findMany({
-        where: {
-          sessionId: activeSessionId,
-          className: student.classSection.className,
-        },
-        select: { id: true },
-      });
-      siblingSections.forEach((s) => {
-        if (!candidateClassSectionIds.includes(s.id)) {
-          candidateClassSectionIds.push(s.id);
-        }
-      });
-    }
-
-    // 2. Fetch Fee Structures specifically for this student's class
-    const classStructures = await tx.feeStructure.findMany({
-      where: {
-        sessionId: activeSessionId,
-        OR: [
-          { classSectionId: { in: candidateClassSectionIds } },
-          { classSectionId: null },
-        ],
-      },
-      include: {
-        items: {
-          include: { feeHead: true },
-        },
-      },
-      orderBy: [
-        { classSectionId: "desc" },
-        { id: "desc" },
-      ],
-    });
-
-    const feeStructure =
-      classStructures.find((s) => s.classSectionId !== null && candidateClassSectionIds.includes(s.classSectionId!)) ||
-      classStructures.find((s) => s.classSectionId === null) ||
-      classStructures[0] ||
-      null;
-
-    const transportHead =
-      (await tx.feeHead.findUnique({ where: { name: "Transport Fee" } })) ||
-      (await tx.feeHead.create({
-        data: { name: "Transport Fee", code: "TRANSPORT", isRecurring: true },
-      }));
+    // Billing rules for any month that has to be billed now (advance payment).
+    const billing = await loadBillingContext(tx, studentId, activeSessionId);
 
     const processedChargeIds: number[] = [];
     const clearedMonthsList: string[] = [];
@@ -548,102 +480,17 @@ export const recordMultiMonthPayment = async (
         },
       });
 
-      // If no charges exist (advance payment of unbilled future month), generate them now!
+      // Not billed yet (advance payment of a future month): bill it now, with the same
+      // per-head charges, concessions and invoice as any other billing path.
       if (charges.length === 0) {
-        const lineItemsToCreate: Array<{ feeHeadId: number; amount: number; description: string }> = [];
-
-        if (feeStructure && feeStructure.items.length > 0) {
-          for (const item of feeStructure.items) {
-            if (item.applicableMonths.length === 0 || item.applicableMonths.includes(sm.month)) {
-              lineItemsToCreate.push({
-                feeHeadId: item.feeHeadId,
-                amount: Number(item.amount),
-                description: item.feeHead?.name || "Fee",
-              });
-            }
-          }
+        const bill = computeMonthBill(billing, sm.month, sm.year);
+        if (!bill.eligible) {
+          throw new Error(`${monthName} ${sm.year} can't be billed: ${bill.reason}.`);
         }
-
-        // Active Transport Village fee (only when the village actually has a fee set)
-        const activeTransport = student.transportAssignments?.[0];
-        if (activeTransport && activeTransport.village && Number(activeTransport.village.monthlyFee) > 0) {
-          lineItemsToCreate.push({
-            feeHeadId: transportHead.id,
-            amount: Number(activeTransport.village.monthlyFee),
-            description: `Transport (${activeTransport.village.name})`,
-          });
-        }
-
-        if (lineItemsToCreate.length === 0) {
-          throw new Error(
-            `No fee is configured for ${monthName} ${sm.year}. Set up the class fee structure before collecting payment for this month.`
-          );
-        }
-
-        for (const item of lineItemsToCreate) {
-          const createdCharge = await tx.feeCharge.create({
-            data: {
-              studentId,
-              feeHeadId: item.feeHeadId,
-              sessionId: activeSessionId,
-              billingMonth: sm.month,
-              billingYear: sm.year,
-              dueDate,
-              baseAmount: item.amount,
-              discountAmount: 0,
-              lateFeeAmount: 0,
-              netAmount: item.amount,
-              paidAmount: 0,
-              status: ChargeStatus.UNPAID,
-            },
-          });
-          charges.push(createdCharge);
-        }
-
-        // Also create/upsert Invoice so bulk monthly generator marks it as alreadyBilled!
-        const totalBase = lineItemsToCreate.reduce((sum, item) => sum + item.amount, 0);
-        const invoiceNumber = `INV-${sm.year}-${sm.month.toString().padStart(2, "0")}-${student.admissionNo}`;
-
-        const inv = await tx.invoice.upsert({
-          where: {
-            studentId_collectionPeriodCode_sessionId: {
-              studentId,
-              collectionPeriodCode: periodCode,
-              sessionId: activeSessionId,
-            },
-          },
-          update: {
-            totalBaseAmount: totalBase,
-            totalAmount: totalBase,
-            dueDate,
-          },
-          create: {
-            invoiceNumber,
-            studentId,
-            sessionId: activeSessionId,
-            collectionPeriodCode: periodCode,
-            issueDate: new Date(),
-            dueDate,
-            totalBaseAmount: totalBase,
-            totalDiscountAmount: 0,
-            totalLateFeeAmount: 0,
-            totalAmount: totalBase,
-            paidAmount: 0,
-            status: InvoiceStatus.ISSUED,
-            notes: "Generated via multi-month advance payment desk",
-          },
+        await billMonth(tx, billing, bill, adminUserId);
+        charges = await tx.feeCharge.findMany({
+          where: { studentId, sessionId: activeSessionId, billingMonth: sm.month, billingYear: sm.year },
         });
-
-        for (const c of charges) {
-          await tx.invoiceItem.create({
-            data: {
-              invoiceId: inv.id,
-              feeChargeId: c.id,
-              amount: c.baseAmount,
-              description: `Fee for ${periodCode}`,
-            },
-          });
-        }
       }
 
       // Bring late fees on these charges up to date (configured rule) before waivers and
@@ -931,7 +778,7 @@ export const recordMultiMonthPayment = async (
       admissionNo: student.admissionNo,
       rollNo: student.rollNo,
       className: student.classSection
-        ? `Class ${student.classSection.className} - ${student.classSection.section}`
+        ? `${student.classSection.className} - ${student.classSection.section}`
         : "Unassigned",
       fatherName: student.fatherName || "Parent",
       fatherContact: student.fatherContact || student.contactNumber || "",

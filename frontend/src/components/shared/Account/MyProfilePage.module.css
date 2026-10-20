@@ -67,7 +67,7 @@
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
   gap: 1.25rem;
   align-items: start;
 }
@@ -94,4 +94,26 @@
   font-size: 0.88rem;
   color: var(--erp-text);
   line-height: 1.5;
+}
+
+@media (max-width: 640px) {
+  .hero {
+    flex-direction: column;
+    text-align: center;
+    gap: 1rem;
+  }
+
+  .heroMain {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .meta,
+  .photoActions {
+    justify-content: center;
+  }
+
+  .formActions > * {
+    width: 100%;
+  }
 }

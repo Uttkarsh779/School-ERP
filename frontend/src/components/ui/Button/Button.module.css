@@ -91,3 +91,14 @@
     transform: rotate(360deg);
   }
 }
+
+/* Touch-sized targets on phones and tablets */
+@media (max-width: 900px) {
+  .button {
+    min-height: 2.75rem;
+  }
+
+  .sm {
+    min-height: 2.35rem;
+  }
+}

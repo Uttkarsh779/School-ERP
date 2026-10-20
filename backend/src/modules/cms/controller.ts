@@ -2,141 +2,60 @@ import type { Request, Response } from "express";
 import type { CustomRequest } from "../../middleware/auth";
 import * as cmsService from "./cmsService";
 
-// Public website endpoints (No auth required)
+// Public website
 export const getPublicWebsiteData = async (_req: Request, res: Response) => {
-  try {
-    const data = await cmsService.getPublicWebsiteData();
-    res.json({ success: true, data });
-  } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message || "Failed to load website content" });
-  }
+  res.set("Cache-Control", "public, max-age=60");
+  res.json({ success: true, data: await cmsService.getPublicWebsiteData() });
 };
 
 export const postAdmissionInquiry = async (req: Request, res: Response) => {
-  try {
-    const inquiry = await cmsService.submitAdmissionInquiry(req.body);
-    res.status(201).json({
-      success: true,
-      message: "Thank you! Your admission enquiry has been submitted. Our admissions team will reach out to you shortly.",
-      data: inquiry,
-    });
-  } catch (err: any) {
-    res.status(400).json({ success: false, message: err.message || "Failed to submit enquiry" });
+  const message = "Thank you! Your admission enquiry has been received. Our admissions team will contact you shortly.";
+  // Honeypot: real visitors never see/fill the hidden "website" field; bots do.
+  if (typeof req.body?.website === "string" && req.body.website.trim() !== "") {
+    res.status(201).json({ success: true, message });
+    return;
   }
+  const data = await cmsService.submitAdmissionInquiry(req.body ?? {});
+  res.status(201).json({ success: true, message, data });
 };
 
-// Admin CMS endpoints
+// Admin: settings
 export const getSettings = async (_req: CustomRequest, res: Response) => {
-  try {
-    const data = await cmsService.getWebsiteSettings();
-    res.json({ success: true, data });
-  } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
-  }
+  res.json({ success: true, data: await cmsService.getWebsiteSettings() });
 };
 
 export const updateSettings = async (req: CustomRequest, res: Response) => {
-  try {
-    const data = await cmsService.updateWebsiteSettings(req.body);
-    res.json({ success: true, data, message: "Website settings updated successfully" });
-  } catch (err: any) {
-    res.status(400).json({ success: false, message: err.message });
-  }
+  const data = await cmsService.updateWebsiteSettings(req.body ?? {});
+  res.json({ success: true, data, message: "Website settings saved" });
 };
 
-export const getFacilities = async (_req: CustomRequest, res: Response) => {
-  try {
-    const data = await cmsService.getFacilities(true);
-    res.json({ success: true, data });
-  } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
-  }
+// Admin: content collections (facilities, gallery, notices, testimonials, faqs)
+export const listCollection = async (req: CustomRequest, res: Response) => {
+  res.json({ success: true, data: await cmsService.listCollection(String(req.params.collection)) });
 };
 
-export const createFacility = async (req: CustomRequest, res: Response) => {
-  try {
-    const data = await cmsService.createFacility(req.body);
-    res.status(201).json({ success: true, data, message: "Facility added successfully" });
-  } catch (err: any) {
-    res.status(400).json({ success: false, message: err.message });
-  }
+export const createCollectionItem = async (req: CustomRequest, res: Response) => {
+  const data = await cmsService.createCollectionItem(String(req.params.collection), req.body ?? {});
+  res.status(201).json({ success: true, data, message: "Added" });
 };
 
-export const updateFacility = async (req: CustomRequest, res: Response) => {
-  try {
-    const id = Number(req.params.id);
-    const data = await cmsService.updateFacility(id, req.body);
-    res.json({ success: true, data, message: "Facility updated successfully" });
-  } catch (err: any) {
-    res.status(400).json({ success: false, message: err.message });
-  }
+export const updateCollectionItem = async (req: CustomRequest, res: Response) => {
+  const data = await cmsService.updateCollectionItem(String(req.params.collection), Number(req.params.id), req.body ?? {});
+  res.json({ success: true, data, message: "Saved" });
 };
 
-export const deleteFacility = async (req: CustomRequest, res: Response) => {
-  try {
-    const id = Number(req.params.id);
-    await cmsService.deleteFacility(id);
-    res.json({ success: true, message: "Facility removed successfully" });
-  } catch (err: any) {
-    res.status(400).json({ success: false, message: err.message });
-  }
+export const deleteCollectionItem = async (req: CustomRequest, res: Response) => {
+  const noun = await cmsService.deleteCollectionItem(String(req.params.collection), Number(req.params.id));
+  res.json({ success: true, message: `${noun} removed` });
 };
 
-export const getPublicNotices = async (_req: CustomRequest, res: Response) => {
-  try {
-    const data = await cmsService.getPublicNotices(true);
-    res.json({ success: true, data });
-  } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
-  }
-};
-
-export const createPublicNotice = async (req: CustomRequest, res: Response) => {
-  try {
-    const data = await cmsService.createPublicNotice(req.body);
-    res.status(201).json({ success: true, data, message: "Notice published successfully" });
-  } catch (err: any) {
-    res.status(400).json({ success: false, message: err.message });
-  }
-};
-
-export const updatePublicNotice = async (req: CustomRequest, res: Response) => {
-  try {
-    const id = Number(req.params.id);
-    const data = await cmsService.updatePublicNotice(id, req.body);
-    res.json({ success: true, data, message: "Notice updated successfully" });
-  } catch (err: any) {
-    res.status(400).json({ success: false, message: err.message });
-  }
-};
-
-export const deletePublicNotice = async (req: CustomRequest, res: Response) => {
-  try {
-    const id = Number(req.params.id);
-    await cmsService.deletePublicNotice(id);
-    res.json({ success: true, message: "Notice deleted successfully" });
-  } catch (err: any) {
-    res.status(400).json({ success: false, message: err.message });
-  }
-};
-
+// Admin: admission enquiries
 export const getAdmissionInquiries = async (req: CustomRequest, res: Response) => {
-  try {
-    const status = req.query.status as string | undefined;
-    const data = await cmsService.getAdmissionInquiries(status);
-    res.json({ success: true, data });
-  } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
-  }
+  const status = typeof req.query.status === "string" ? req.query.status : undefined;
+  res.json({ success: true, data: await cmsService.getAdmissionInquiries(status) });
 };
 
 export const updateInquiryStatus = async (req: CustomRequest, res: Response) => {
-  try {
-    const id = Number(req.params.id);
-    const { status, notes } = req.body;
-    const data = await cmsService.updateInquiryStatus(id, status, notes);
-    res.json({ success: true, data, message: "Inquiry status updated" });
-  } catch (err: any) {
-    res.status(400).json({ success: false, message: err.message });
-  }
+  const data = await cmsService.updateInquiryStatus(Number(req.params.id), req.body?.status, req.body?.notes);
+  res.json({ success: true, data, message: "Enquiry updated" });
 };

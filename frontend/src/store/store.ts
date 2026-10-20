@@ -1,6 +1,6 @@
-import { configureStore } from "@reduxjs/toolkit";
+import { configureStore, createListenerMiddleware, isAnyOf } from "@reduxjs/toolkit";
 import { useDispatch, useSelector } from "react-redux";
-import authReducer from "./reducers/authReducer";
+import authReducer, { resetTokens, setTokens, updateUser } from "./reducers/authReducer";
 import { apiUser } from "./services/user.api";
 import { apiListpage } from "./services/listpage.api";
 import { apiOpportunities } from "./services/opportunities.api";
@@ -17,6 +17,31 @@ import { apiQuickMenu } from "./services/quickMenu.api";
 import { apiSocial } from "./services/social.api";
 import { apiPortal } from "./services/portal.api";
 import { erpApi } from "./api/erpApi";
+import { profileApi, type MyProfile } from "./api/profile.api";
+
+// Cached ERP data belongs to the logged-in account: drop it on logout, and when a login
+// switches to a different account (a token refresh for the same user keeps it).
+const sessionListener = createListenerMiddleware();
+sessionListener.startListening({
+  predicate: (action, current, previous) =>
+    resetTokens.match(action) ||
+    (setTokens.match(action) &&
+      (current as RootState).auth.user?.id !== (previous as RootState).auth.user?.id),
+  effect: (_action, api) => {
+    api.dispatch(erpApi.util.resetApiState());
+  },
+});
+
+// The name saved at login goes stale when the account is renamed (by the user on My Profile
+// or by the Super Admin). Whenever the live profile loads or is saved, copy its name over.
+sessionListener.startListening({
+  matcher: isAnyOf(profileApi.endpoints.getMyProfile.matchFulfilled, profileApi.endpoints.updateMyProfile.matchFulfilled),
+  effect: (action, api) => {
+    const profile = action.payload as MyProfile | undefined;
+    const user = (api.getState() as RootState).auth.user;
+    if (profile && user?.id === profile.id && user.name !== profile.name) api.dispatch(updateUser({ name: profile.name }));
+  },
+});
 
 export const store = configureStore({
   reducer: {
@@ -41,7 +66,7 @@ export const store = configureStore({
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
       serializableCheck: false,
-    }).concat(
+    }).prepend(sessionListener.middleware).concat(
       apiUser.middleware,
       apiSubmenu.middleware,
       apiTelephonic.middleware,

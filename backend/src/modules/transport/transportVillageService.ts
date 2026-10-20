@@ -223,36 +223,32 @@ export const getEffectiveVillageFeeForDate = async (villageId: number, targetDat
   return Number(village.monthlyFee);
 };
 
-export const calculateTransportFeeForPeriod = async (
-  studentId: number,
-  billingYear: number,
-  billingMonth: number // 1-12
-): Promise<number> => {
+// A student's transport assignments with their villages' fee history, loaded once so the
+// fee for many months can be worked out without more queries (transportFeeForMonth).
+export const loadTransportContext = async (db: any, studentId: number) =>
+  db.studentTransportAssignment.findMany({
+    where: { studentId },
+    include: { village: { include: { feeHistory: { orderBy: { effectiveDate: "desc" } } } } },
+  });
+
+// Village fee in force on a date: latest history entry on/before it, else the village's fee.
+const villageFeeOn = (village: any, date: Date) => {
+  const entry = (village.feeHistory ?? []).find((h: any) => new Date(h.effectiveDate) <= date);
+  return Number(entry ? entry.monthlyFee : village.monthlyFee);
+};
+
+export const transportFeeForMonth = (assignments: any[], billingYear: number, billingMonth: number): number => {
   const monthStart = new Date(billingYear, billingMonth - 1, 1);
   const monthEnd = new Date(billingYear, billingMonth, 0); // last day of month
   const daysInMonth = monthEnd.getDate();
 
-  const assignments = await prisma.studentTransportAssignment.findMany({
-    where: {
-      studentId,
-      startDate: { lte: monthEnd },
-      OR: [
-        { endDate: null },
-        { endDate: { gte: monthStart } },
-      ],
-    },
-    include: { village: true },
-  });
-
-  if (assignments.length === 0) return 0;
-
   let totalFee = 0;
-
   for (const assign of assignments) {
-    const monthlyFee = await getEffectiveVillageFeeForDate(assign.villageId, monthEnd);
     const assignStart = new Date(assign.startDate);
     const assignEnd = assign.endDate ? new Date(assign.endDate) : new Date("2099-12-31");
+    if (assignStart > monthEnd || assignEnd < monthStart) continue;
 
+    const monthlyFee = villageFeeOn(assign.village, monthEnd);
     const policy = assign.policy;
 
     // Check if start is mid-month
@@ -263,28 +259,27 @@ export const calculateTransportFeeForPeriod = async (
     if (!isStartMidMonth && !isStopMidMonth) {
       // Full month active
       totalFee += monthlyFee;
-    } else {
-      if (policy === TransportBillingPolicy.FULL_MONTH) {
-        totalFee += monthlyFee;
-      } else if (policy === TransportBillingPolicy.NEXT_PERIOD) {
-        if (isStartMidMonth) {
-          // Mid-month start with NEXT_PERIOD -> 0 for current month
-          totalFee += 0;
-        } else if (isStopMidMonth) {
-          // Mid-month stop with NEXT_PERIOD -> Full for current month, 0 next
-          totalFee += monthlyFee;
-        }
-      } else if (policy === TransportBillingPolicy.PRORATED) {
-        let activeStart = assignStart > monthStart ? assignStart.getDate() : 1;
-        let activeEnd = assignEnd < monthEnd ? assignEnd.getDate() : daysInMonth;
-        const activeDays = Math.max(0, activeEnd - activeStart + 1);
-        totalFee += Math.round((monthlyFee * activeDays) / daysInMonth);
-      }
+    } else if (policy === TransportBillingPolicy.FULL_MONTH) {
+      totalFee += monthlyFee;
+    } else if (policy === TransportBillingPolicy.NEXT_PERIOD) {
+      // Mid-month start -> 0 for current month; mid-month stop -> full for current month
+      totalFee += isStartMidMonth ? 0 : monthlyFee;
+    } else if (policy === TransportBillingPolicy.PRORATED) {
+      const activeStart = assignStart > monthStart ? assignStart.getDate() : 1;
+      const activeEnd = assignEnd < monthEnd ? assignEnd.getDate() : daysInMonth;
+      const activeDays = Math.max(0, activeEnd - activeStart + 1);
+      totalFee += Math.round((monthlyFee * activeDays) / daysInMonth);
     }
   }
-
   return totalFee;
 };
+
+export const calculateTransportFeeForPeriod = async (
+  studentId: number,
+  billingYear: number,
+  billingMonth: number // 1-12
+): Promise<number> =>
+  transportFeeForMonth(await loadTransportContext(prisma, studentId), billingYear, billingMonth);
 
 export const deleteVillage = async (villageId: number) => {
   const count = await prisma.studentTransportAssignment.count({

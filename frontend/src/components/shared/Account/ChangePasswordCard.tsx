@@ -47,7 +47,7 @@ const ChangePasswordCard = () => {
           <Rule met={rules.letter && rules.number} text="Contains a letter and a number" />
           <Rule met={rules.match} text="Both new passwords match" />
         </ul>
-        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+        <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "flex-end" }}>
           <Button onClick={submit} isLoading={isLoading} disabled={!ok}>
             Change password
           </Button>

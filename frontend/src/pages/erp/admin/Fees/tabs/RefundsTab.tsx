@@ -121,7 +121,7 @@ const RefundsTab = ({ isSuperAdmin }: { isSuperAdmin: boolean }) => {
           />
         }
       >
-        {isLoading ? <Spinner /> : <Table columns={columns} data={rows} keyField="id" emptyMessage="No refund requests." />}
+        {isLoading ? <Spinner /> : <Table columns={columns} data={rows} keyField="id" mobilePrimary="student" emptyMessage="No refund requests." />}
       </Card>
 
       {pending && (

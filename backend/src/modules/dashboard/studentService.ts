@@ -21,30 +21,37 @@ const istToday = (now = new Date()) => {
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 export const getStudentDashboard = async (userId: number) => {
-  const student = await prisma.student.findUnique({
-    where: { userId },
-    include: {
-      classSection: {
-        include: {
-          session: { select: { id: true, name: true } },
-          classTeacher: { select: { user: { select: { name: true } } } },
-        },
-      },
-      parents: { include: { parent: { select: { name: true, contact: true, email: true } } } },
-      transportAssignments: {
-        where: { status: "ACTIVE" },
-        orderBy: { startDate: "desc" },
-        take: 1,
-        include: { village: { select: { name: true } } },
-      },
-    },
-  });
-  if (!student) return { hasStudentProfile: false as const };
+  // One small read to find the student, then everything else in parallel — each round trip
+  // to the database costs time, and nested includes would run them one after another.
+  const base = await prisma.student.findUnique({ where: { userId } });
+  if (!base) return { hasStudentProfile: false as const };
 
   const today = istToday();
-  const classSectionId = student.classSectionId;
+  const classSectionId = base.classSectionId;
 
-  const [slots, monthRecords, overall, recentRecords, homework, exams] = await Promise.all([
+  // Fees take the longest; start them now, alongside everything else.
+  const duePromise = getStudentDueSummary(base.id).catch(() => null);
+  // Latest published exam that has this student's marks, and its analysis.
+  const analysisPromise = prisma.exam
+    .findFirst({
+      where: { classSectionId, resultsPublished: true, results: { some: { studentId: base.id } } },
+      orderBy: { id: "desc" },
+      select: { id: true },
+    })
+    .then((exam) => (exam ? getExamAnalysis(exam.id) : null));
+
+  const [classSection, parents, transportAssignments, slots, monthRecords, overall, recentRecords, homework] = await Promise.all([
+    prisma.classSection.findUnique({
+      where: { id: classSectionId },
+      include: { session: { select: { id: true, name: true } }, classTeacher: { select: { user: { select: { name: true } } } } },
+    }),
+    prisma.parentStudent.findMany({ where: { studentId: base.id }, include: { parent: { select: { name: true, contact: true, email: true } } } }),
+    prisma.studentTransportAssignment.findMany({
+      where: { studentId: base.id, status: "ACTIVE" },
+      orderBy: { startDate: "desc" },
+      take: 1,
+      include: { village: { select: { name: true } } },
+    }),
     prisma.timetableSlot.findMany({
       where: { classSectionId, dayOfWeek: today.dayOfWeek },
       orderBy: { periodNumber: "asc" },
@@ -52,12 +59,12 @@ export const getStudentDashboard = async (userId: number) => {
     }),
     prisma.attendance.groupBy({
       by: ["status"],
-      where: { studentId: student.id, date: { gte: today.monthStart, lte: today.date } },
+      where: { studentId: base.id, date: { gte: today.monthStart, lte: today.date } },
       _count: { _all: true },
     }),
-    prisma.attendance.groupBy({ by: ["status"], where: { studentId: student.id }, _count: { _all: true } }),
+    prisma.attendance.groupBy({ by: ["status"], where: { studentId: base.id }, _count: { _all: true } }),
     prisma.attendance.findMany({
-      where: { studentId: student.id },
+      where: { studentId: base.id },
       orderBy: { date: "desc" },
       take: 10,
       select: { date: true, status: true },
@@ -68,14 +75,8 @@ export const getStudentDashboard = async (userId: number) => {
       take: 5,
       include: { subject: { select: { name: true } } },
     }),
-    // Most recent exams of the class that already have marks for this student.
-    prisma.exam.findMany({
-      where: { classSectionId, resultsPublished: true, results: { some: { studentId: student.id } } },
-      orderBy: { id: "desc" },
-      take: 1,
-      select: { id: true },
-    }),
   ]);
+  const student = { ...base, classSection, parents, transportAssignments };
 
   const counts = (rows: any[]) => {
     const c = { PRESENT: 0, ABSENT: 0, LATE: 0, LEAVE: 0 } as Record<string, number>;
@@ -92,7 +93,8 @@ export const getStudentDashboard = async (userId: number) => {
     nextDue: { label: string; dueDate: string; amount: number } | null;
   } | null = null;
   try {
-    const due = await getStudentDueSummary(student.id);
+    const due = await duePromise;
+    if (!due) throw new Error("fees unavailable");
     const open = (due.charges as any[]).filter((c) => c.outstandingAmount > 0);
     const next = open.slice().sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())[0];
     fees = {
@@ -123,8 +125,8 @@ export const getStudentDashboard = async (userId: number) => {
     rankedCount: number | null;
     failedSubjects: string[];
   } | null = null;
-  if (exams.length) {
-    const analysis = await getExamAnalysis(exams[0].id);
+  const analysis = await analysisPromise.catch(() => null);
+  {
     const mine = analysis?.students.find((s) => s.studentId === student.id);
     if (analysis && mine) {
       const isFinal = analysis.exam.isLocked;

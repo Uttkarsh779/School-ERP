@@ -54,6 +54,7 @@ const StudentFormFields = ({ register, errors, classSectionOptions }: StudentFor
           error={errors.classSectionId?.message}
           {...register("classSectionId", { required: "Class section is required" })}
         />
+        <Input label="Admission Date" type="date" {...register("admissionDate")} />
       </FormGrid>
     </FormSection>
 
@@ -63,6 +64,7 @@ const StudentFormFields = ({ register, errors, classSectionOptions }: StudentFor
         <Select label="Gender" options={genderOptions} placeholder="Select gender" {...register("gender")} />
         <Input label="Blood Group" placeholder="e.g. O+" {...register("bloodGroup")} />
         <Select label="Category" options={categoryOptions} placeholder="Select category" {...register("category")} />
+        <Input label="Nationality" placeholder="e.g. Indian" {...register("nationality")} />
       </FormGrid>
     </FormSection>
 
@@ -81,6 +83,7 @@ const StudentFormFields = ({ register, errors, classSectionOptions }: StudentFor
         <Input label="APAAR ID" {...register("apaarId")} />
         <Input label="Contact Number" {...register("contactNumber")} />
         <Input label="Address" {...register("address")} />
+        <Input label="Previous School" {...register("previousSchool")} />
       </FormGrid>
     </FormSection>
   </>

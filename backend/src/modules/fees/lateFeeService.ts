@@ -8,8 +8,11 @@
 //   DAILY  -> amount x (overdueDays - gracePeriodDays)
 //   SLAB   -> slabsJson = [{ "uptoDays": 10, "amount": 100 }, { "uptoDays": null, "amount": 500 }]
 //             (first slab whose uptoDays >= overdueDays; uptoDays null = no upper limit)
-// Late-fee waivers already granted on a charge (LATE_FEE_WAIVER adjustments) are subtracted,
-// and a late fee is never reduced below what was already saved onto the charge.
+// The fine is charged ONCE per student per billing month (one monthly bill = one fine), not
+// once per fee head: it sits on a single "carrier" charge of that month — the open charge
+// already holding a saved fine, else the lowest-id open charge. Fines already collected on
+// that month's settled charges and late-fee waivers anywhere in the month are subtracted,
+// and a late fee is never reduced below what was already saved onto a charge.
 
 export type LateFeeRuleLike = {
   gracePeriodDays: number;
@@ -100,14 +103,57 @@ export const loadLateFeeWaivers = async (db: any, chargeIds: number[]) => {
   return map;
 };
 
-// Attaches { lateFee, outstanding } to each charge using the rules above.
+type MonthChargeLike = ChargeLike & { studentId?: number; billingYear?: number; billingMonth?: number };
+
+const monthKey = (c: MonthChargeLike) => `${c.studentId}:${c.sessionId}:${c.billingYear}:${c.billingMonth}`;
+
+// Attaches { lateFee, outstanding } to each charge using the rules above. All charges of the
+// same student-month are loaded (even ones the caller didn't pass), so the month's fine
+// lands on the same carrier whichever subset of charges a screen asks about.
 export const withLateFees = async <T extends ChargeLike>(db: any, charges: T[], asOf = new Date()) => {
+  const monthCharges = charges as unknown as MonthChargeLike[];
+  const groupable = monthCharges.filter((c) => c.studentId !== undefined && c.billingMonth !== undefined && c.billingYear !== undefined);
+  const siblings: MonthChargeLike[] = groupable.length
+    ? await db.feeCharge.findMany({
+        where: {
+          studentId: { in: [...new Set(groupable.map((c) => c.studentId))] },
+          sessionId: { in: [...new Set(groupable.map((c) => c.sessionId))] },
+          status: { notIn: ["CANCELLED", "VOID"] },
+        },
+        select: { id: true, studentId: true, sessionId: true, billingYear: true, billingMonth: true, dueDate: true, status: true, lateFeeAmount: true },
+      })
+    : [];
+  const wanted = new Set(groupable.map(monthKey));
+  const groups = new Map<string, MonthChargeLike[]>();
+  for (const c of siblings) {
+    const key = monthKey(c);
+    if (!wanted.has(key)) continue;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(c);
+  }
+
   const [rules, waivers] = await Promise.all([
     loadRules(db, charges.map((c) => c.sessionId)),
-    loadLateFeeWaivers(db, charges.map((c) => c.id)),
+    loadLateFeeWaivers(db, [...new Set([...charges.map((c) => c.id), ...siblings.map((c) => c.id)])]),
   ]);
+
+  // Late fee per charge id for every grouped month.
+  const feeById = new Map<number, number>();
+  for (const group of groups.values()) {
+    const open = group.filter((c) => OPEN.has(c.status)).sort((a, b) => a.id - b.id);
+    for (const c of group) feeById.set(c.id, num(c.lateFeeAmount));
+    if (open.length === 0) continue;
+    const carrier = open.find((c) => num(c.lateFeeAmount) > 0) ?? open[0];
+    const alreadyCharged = group.filter((c) => c.id !== carrier.id).reduce((s, c) => s + num(c.lateFeeAmount), 0);
+    const waived = group.reduce((s, c) => s + (waivers.get(c.id) ?? 0), 0);
+    const accrued = accruedLateFee(carrier.dueDate, rules.get(carrier.sessionId) ?? null, asOf);
+    feeById.set(carrier.id, Math.max(num(carrier.lateFeeAmount), accrued - alreadyCharged - waived, 0));
+  }
+
   return charges.map((c) => {
-    const lateFee = effectiveLateFee(c, rules.get(c.sessionId) ?? null, waivers.get(c.id) ?? 0, asOf);
+    const lateFee = feeById.has(c.id)
+      ? feeById.get(c.id)!
+      : effectiveLateFee(c, rules.get(c.sessionId) ?? null, waivers.get(c.id) ?? 0, asOf);
     return { charge: c, lateFee, outstanding: outstandingOf(c, lateFee) };
   });
 };

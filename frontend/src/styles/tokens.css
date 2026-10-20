@@ -50,3 +50,24 @@
   /* Light mode only, by design — no dark-mode variant */
   color-scheme: light;
 }
+
+/*
+ * Responsive helpers for layouts set with inline grid styles (media queries can't reach
+ * inline styles, hence !important). Desktop is untouched.
+ *   erp-stack-sm  — collapse to one column on phones
+ *   erp-two-up-sm — two equal columns on phones (stat cards, small tiles)
+ */
+@media (max-width: 640px) {
+  .erp-stack-sm {
+    grid-template-columns: 1fr !important;
+  }
+
+  .erp-stack-sm > * {
+    grid-column: auto !important;
+  }
+
+  .erp-two-up-sm {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.65rem !important;
+  }
+}

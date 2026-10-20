@@ -21,9 +21,8 @@ import type { SelectOption, TableColumn } from "../../../../components/ui";
 import { useGetMyClassSectionsQuery } from "../../../../store/api/classSections.api";
 import { useGetSessionsQuery } from "../../../../store/api/sessions.api";
 import { useGetSubjectsQuery } from "../../../../store/api/subjects.api";
-import { useGetStudentsQuery } from "../../../../store/api/students.api";
-import { useGetStaffListQuery } from "../../../../store/api/staff.api";
-import { useAppSelector } from "../../../../store/store";
+import { useGetClassRosterQuery } from "../../../../store/api/teaching.api";
+import { useGetMyProfileQuery } from "../../../../store/api/profile.api";
 import {
   useCreateExamMutation,
   useEnterExamResultsMutation,
@@ -85,10 +84,11 @@ const TeacherExamsPage = () => {
   } = useGetExamsQuery({ classSectionId: csId ?? 0 }, { skip: !csId });
 
   const { data: subjects } = useGetSubjectsQuery({ classSectionId: csId ?? 0 }, { skip: !csId || !selectedExam });
-  const { data: students, isLoading: isLoadingStudents } = useGetStudentsQuery(
-    { classSectionId: csId ?? 0 },
-    { skip: !csId || !selectedExam }
-  );
+  // Teacher roster: open to the class teacher and the class's subject teachers alike.
+  const { data: roster, isLoading: isLoadingStudents } = useGetClassRosterQuery(csId ?? 0, {
+    skip: !csId || !selectedExam,
+  });
+  const students = roster?.students;
   const { data: existingResults, isLoading: isLoadingResults } = useGetExamResultsQuery(selectedExam?.id ?? 0, {
     skip: !selectedExam,
   });
@@ -120,14 +120,9 @@ const TeacherExamsPage = () => {
     value: cs.id,
   }));
   const sessionOptions: SelectOption[] = (sessions ?? []).map((s) => ({ label: s.name, value: s.id }));
-  const { user } = useAppSelector((state) => state.auth);
-  const { data: staffList } = useGetStaffListQuery();
-
-  const currentStaff = useMemo(() => {
-    return staffList?.find((s) => s.userId === user?.id);
-  }, [staffList, user]);
-
-  const currentStaffId = currentStaff?.id;
+  // The signed-in teacher's own staff record (the staff list is admin-only).
+  const { data: myProfile } = useGetMyProfileQuery();
+  const currentStaffId = myProfile?.staff?.id;
 
   const currentClassSection = classSections?.find((cs) => cs.id === csId);
 
@@ -363,17 +358,17 @@ const TeacherExamsPage = () => {
             <>
               {/* Access Mode Notification Banner */}
               {isLocked ? (
-                <div style={{ background: "var(--erp-warning-bg)", border: "1px solid var(--erp-warning)", borderRadius: "var(--erp-radius-sm)", padding: "0.75rem 1rem", marginBottom: "1rem", fontSize: "0.85rem", color: "var(--erp-warning)", fontWeight: 600, display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <div style={{ background: "var(--erp-warning-bg)", border: "1px solid var(--erp-warning)", borderRadius: "var(--erp-radius-sm)", padding: "0.75rem 1rem", marginBottom: "1rem", fontSize: "0.85rem", color: "var(--erp-warning)", fontWeight: 600, display: "flex", flexWrap: "wrap", alignItems: "center", gap: "0.5rem" }}>
                   <span>🔒</span>
                   <span>Marks for this exam are locked{selectedExam?.lockedByUser ? ` by ${selectedExam.lockedByUser.name}` : ""}. Ask an administrator to unlock it if a correction is needed.</span>
                 </div>
               ) : isClassTeacher ? (
-                <div style={{ background: "var(--erp-primary-50, #f0f7ff)", border: "1px solid var(--erp-primary-600)", borderRadius: "var(--erp-radius-sm)", padding: "0.75rem 1rem", marginBottom: "1rem", fontSize: "0.85rem", color: "var(--erp-primary-700)", fontWeight: 600, display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <div style={{ background: "var(--erp-primary-50, #f0f7ff)", border: "1px solid var(--erp-primary-600)", borderRadius: "var(--erp-radius-sm)", padding: "0.75rem 1rem", marginBottom: "1rem", fontSize: "0.85rem", color: "var(--erp-primary-700)", fontWeight: 600, display: "flex", flexWrap: "wrap", alignItems: "center", gap: "0.5rem" }}>
                   <span>👑</span>
                   <span>Class Teacher Access: You can view marks for ALL subjects of this class. You can enter &amp; update only the subject(s) allocated to you — the others are read-only.</span>
                 </div>
               ) : (
-                <div style={{ background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: "var(--erp-radius-sm)", padding: "0.75rem 1rem", marginBottom: "1rem", fontSize: "0.85rem", color: "var(--erp-text-muted)", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <div style={{ background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: "var(--erp-radius-sm)", padding: "0.75rem 1rem", marginBottom: "1rem", fontSize: "0.85rem", color: "var(--erp-text-muted)", display: "flex", flexWrap: "wrap", alignItems: "center", gap: "0.5rem" }}>
                   <span>📘</span>
                   <span>Subject Teacher Access: You can enter &amp; update marks ONLY for your assigned subject(s). Other subjects are read-only.</span>
                 </div>

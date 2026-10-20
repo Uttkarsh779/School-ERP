@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { useDispatch } from "react-redux";
 import styles from "./AppShell.module.css";
@@ -23,12 +23,23 @@ const AppShell = () => {
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
 
+  // Mobile drawer: close on navigation, and keep the page behind it from scrolling.
+  useEffect(() => setMobileOpen(false), [location.pathname]);
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [mobileOpen]);
+
   const items = navByRole[user?.role ?? ""] ?? [];
   const primaryMobileItems = getMobilePrimaryNav(user?.role ?? "");
-  const initials = (user?.name ?? user?.email ?? "?").charAt(0).toUpperCase();
   // Profile photo + current name (they can change after login) for the user card.
-  const { data: me } = useGetMyProfileQuery(undefined, { skip: !user });
+  const { data: me } = useGetMyProfileQuery(undefined, { skip: !user?.role });
   const displayName = me?.name ?? user?.name ?? user?.email;
+  const initials = (displayName ?? "?").charAt(0).toUpperCase();
   const avatar = me?.photoUrl ? <img src={me.photoUrl} alt="" className={styles.avatarImg} /> : initials;
   const profilePath = profilePathByRole[user?.role ?? ""];
 
@@ -69,6 +80,17 @@ const AppShell = () => {
         </nav>
 
         <div className={styles.footer}>
+          <div className={styles.footerActions}>
+            <Link to="/" className={styles.footerLink} title="Open the school website">
+              <Icon name="globe" size={18} />
+              <span>School website</span>
+              <Icon name="externalLink" size={14} className={styles.footerLinkHint} />
+            </Link>
+            <button type="button" className={`${styles.footerLink} ${styles.footerLinkDanger}`} onClick={() => dispatch(resetTokens())}>
+              <Icon name="logout" size={18} />
+              <span>Sign out</span>
+            </button>
+          </div>
           <Link
             to={profilePath ?? "#"}
             className={`${styles.userCard} ${styles.userCardLink}`}
@@ -76,21 +98,12 @@ const AppShell = () => {
             onClick={() => setMobileOpen(false)}
           >
             <div className={styles.avatar}>{avatar}</div>
-            <div>
+            <div className={styles.userText}>
               <div className={styles.userName}>{displayName}</div>
               <div className={styles.userRole}>{roleLabel[user?.role ?? ""] ?? user?.role}</div>
             </div>
+            <Icon name="chevronRight" size={16} className={styles.userChevron} />
           </Link>
-          <div className={styles.footerActions}>
-            <Link to="/" className={styles.websiteButton} title="Visit School Website">
-              <Icon name="globe" size={16} />
-              <span>School Website</span>
-            </Link>
-            <button type="button" className={styles.logoutButton} onClick={() => dispatch(resetTokens())}>
-              <Icon name="logout" size={16} />
-              <span>Sign out</span>
-            </button>
-          </div>
         </div>
       </aside>
 

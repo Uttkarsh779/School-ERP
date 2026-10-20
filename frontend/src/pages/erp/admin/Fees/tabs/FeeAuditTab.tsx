@@ -65,7 +65,7 @@ const FeeAuditTab = () => {
           <Input label="Search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Action, record type or person…" />
         </div>
       </div>
-      {isLoading ? <Spinner /> : <Table columns={columns} data={rows} keyField="id" emptyMessage="No fee actions recorded yet." />}
+      {isLoading ? <Spinner /> : <Table columns={columns} data={rows} keyField="id" mobilePrimary="action" emptyMessage="No fee actions recorded yet." />}
 
       {viewing && (
         <Modal title={`${humanize(viewing.action)} · ${viewing.entityType} #${viewing.entityId}`} size="lg" onClose={() => setViewing(null)}>

@@ -254,7 +254,7 @@ const AdminTimetablePage = () => {
                 <Input label="Room" placeholder="Optional" style={{ gridColumn: "1 / -1" }} {...register("room")} />
               </FormGrid>
             </FormSection>
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.6rem" }}>
+            <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "flex-end", gap: "0.6rem" }}>
               <Button type="button" variant="ghost" onClick={() => setEditingCell(null)}>
                 Cancel
               </Button>

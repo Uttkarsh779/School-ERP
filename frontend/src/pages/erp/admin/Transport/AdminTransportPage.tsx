@@ -15,7 +15,7 @@ const AdminTransportPage = () => {
         subtitle="Manage transport locations, student transport assignments, bus routes, and vehicles"
       />
 
-      <div style={{ display: "flex", gap: "0.5rem", borderBottom: "1px solid var(--erp-border)", marginBottom: "0.5rem" }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", borderBottom: "1px solid var(--erp-border)", marginBottom: "0.5rem" }}>
         <button
           type="button"
           style={{

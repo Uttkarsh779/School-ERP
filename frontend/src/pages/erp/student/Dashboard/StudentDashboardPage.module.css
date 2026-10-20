@@ -6,13 +6,13 @@
 
 .statsGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
   gap: 1rem;
 }
 
 .twoCol {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
   gap: 1.25rem;
   align-items: stretch;
 }
@@ -28,29 +28,42 @@
 }
 
 /* Identity strip */
-.identity {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  flex-wrap: wrap;
+/* Student ID card */
+.idCard {
+  position: relative;
+  overflow: hidden;
+  background: var(--erp-surface);
+  border: 1px solid var(--erp-border);
+  border-radius: var(--erp-radius-lg);
+  box-shadow: var(--erp-shadow-sm);
 }
 
-.identityMain {
-  flex: 1;
-  min-width: 200px;
+.idCard::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--erp-primary-600), var(--erp-primary-500));
+}
+
+.idTop {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 1.1rem 1.25rem 0.9rem;
 }
 
 .photo,
 .avatar {
-  width: 3.4rem;
-  height: 3.4rem;
+  width: 3.6rem;
+  height: 3.6rem;
   border-radius: 50%;
   flex-shrink: 0;
 }
 
 .photo {
   object-fit: cover;
-  border: 1px solid var(--erp-border);
+  border: 2px solid var(--erp-primary-100);
 }
 
 .avatar {
@@ -60,13 +73,90 @@
   background: var(--erp-primary-100);
   color: var(--erp-primary-700);
   font-weight: 700;
-  font-size: 1.3rem;
+  font-size: 1.35rem;
+}
+
+.idWho {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.3rem;
 }
 
 .name {
-  font-size: 1.05rem;
+  font-size: 1.15rem;
   font-weight: 700;
   color: var(--erp-text);
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.classBadge {
+  display: inline-block;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  background: var(--erp-primary-50);
+  color: var(--erp-primary-700);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.profileLink {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.45rem 0.6rem 0.45rem 0.8rem;
+  border: 1px solid var(--erp-border);
+  border-radius: 999px;
+  background: var(--erp-surface);
+  color: var(--erp-text);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--erp-transition-fast), border-color var(--erp-transition-fast), color var(--erp-transition-fast);
+}
+
+.profileLink:hover {
+  background: var(--erp-primary-50);
+  border-color: var(--erp-primary-500);
+  color: var(--erp-primary-700);
+}
+
+.idFacts {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  border-top: 1px solid var(--erp-border);
+  background: var(--erp-bg);
+}
+
+.idFacts > div {
+  padding: 0.7rem 1.25rem;
+  min-width: 0;
+}
+
+.idFacts > div + div {
+  border-left: 1px solid var(--erp-border);
+}
+
+.idFacts dt {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--erp-text-muted);
+}
+
+.idFacts dd {
+  margin: 0.15rem 0 0;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--erp-text);
+  overflow-wrap: anywhere;
 }
 
 /* Lists */
@@ -261,8 +351,81 @@
   overflow: hidden;
 }
 
-@media (max-width: 480px) {
-  .countRow {
+
+/* Phones: two-up instead of one long column */
+@media (max-width: 640px) {
+  .statsGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.65rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .container {
+    gap: 1rem;
+  }
+
+  .twoCol {
+    gap: 1rem;
+  }
+
+  .idTop {
+    padding: 1rem 1rem 0.8rem;
+    gap: 0.75rem;
+  }
+
+  .profileLink span {
+    display: none;
+  }
+
+  .profileLink {
+    padding: 0.45rem;
+  }
+
+  /* Facts as a 2 x 2 grid on phones */
+  .idFacts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .idFacts > div {
+    padding: 0.6rem 1rem;
+  }
+
+  .idFacts > div + div {
+    border-left: none;
+  }
+
+  .idFacts > div:nth-child(even) {
+    border-left: 1px solid var(--erp-border);
+  }
+
+  .idFacts > div:nth-child(n + 3) {
+    border-top: 1px solid var(--erp-border);
+  }
+
+  /* Four small counters still fit side by side on a phone */
+  .countRow {
+    gap: 0.4rem;
+  }
+
+  .countBox {
+    padding: 0.5rem 0.4rem;
+    text-align: center;
+  }
+
+  .countValue {
+    font-size: 1.05rem;
+  }
+
+  .listItem {
+    padding: 0.65rem 0.75rem;
+  }
+
+  .resultStats {
+    gap: 1rem 1.5rem;
+  }
+
+  .bigValue {
+    font-size: 1.35rem;
   }
 }

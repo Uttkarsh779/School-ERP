@@ -28,7 +28,9 @@ export const authenticateToken = (
 
   jwt.verify(token, SECRET, (err, decoded) => {
     if (err) {
-      res.status(403).json({ success: false, message: "Invalid or expired token" });
+      // 401 (not 403): the session is invalid/expired, so the client should refresh it.
+      // 403 is kept for "signed in, but not allowed".
+      res.status(401).json({ success: false, message: "Invalid or expired token" });
       return;
     }
     

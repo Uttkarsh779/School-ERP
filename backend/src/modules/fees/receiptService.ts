@@ -1,4 +1,5 @@
 import { prisma } from "../../config/prisma";
+import { classSectionForSession } from "../sessions/enrollmentService";
 
 export const generateReceiptNumber = async (): Promise<string> => {
   const count = await prisma.payment.count({
@@ -8,13 +9,37 @@ export const generateReceiptNumber = async (): Promise<string> => {
   return `REC-${year}-${(count + 1).toString().padStart(6, "0")}`;
 };
 
+// School letterhead for receipts — read from Website CMS settings, so changing the school
+// name, logo, address or affiliation there updates every receipt (screen, print and PDF).
+const getSchoolLetterhead = async () => {
+  let s: any = null;
+  try {
+    s = await prisma.websiteSetting.findFirst();
+  } catch {
+    s = null;
+  }
+  return {
+    name: s?.schoolName ?? "School",
+    tagline: s?.tagline ?? null,
+    logoUrl: s?.logoUrl ?? null,
+    address: s?.address ?? null,
+    phone: s?.phone ?? null,
+    email: s?.email ?? null,
+    boardName: s?.boardName ?? null,
+    affiliationNo: s?.affiliationNo ?? null,
+    schoolCode: s?.schoolCode ?? null,
+  };
+};
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
 export const getReceiptDetails = async (paymentId: number) => {
   const payment = await prisma.payment.findUniqueOrThrow({
     where: { id: paymentId },
     include: {
       student: {
         include: {
-          classSection: true,
+          classSection: { include: { session: true } },
         },
       },
       allocations: {
@@ -26,8 +51,18 @@ export const getReceiptDetails = async (paymentId: number) => {
           },
         },
       },
+      advances: true,
     },
   });
+
+  // Session of the fees settled (falls back to the student's class session).
+  const sessionId = payment.allocations[0]?.feeCharge?.sessionId;
+  const session = sessionId ? await prisma.academicSession.findUnique({ where: { id: sessionId }, select: { name: true } }) : null;
+  // Class of the year the fees belong to (the student may have been promoted since).
+  const receiptClass = sessionId ? await classSectionForSession(prisma, payment.student, sessionId) : payment.student.classSection;
+  const recordedBy = payment.recordedByUserId
+    ? await prisma.user.findUnique({ where: { id: payment.recordedByUserId }, select: { name: true } })
+    : null;
 
   return {
     receiptNumber: payment.receiptNumber,
@@ -38,30 +73,46 @@ export const getReceiptDetails = async (paymentId: number) => {
     razorpayPaymentId: payment.razorpayPaymentId,
     amountPaid: Number(payment.amount),
     status: payment.status,
+    sessionName: session?.name ?? payment.student.classSection.session?.name ?? null,
+    // Who took the money: the staff member at the counter, or the online gateway.
+    receivedBy: recordedBy?.name ?? (payment.razorpayPaymentId || payment.razorpayOrderId ? "Online payment" : null),
+    // Part of the payment kept as advance credit (not yet adjusted against any fee).
+    advanceAmount: (payment.advances || []).reduce((sum: number, a: any) => sum + Number(a.amount), 0),
+    school: await getSchoolLetterhead(),
     student: {
       id: payment.student.id,
       name: payment.student.name,
       admissionNo: payment.student.admissionNo,
       rollNo: payment.student.rollNo,
-      classSection: `${payment.student.classSection.className} - ${payment.student.classSection.section}`,
+      classSection: receiptClass ? `${receiptClass.className} - ${receiptClass.section}` : "—",
       fatherName: payment.student.fatherName,
       contact: payment.student.contactNumber || payment.student.fatherContact || payment.student.motherContact || null,
     },
     settledItems: (payment.allocations || []).map((a: any) => ({
       feeHead: a.feeCharge.feeHead.name,
       billingPeriod: `${a.feeCharge.billingMonth}/${a.feeCharge.billingYear}`,
+      periodLabel: `${MONTHS[a.feeCharge.billingMonth - 1]} ${a.feeCharge.billingYear}`,
       amountAllocated: Number(a.allocatedAmount),
     })),
   };
 };
 
+const esc = (v: unknown) =>
+  String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string);
+
 export const generateReceiptHtml = (receiptData: any) => {
+  const school = receiptData.school ?? {};
+  const schoolLine = [school.boardName && school.affiliationNo ? `${school.boardName} Affiliation No. ${school.affiliationNo}` : null, school.address, school.phone ? `Ph: ${school.phone}` : null]
+    .filter(Boolean)
+    .map(esc)
+    .join(" • ");
+  const logoHtml = school.logoUrl && /^https:\/\//.test(school.logoUrl) ? `<img src="${esc(school.logoUrl)}" alt="" style="width:56px;height:56px;object-fit:contain;margin-right:14px;" />` : "";
   const itemsHtml = receiptData.settledItems
     .map(
       (item: any) => `
     <tr>
-      <td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${item.feeHead}</td>
-      <td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${item.billingPeriod}</td>
+      <td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${esc(item.feeHead)}</td>
+      <td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${esc(item.periodLabel ?? item.billingPeriod)}</td>
       <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: right; font-weight: 600;">₹${item.amountAllocated.toLocaleString()}</td>
     </tr>
   `
@@ -73,7 +124,7 @@ export const generateReceiptHtml = (receiptData: any) => {
   <html>
   <head>
     <meta charset="utf-8" />
-    <title>Fee Receipt - ${receiptData.receiptNumber}</title>
+    <title>Fee Receipt - ${esc(receiptData.receiptNumber)}</title>
     <style>
       body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #1e293b; margin: 0; padding: 40px; background-color: #ffffff; }
       .container { max-width: 700px; margin: 0 auto; border: 1px solid #cbd5e1; border-radius: 12px; padding: 32px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
@@ -91,9 +142,12 @@ export const generateReceiptHtml = (receiptData: any) => {
   <body>
     <div class="container">
       <div class="header">
-        <div>
-          <h1 class="school-name">DREAM ACADEMY SCHOOL</h1>
-          <div class="school-sub">123 Education Lane, Knowledge Park • Contact: +91 98765 43210</div>
+        <div style="display:flex;align-items:center;">
+          ${logoHtml}
+          <div>
+            <h1 class="school-name">${esc(school.name ?? "School")}</h1>
+            <div class="school-sub">${schoolLine}</div>
+          </div>
         </div>
         <div>
           <div class="receipt-title">FEE RECEIPT</div>
@@ -103,16 +157,16 @@ export const generateReceiptHtml = (receiptData: any) => {
 
       <div class="meta-grid">
         <div>
-          <div><strong>Receipt No:</strong> ${receiptData.receiptNumber}</div>
-          <div><strong>Student Name:</strong> ${receiptData.student.name}</div>
-          <div><strong>Admission No:</strong> ${receiptData.student.admissionNo}</div>
-          <div><strong>Class/Section:</strong> ${receiptData.student.classSection}</div>
+          <div><strong>Receipt No:</strong> ${esc(receiptData.receiptNumber)}</div>
+          <div><strong>Student Name:</strong> ${esc(receiptData.student.name)}</div>
+          <div><strong>Admission No:</strong> ${esc(receiptData.student.admissionNo)}</div>
+          <div><strong>Class/Section:</strong> ${esc(receiptData.student.classSection)}</div>
         </div>
         <div>
           <div><strong>Date:</strong> ${new Date(receiptData.paymentDate).toLocaleDateString()}</div>
-          <div><strong>Payment Mode:</strong> ${receiptData.mode}</div>
-          ${receiptData.razorpayPaymentId ? `<div><strong>Razorpay ID:</strong> ${receiptData.razorpayPaymentId}</div>` : ""}
-          ${receiptData.transactionRef ? `<div><strong>Ref No:</strong> ${receiptData.transactionRef}</div>` : ""}
+          <div><strong>Payment Mode:</strong> ${esc(receiptData.mode)}</div>
+          ${receiptData.razorpayPaymentId ? `<div><strong>Razorpay ID:</strong> ${esc(receiptData.razorpayPaymentId)}</div>` : ""}
+          ${receiptData.transactionRef ? `<div><strong>Ref No:</strong> ${esc(receiptData.transactionRef)}</div>` : ""}
         </div>
       </div>
 

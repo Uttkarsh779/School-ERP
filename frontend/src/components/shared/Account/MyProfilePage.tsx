@@ -19,7 +19,7 @@ const errorOf = (err: unknown, fallback: string) => (err as { data?: { message?:
 const humanize = (v: string) => v.toLowerCase().split("_").map((w) => w[0].toUpperCase() + w.slice(1)).join(" ");
 
 // "My profile" for staff (teachers, admins): photo (upload + crop to Cloudinary), basic
-// details and change password. Used at /teacher/profile and /admin/account.
+// details and change password. Used at /teacher/profile and /admin/profile (students use StudentProfilePage).
 const MyProfilePage = () => {
   const { data: profile, isLoading, isError, refetch } = useGetMyProfileQuery();
   const [updateProfile, { isLoading: saving }] = useUpdateMyProfileMutation();

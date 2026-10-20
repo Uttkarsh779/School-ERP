@@ -55,3 +55,73 @@
   padding: 1.4rem;
   overflow-y: auto;
 }
+
+/* Phones: slide-up bottom sheet, full width, safe-area aware */
+@media (max-width: 640px) {
+  .overlay {
+    align-items: flex-end;
+    padding: 0;
+    overflow: hidden;
+    animation: overlayIn 0.2s ease;
+  }
+
+  .modal {
+    max-width: 100% !important;
+    max-height: 92dvh;
+    border-radius: 20px 20px 0 0;
+    animation: sheetUp 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .header {
+    position: relative;
+    padding: 1.25rem 1rem 0.85rem;
+  }
+
+  /* Grab handle */
+  .header::before {
+    content: "";
+    position: absolute;
+    top: 0.45rem;
+    left: 50%;
+    width: 2.5rem;
+    height: 0.28rem;
+    border-radius: 999px;
+    background: var(--erp-border);
+    transform: translateX(-50%);
+  }
+
+  .title {
+    font-size: 1rem;
+    padding-right: 0.5rem;
+  }
+
+  .closeButton {
+    width: 2.25rem;
+    height: 2.25rem;
+    flex-shrink: 0;
+    font-size: 1.5rem;
+    background: var(--erp-bg);
+    border-radius: 50%;
+  }
+
+  /* min-height: 0 lets the body shrink inside the sheet and scroll its own content */
+  .body {
+    flex: 1;
+    min-height: 0;
+    padding: 1rem 1rem calc(1.25rem + env(safe-area-inset-bottom));
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+@keyframes sheetUp {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes overlayIn {
+  from {
+    opacity: 0;
+  }
+}

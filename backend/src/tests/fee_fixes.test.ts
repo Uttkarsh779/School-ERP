@@ -117,15 +117,16 @@ describe("fee access control", () => {
     assert.strictEqual((await call("POST", "/api/fees/adjustments", "ADMIN", {})).status, 403);
   });
 
-  test("admins can't apply waivers at the payment desk", async () => {
+  test("admins can apply waivers at the payment desk", async () => {
+    // Unknown student, so nothing is written — we only check the role is no longer refused.
     const res = await call("POST", "/api/fees/payments/multi-month", "ADMIN", {
-      studentId: 1,
+      studentId: 999999999,
       selectedMonths: [{ month: 4, year: 2026 }],
       paymentAmount: 100,
       paymentMode: "CASH",
       waiveLateFines: true,
     });
-    assert.strictEqual(res.status, 403);
+    assert.notStrictEqual(res.status, 403, "waivers are no longer Super Admin only");
   });
 
   test("manual payment validates input", async () => {

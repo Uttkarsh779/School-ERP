@@ -31,24 +31,37 @@ const audienceLabel = (notice: INotice): string | null => {
   return null;
 };
 
+const POSTER_ROLE: Record<string, string> = {
+  SUPER_ADMIN: "School office",
+  ADMIN: "School office",
+  TEACHER: "Teacher",
+};
+
 interface NoticeBoardProps {
   // Rendered after each notice's own content (e.g. an admin's per-notice Delete button).
   // Read-only consumers (teacher/student/parent pages) simply omit this.
   renderActions?: (notice: INotice) => ReactNode;
+  // Show this list instead of the caller's inbox (e.g. a teacher's "Sent" notices).
+  notices?: INotice[];
+  isLoading?: boolean;
+  emptyTitle?: string;
+  emptyDescription?: string;
 }
 
 // Reusable, read-only notice list. Renders whatever the backend returns for the calling
 // user — role-based visibility filtering already happened server-side (notices/service.ts),
 // so this component takes no role-specific props.
-const NoticeBoard = ({ renderActions }: NoticeBoardProps) => {
-  const { data: notices, isLoading, isError } = useGetNoticesQuery();
+const NoticeBoard = ({ renderActions, notices: given, isLoading: givenLoading, emptyTitle, emptyDescription }: NoticeBoardProps) => {
+  const inbox = useGetNoticesQuery(undefined, { skip: given !== undefined });
+  const notices = given ?? inbox.data;
+  const isLoading = given !== undefined ? givenLoading : inbox.isLoading;
 
   if (isLoading) return <Spinner />;
-  if (isError) {
+  if (given === undefined && inbox.isError) {
     return <EmptyState title="Couldn't load notices" description="Please try refreshing the page." />;
   }
   if (!notices || notices.length === 0) {
-    return <EmptyState title="No notices yet" description="Announcements will appear here once posted." />;
+    return <EmptyState title={emptyTitle ?? "No notices yet"} description={emptyDescription ?? "Announcements will appear here once posted."} />;
   }
 
   return (
@@ -56,14 +69,31 @@ const NoticeBoard = ({ renderActions }: NoticeBoardProps) => {
       {notices.map((notice) => {
         const label = audienceLabel(notice);
         return (
-          <div key={notice.id} className={styles.item}>
+          <div key={notice.id} className={`${styles.item} ${notice.isImportant ? styles.important : ""}`}>
             <div className={styles.itemHeader}>
               <h3 className={styles.title}>{notice.title}</h3>
-              {label && <Badge tone="info">{label}</Badge>}
+              <div className={styles.badges}>
+                {notice.isImportant && <Badge tone="danger">Important</Badge>}
+                {label && <Badge tone="info">{label}</Badge>}
+              </div>
             </div>
             <p className={styles.body}>{notice.body}</p>
+            {notice.attachmentUrl && (
+              <a className={styles.attachment} href={notice.attachmentUrl} target="_blank" rel="noopener noreferrer">
+                📎 View attachment
+              </a>
+            )}
             <div className={styles.footer}>
-              <span className={styles.date}>{formatDate(notice.postedAt)}</span>
+              <span className={styles.date}>
+                {formatDate(notice.postedAt)}
+                {notice.postedBy && (
+                  <>
+                    {" · "}
+                    {notice.postedBy.name}
+                    {POSTER_ROLE[notice.postedBy.role] ? ` (${POSTER_ROLE[notice.postedBy.role]})` : ""}
+                  </>
+                )}
+              </span>
               {renderActions?.(notice)}
             </div>
           </div>

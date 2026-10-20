@@ -6,7 +6,7 @@
 
 .filters {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr));
   gap: 1rem;
   align-items: end;
   margin-bottom: 1.25rem;
@@ -195,5 +195,56 @@
 @media (max-width: 520px) {
   .fields {
     grid-template-columns: 1fr;
+  }
+}
+
+/* Phones: two-up instead of one long column */
+@media (max-width: 640px) {
+  .filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.65rem;
+  }
+}
+
+@media (max-width: 360px) {
+  .filters {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .filters > :last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 640px) {
+  .page {
+    gap: 1rem;
+  }
+
+  .filters {
+    max-width: none;
+    margin-bottom: 1rem;
+  }
+
+  .modalHero > div {
+    min-width: 0;
+  }
+
+  .tabs {
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .tab {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  .simpleTable th,
+  .simpleTable td {
+    padding: 0.45rem 0.3rem;
+    font-size: 0.82rem;
   }
 }

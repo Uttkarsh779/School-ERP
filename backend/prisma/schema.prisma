@@ -119,6 +119,7 @@ model AcademicSession {
   invoices      Invoice[]
   lateFeeRules  LateFeeRule[]
   exams         Exam[]
+  enrollments   StudentEnrollment[]
 }
 
 model ClassSection {
@@ -137,6 +138,7 @@ model ClassSection {
   exams          Exam[]
   timetableSlots TimetableSlot[]
   assignments    Assignment[]
+  enrollments    StudentEnrollment[]
 
   @@unique([sessionId, className, section])
 }
@@ -177,6 +179,9 @@ model Staff {
   userId   Int    @unique
   user     User   @relation(fields: [userId], references: [id]) // name/email/isActive live on User
   staffCategory StaffCategory @default(TEACHER)
+  // Employment status. Login access is User.isActive, which stays false for roles that
+  // never sign in (drivers, guards, cleaning staff) even while they are employed.
+  isActive Boolean @default(true)
   qualifications String?
   contact  String?
   photoUrl String? // profile photo (Cloudinary), set by the staff member
@@ -258,8 +263,38 @@ model Student {
   homeworkSubmissions  HomeworkSubmission[]
   examRemarks          ExamStudentRemark[]
   leaveRequests        LeaveRequest[]
+  enrollments          StudentEnrollment[]
 
   @@unique([classSectionId, rollNo])
+}
+
+// Year-end result for a student in one session.
+enum EnrollmentOutcome {
+  PROMOTED
+  DETAINED
+  PASSED_OUT
+  LEFT
+}
+
+// Which class a student was in for each academic session. Student.classSectionId is the
+// class right now; these rows keep the history once students are promoted to a new session
+// (old fees, receipts and report cards still resolve to the class of that year).
+model StudentEnrollment {
+  id             Int                @id @default(autoincrement())
+  studentId      Int
+  student        Student            @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  sessionId      Int
+  session        AcademicSession    @relation(fields: [sessionId], references: [id])
+  classSectionId Int
+  classSection   ClassSection       @relation(fields: [classSectionId], references: [id])
+  rollNo         String?
+  outcome        EnrollmentOutcome? // set at year-end promotion
+  remarks        String?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @default(now()) @updatedAt
+
+  @@unique([studentId, sessionId])
+  @@index([classSectionId])
 }
 
 model ParentGuardian {
@@ -810,6 +845,11 @@ model Notice {
   targetClassSectionId Int?
   postedByUserId      Int
   postedAt            DateTime @default(now())
+  isImportant         Boolean  @default(false) // notices_v2.sql
+  attachmentUrl       String?
+
+  @@index([targetClassSectionId]) // notices_v2.sql
+  @@index([postedByUserId])
 }
 
 model TransportRoute {
@@ -878,6 +918,25 @@ model WebsiteSetting {
   admissionNotice  String?  @default("Admissions open for Academic Session 2026-27 from Nursery to Grade XII.")
   heroCtaText      String   @default("Apply for Admission")
   heroCtaLink      String   @default("#admissions")
+  // Website v2 (cms_v2.sql)
+  boardName        String   @default("CBSE")
+  schoolCode       String?
+  academicSession  String?
+  logoUrl          String?
+  heroImageUrl     String?
+  aboutImageUrl    String?
+  principalPhotoUrl String?
+  principalTitle   String   @default("Principal")
+  vision           String?  @db.Text
+  mission          String?  @db.Text
+  whatsapp         String?
+  officeHours      String?
+  mapEmbedUrl      String?  @db.Text
+  facebookUrl      String?
+  instagramUrl     String?
+  youtubeUrl       String?
+  twitterUrl       String?
+  stats            Json?    // [{ value: "25+", label: "Years" }]
   updatedAt        DateTime @default(now()) @updatedAt
 }
 
@@ -904,6 +963,40 @@ model WebsitePublicNotice {
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @default(now()) @updatedAt
+}
+
+model WebsiteGalleryItem {
+  id          Int      @id @default(autoincrement())
+  title       String
+  category    String   @default("Campus")
+  imageUrl    String
+  description String?  @db.Text
+  order       Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
+}
+
+model WebsiteTestimonial {
+  id        Int      @id @default(autoincrement())
+  name      String
+  relation  String?  // e.g. "Parent of a Class V student", "Alumnus, Batch of 2019"
+  quote     String   @db.Text
+  photoUrl  String?
+  order     Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+}
+
+model WebsiteFaq {
+  id        Int      @id @default(autoincrement())
+  question  String
+  answer    String   @db.Text
+  order     Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
 }
 
 model AdmissionInquiry {

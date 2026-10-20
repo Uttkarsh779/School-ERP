@@ -32,19 +32,21 @@ export const getMyProfile = async (userId: number) => {
           subjects: { select: { subject: { select: { name: true, classSection: { select: { className: true, section: true } } } } } },
         },
       },
-      student: { select: { id: true, admissionNo: true, photoUrl: true, classSection: { select: { className: true, section: true } } } },
+      student: { select: { id: true, name: true, admissionNo: true, photoUrl: true, classSection: { select: { className: true, section: true } } } },
     },
   });
   if (!user) throw httpError(404, "Account not found");
   return {
     id: user.id,
-    name: user.name,
+    // A student's name is owned by their student record (the office can rename it later);
+    // staff/admin names live on the account itself.
+    name: user.role === "STUDENT" && user.student ? user.student.name : user.name,
     email: user.email,
     role: user.role,
     memberSince: user.createdAt,
     photoUrl: user.staff?.photoUrl ?? user.student?.photoUrl ?? null,
-    canEditDetails: Boolean(user.staff) || user.role === "SUPER_ADMIN" || user.role === "ADMIN",
-    canEditPhoto: Boolean(user.staff),
+    canEditDetails: user.role !== "STUDENT" && (Boolean(user.staff) || user.role === "SUPER_ADMIN" || user.role === "ADMIN"),
+    canEditPhoto: user.role !== "STUDENT" && Boolean(user.staff),
     staff: user.staff
       ? {
           id: user.staff.id,

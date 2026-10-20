@@ -38,6 +38,14 @@ import FeeHistoryTab from "./history/FeeHistoryTab";
 import TransportHistoryTab from "./history/TransportHistoryTab";
 import { inr } from "./history/historyFormat";
 import historyStyles from "./history/StudentHistory.module.css";
+
+// Year-end result recorded by the new-session promotion.
+const OUTCOME_BADGE = {
+  PROMOTED: { label: "Promoted", tone: "success" },
+  DETAINED: { label: "Detained", tone: "warning" },
+  PASSED_OUT: { label: "Passed out", tone: "info" },
+  LEFT: { label: "Left school", tone: "danger" },
+} as const;
 import { formatPct } from "../Attendance/attendanceFormat";
 import { emptyStudentFormValues, type StudentFormValues } from "./studentForm";
 
@@ -141,6 +149,7 @@ const StudentDetailPage = () => {
         name: student.name || "",
         rollNo: String(student.rollNo || ""),
         admissionNo: student.admissionNo || "",
+        admissionDate: student.admissionDate ? new Date(student.admissionDate).toISOString().split("T")[0] : "",
         classSectionId: student.classSectionId ? String(student.classSectionId) : "",
         dob: student.dob ? new Date(student.dob).toISOString().split("T")[0] : "",
         gender: student.gender || "",
@@ -154,6 +163,8 @@ const StudentDetailPage = () => {
         category: student.category || "",
         address: student.address || "",
         contactNumber: student.contactNumber || "",
+        nationality: student.nationality || "",
+        previousSchool: student.previousSchool || "",
       });
       setIsEditModalOpen(true);
     }
@@ -194,6 +205,7 @@ const StudentDetailPage = () => {
         name: values.name,
         rollNo: values.rollNo,
         admissionNo: values.admissionNo,
+        admissionDate: values.admissionDate || undefined,
         classSectionId: Number(values.classSectionId),
         dob: values.dob || undefined,
         gender: values.gender ? (values.gender as any) : undefined,
@@ -207,6 +219,8 @@ const StudentDetailPage = () => {
         category: values.category ? (values.category as any) : undefined,
         address: values.address || undefined,
         contactNumber: values.contactNumber || undefined,
+        nationality: values.nationality || undefined,
+        previousSchool: values.previousSchool || undefined,
       }).unwrap();
 
       toast.success("Student profile updated successfully.");
@@ -345,8 +359,12 @@ const StudentDetailPage = () => {
                       <li key={a.sessionId} className={historyStyles.listItem}>
                         <div className={historyStyles.listMain}>
                           <div className={historyStyles.itemTitle}>Session {a.sessionName}</div>
-                          <div className={historyStyles.muted}>{a.classes.join(", ")}</div>
+                          <div className={historyStyles.muted}>
+                            {a.classes.join(", ")}
+                            {a.remarks ? ` · ${a.remarks}` : ""}
+                          </div>
                         </div>
+                        {a.outcome && <Badge tone={OUTCOME_BADGE[a.outcome].tone}>{OUTCOME_BADGE[a.outcome].label}</Badge>}
                         {a.current && <Badge tone="primary">Current</Badge>}
                       </li>
                     ))}
@@ -384,7 +402,7 @@ const StudentDetailPage = () => {
               errors={editErrors}
               classSectionOptions={classSectionOptions}
             />
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.6rem", marginTop: "1.25rem" }}>
+            <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "flex-end", gap: "0.6rem", marginTop: "1.25rem" }}>
               <Button type="button" variant="ghost" onClick={closeEditModal}>
                 Cancel
               </Button>
@@ -461,7 +479,7 @@ const StudentDetailPage = () => {
               </FormSection>
             )}
 
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.6rem", marginTop: "1.25rem" }}>
+            <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "flex-end", gap: "0.6rem", marginTop: "1.25rem" }}>
               <Button type="button" variant="ghost" onClick={() => setIsTransportModalOpen(false)}>
                 Cancel
               </Button>
@@ -496,7 +514,7 @@ const StudentDetailPage = () => {
                 />
               </FormGrid>
             </FormSection>
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.6rem", marginTop: "0.4rem" }}>
+            <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "flex-end", gap: "0.6rem", marginTop: "0.4rem" }}>
               <Button type="button" variant="ghost" onClick={closeModal}>
                 Cancel
               </Button>

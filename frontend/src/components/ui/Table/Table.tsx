@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useState, useSyncExternalStore, type ReactNode } from "react";
 import styles from "./Table.module.css";
 
 export interface TableColumn<T> {
@@ -8,6 +8,24 @@ export interface TableColumn<T> {
   width?: string;
 }
 
+// In card mode (phones by default) each row becomes a card; unlabeled / "Actions" columns render as its button footer.
+const isActionColumn = (col: { key: string; label: string }) =>
+  !col.label || /^actions?$/i.test(col.key) || /^actions?$/i.test(col.label);
+
+// True while the viewport is at most `px` wide (tracks resizes / rotation).
+const useMaxWidth = (px: number) => {
+  const query = `(max-width: ${px}px)`;
+  return useSyncExternalStore(
+    (onChange) => {
+      const mql = window.matchMedia(query);
+      mql.addEventListener("change", onChange);
+      return () => mql.removeEventListener("change", onChange);
+    },
+    () => window.matchMedia(query).matches,
+    () => false
+  );
+};
+
 interface TableProps<T> {
   columns: TableColumn<T>[];
   data: T[];
@@ -15,6 +33,10 @@ interface TableProps<T> {
   emptyMessage?: string;
   defaultPageSize?: number;
   showPagination?: boolean;
+  /** Column shown as the card heading on phones (full width, no label). Defaults to the first column. */
+  mobilePrimary?: string;
+  /** Viewport width (px) at or below which rows render as cards. Wide tables pass 900 so tablets get cards too. */
+  stackBelow?: number;
 }
 
 const Table = <T,>({
@@ -24,7 +46,10 @@ const Table = <T,>({
   emptyMessage = "No records yet",
   defaultPageSize = 10,
   showPagination = true,
+  mobilePrimary,
+  stackBelow = 640,
 }: TableProps<T>) => {
+  const asCards = useMaxWidth(stackBelow);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(defaultPageSize);
 
@@ -54,8 +79,8 @@ const Table = <T,>({
   };
 
   return (
-    <div className={styles.wrapper}>
-      <table className={styles.table}>
+    <div className={`${styles.wrapper} ${asCards ? styles.cards : ""}`}>
+      <table className={`${styles.table} ${data.length === 0 ? styles.tableEmpty : ""}`}>
         <thead>
           <tr>
             {columns.map((col) => (
@@ -75,8 +100,24 @@ const Table = <T,>({
           ) : (
             paginatedData.map((row) => (
               <tr key={String(row[keyField])}>
-                {columns.map((col) => (
-                  <td key={col.key}>
+                {columns.map((col, i) => (
+                  <td
+                    key={col.key}
+                    data-label={col.label}
+                    className={
+                      mobilePrimary
+                        ? col.key === mobilePrimary
+                          ? `${styles.cellPrimary} ${styles.cellLead}`
+                          : isActionColumn(col)
+                            ? styles.cellActions
+                            : undefined
+                        : i === 0
+                          ? styles.cellPrimary
+                          : isActionColumn(col)
+                            ? styles.cellActions
+                            : undefined
+                    }
+                  >
                     {col.render ? col.render(row) : String((row as Record<string, unknown>)[col.key] ?? "—")}
                   </td>
                 ))}
@@ -89,10 +130,13 @@ const Table = <T,>({
       {showPagination && totalCount > 0 && (
         <div className={styles.paginationBar}>
           <div className={styles.paginationInfo}>
-            <span>
+            <span className={styles.rangeShort}>
+              <strong>{startIndex + 1}–{endIndex}</strong> of <strong>{totalCount}</strong>
+            </span>
+            <span className={styles.rangeFull}>
               Showing <strong>{startIndex + 1}</strong> to <strong>{endIndex}</strong> of <strong>{totalCount}</strong> entries
             </span>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+            <div className={styles.pageSize}>
               <span>Show</span>
               <select
                 value={pageSize}
@@ -133,13 +177,13 @@ const Table = <T,>({
                 <button
                   key={idx}
                   type="button"
-                  className={`${styles.pageBtn} ${p === validPage ? styles.activePageBtn : ""}`}
+                  className={`${styles.pageBtn} ${styles.pageNum} ${p === validPage ? styles.activePageBtn : ""}`}
                   onClick={() => setCurrentPage(p)}
                 >
                   {p}
                 </button>
               ) : (
-                <span key={idx} style={{ padding: "0 0.3rem" }}>
+                <span key={idx} className={styles.ellipsis}>
                   ...
                 </span>
               )

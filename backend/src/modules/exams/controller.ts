@@ -1,7 +1,8 @@
+import { prisma } from "../../config/prisma";
 import type { Response } from "express";
 import type { CustomRequest } from "../../middleware/auth";
 import { findStaffByUserId } from "../staff/service";
-import { isClassTeacherOfSection, isTeacherLinkedToClassSection } from "../classSections/service";
+import { isClassTeacherOfSection, isTeacherLinkedToClassSection, listClassSectionsForTeacher } from "../classSections/service";
 import { isTeacherAssignedToSubject, listAllocatedSubjectIds } from "../subjects/service";
 import { getStudentById, getStudentByUserId } from "../students/service";
 import { getParentByUserId } from "../parents/service";
@@ -12,6 +13,7 @@ import {
   getResultsForExam,
   listExamResultAudit,
   listExamsForClassSection,
+  listExamsForClassSections,
   saveExamResultWithAudit,
   setExamLock,
 } from "./service";
@@ -36,6 +38,15 @@ const getExamScope = async (req: CustomRequest, classSectionId: number): Promise
 
 // SUPER_ADMIN/ADMIN see any class; TEACHER if class teacher OR they teach a subject
 // in this class; STUDENT only their own class; PARENT only a linked child's class.
+// A student's current class plus the classes of earlier sessions (after promotion their
+// old exams and report cards stay visible to them and their parents).
+const classIdsOfStudents = async (students: Array<{ id: number; classSectionId: number } | null | undefined>) => {
+  const list = students.filter(Boolean) as Array<{ id: number; classSectionId: number }>;
+  if (list.length === 0) return [];
+  const history = await prisma.studentEnrollment.findMany({ where: { studentId: { in: list.map((s) => s.id) } }, select: { classSectionId: true } });
+  return [...new Set([...list.map((s) => s.classSectionId), ...history.map((h: any) => h.classSectionId)])];
+};
+
 const canViewClassExams = async (req: CustomRequest, classSectionId: number): Promise<boolean> => {
   const role = req.user?.role;
   if (role === "SUPER_ADMIN" || role === "ADMIN") return true;
@@ -47,11 +58,11 @@ const canViewClassExams = async (req: CustomRequest, classSectionId: number): Pr
   }
   if (role === "STUDENT") {
     const student = await getStudentByUserId(req.user.id);
-    return student?.classSectionId === classSectionId;
+    return (await classIdsOfStudents([student])).includes(classSectionId);
   }
   if (role === "PARENT") {
     const parent = await getParentByUserId(req.user.id);
-    return !!parent?.children.some((link: any) => link.student?.classSectionId === classSectionId);
+    return (await classIdsOfStudents((parent?.children ?? []).map((link: any) => link.student))).includes(classSectionId);
   }
   return false;
 };
@@ -93,6 +104,26 @@ const canViewStudentExamResult = async (req: CustomRequest, studentId: number): 
   return false;
 };
 
+// Class sections whose exams the caller may list (same rules as canViewClassExams).
+const viewableClassSectionIds = async (req: CustomRequest): Promise<number[] | "ALL"> => {
+  const role = req.user?.role;
+  if (role === "SUPER_ADMIN" || role === "ADMIN") return "ALL";
+  if (!req.user) return [];
+  if (role === "TEACHER") {
+    const staff = await findStaffByUserId(req.user.id);
+    return staff ? (await listClassSectionsForTeacher(staff.id)).map((cs: any) => cs.id) : [];
+  }
+  if (role === "STUDENT") {
+    const student = await getStudentByUserId(req.user.id);
+    return classIdsOfStudents([student]);
+  }
+  if (role === "PARENT") {
+    const parent = await getParentByUserId(req.user.id);
+    return classIdsOfStudents((parent?.children ?? []).map((link: any) => link.student));
+  }
+  return [];
+};
+
 export const getExams = async (req: CustomRequest, res: Response): Promise<void> => {
   const classSectionId = req.query.classSectionId ? Number(req.query.classSectionId) : undefined;
 
@@ -101,7 +132,14 @@ export const getExams = async (req: CustomRequest, res: Response): Promise<void>
     return;
   }
 
-  const exams = await listExamsForClassSection(classSectionId);
+  if (classSectionId) {
+    res.status(200).json({ success: true, data: await listExamsForClassSection(classSectionId) });
+    return;
+  }
+
+  // No class given: admins see every exam, everyone else only the classes they belong to.
+  const ids = await viewableClassSectionIds(req);
+  const exams = ids === "ALL" ? await listExamsForClassSection() : await listExamsForClassSections(ids);
   res.status(200).json({ success: true, data: exams });
 };
 

@@ -1,8 +1,15 @@
 import { prisma } from "../../config/prisma";
 
-export const listClassSections = (sessionId?: number) =>
+// Class lists default to the current session, so once next year's classes exist the
+// dropdowns don't show every class twice. "all" returns every session (history screens).
+const currentSessionFilter = async () => {
+  const current = await prisma.academicSession.findFirst({ where: { isCurrent: true }, select: { id: true } });
+  return current ? { sessionId: current.id } : {};
+};
+
+export const listClassSections = async (sessionId?: number | "all") =>
   prisma.classSection.findMany({
-    where: sessionId ? { sessionId } : undefined,
+    where: sessionId === "all" ? undefined : sessionId ? { sessionId } : await currentSessionFilter(),
     include: { classTeacher: { include: { user: true } }, _count: { select: { students: true } } },
     orderBy: [{ className: "asc" }, { section: "asc" }],
   });
@@ -24,9 +31,10 @@ export const getClassSectionById = (id: number) => prisma.classSection.findUniqu
 // A teacher's own class section(s) — either classes they're the class teacher of
 // (used for attendance/dashboard) OR classes where they're assigned to teach a
 // subject (used for exams — a subject teacher isn't necessarily the class teacher).
-export const listClassSectionsForTeacher = (staffId: number) =>
+export const listClassSectionsForTeacher = async (staffId: number) =>
   prisma.classSection.findMany({
     where: {
+      ...(await currentSessionFilter()),
       OR: [
         { classTeacherId: staffId },
         { subjects: { some: { teacherSubjects: { some: { staffId } } } } },

@@ -29,9 +29,19 @@
   gap: 1rem 1.5rem;
 }
 
-@media (max-width: 560px) {
+@media (max-width: 640px) {
+  /* !important: FormGrid's `columns`/`style` props set the template inline */
   .grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr !important;
+    gap: 0.85rem;
+  }
+
+  .grid > * {
+    grid-column: auto !important;
+  }
+
+  .section {
+    margin-bottom: 1rem;
   }
   .body {
     padding: 0.85rem;

@@ -6,7 +6,7 @@
 
 .statsGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
   gap: 1.25rem;
 }
 
@@ -48,7 +48,7 @@
 /* SUPER_ADMIN insights (admissions + construction) */
 .insightsGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
   gap: 1.25rem;
   align-items: stretch;
 }
@@ -135,11 +135,6 @@
   white-space: nowrap;
 }
 
-@media (max-width: 480px) {
-  .miniStatRow {
-    grid-template-columns: 1fr;
-  }
-}
 
 /* Admin dashboard layout (rebuilt) */
 .headerActions {
@@ -159,14 +154,14 @@
 
 .twoCol {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr));
   gap: 1.25rem;
   align-items: stretch;
 }
 
 .threeCol {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
   gap: 1.25rem;
   align-items: stretch;
 }
@@ -319,5 +314,63 @@
 @media (max-width: 600px) {
   .actionItem {
     flex-wrap: wrap;
+  }
+}
+
+/* Phones: two-up instead of one long column */
+@media (max-width: 640px) {
+  .statsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.65rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .container {
+    gap: 1rem;
+  }
+
+  .headerActions {
+    width: 100%;
+  }
+
+  .headerActions > * {
+    flex: 1 1 auto;
+  }
+
+  .twoCol,
+  .threeCol,
+  .insightsGrid {
+    gap: 1rem;
+  }
+
+  .noticeItem,
+  .recentItem {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.4rem;
+  }
+
+  .noticeSide {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .miniStatRow {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+
+  .miniStat {
+    padding: 0.6rem;
+  }
+
+  .miniStatValue {
+    font-size: 1rem;
+  }
+
+  .bigNumber strong {
+    font-size: 1.35rem;
   }
 }

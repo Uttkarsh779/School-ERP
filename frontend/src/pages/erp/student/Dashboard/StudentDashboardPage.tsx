@@ -76,28 +76,51 @@ const StudentDashboardPage = () => {
     <div className={styles.container}>
       {header}
 
-      {/* Identity strip */}
+      {/* Student ID card */}
       {profile && (
-        <Card>
-          <div className={styles.identity}>
+        <section className={styles.idCard}>
+          <div className={styles.idTop}>
             {profile.photoUrl ? (
               <img src={profile.photoUrl} alt="" className={styles.photo} />
             ) : (
               <div className={styles.avatar}>{profile.name.charAt(0).toUpperCase()}</div>
             )}
-            <div className={styles.identityMain}>
+            <div className={styles.idWho}>
               <div className={styles.name}>{profile.name}</div>
-              <div className={styles.muted}>
-                Adm. No {profile.admissionNo} · Roll No {profile.rollNo}
-                {extras?.sessionName && ` · Session ${extras.sessionName}`}
-                {extras?.classTeacherName && ` · Class teacher: ${extras.classTeacherName}`}
-              </div>
+              {profile.classSection && (
+                <span className={styles.classBadge}>
+                  {profile.classSection.className} - {profile.classSection.section}
+                </span>
+              )}
             </div>
-            <Button type="button" size="sm" variant="outline" onClick={() => navigate("/student/profile")}>
-              View profile
-            </Button>
+            <button type="button" className={styles.profileLink} onClick={() => navigate("/student/profile")} aria-label="View my profile">
+              <span>View profile</span>
+              <Icon name="chevronRight" size={16} />
+            </button>
           </div>
-        </Card>
+          <dl className={styles.idFacts}>
+            <div>
+              <dt>Admission No</dt>
+              <dd>{profile.admissionNo}</dd>
+            </div>
+            <div>
+              <dt>Roll No</dt>
+              <dd>{profile.rollNo || "—"}</dd>
+            </div>
+            {extras?.sessionName && (
+              <div>
+                <dt>Session</dt>
+                <dd>{extras.sessionName}</dd>
+              </div>
+            )}
+            {extras?.classTeacherName && (
+              <div>
+                <dt>Class teacher</dt>
+                <dd>{extras.classTeacherName}</dd>
+              </div>
+            )}
+          </dl>
+        </section>
       )}
 
       <div className={styles.statsGrid}>

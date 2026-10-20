@@ -54,3 +54,17 @@
   flex-direction: column;
   gap: 0.6rem;
 }
+
+@media (max-width: 640px) {
+  .actions {
+    flex-direction: column-reverse;
+  }
+
+  .actions > * {
+    width: 100%;
+  }
+
+  .linkedRow {
+    flex-wrap: wrap;
+  }
+}

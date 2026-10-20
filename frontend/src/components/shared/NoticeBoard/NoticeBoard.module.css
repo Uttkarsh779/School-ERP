@@ -46,3 +46,48 @@
   font-size: 0.78rem;
   color: var(--erp-text-muted);
 }
+
+.important {
+  border-left: 4px solid var(--erp-danger);
+}
+
+.badges {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.attachment {
+  display: inline-block;
+  margin-top: 0.6rem;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--erp-primary-700);
+  text-decoration: none;
+}
+
+.attachment:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 640px) {
+  .item {
+    padding: 0.9rem 1rem;
+  }
+
+  .itemHeader,
+  .footer {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.45rem;
+  }
+
+  .badges {
+    justify-content: flex-start;
+  }
+
+  .title {
+    font-size: 0.96rem;
+  }
+}

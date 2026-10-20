@@ -4,6 +4,7 @@ import { findStaffByUserId } from "../staff/service";
 import { listClassSectionsForTeacher } from "../classSections/service";
 import { getStudentByUserId } from "../students/service";
 import { getParentByUserId } from "../parents/service";
+import { httpError } from "../../utils/httpError";
 
 export const createNotice = (data: {
   title: string;
@@ -11,6 +12,8 @@ export const createNotice = (data: {
   targetRole?: Role;
   targetClassSectionId?: number;
   postedByUserId: number;
+  isImportant?: boolean;
+  attachmentUrl?: string | null;
 }) =>
   prisma.notice.create({
     data: {
@@ -19,10 +22,122 @@ export const createNotice = (data: {
       targetRole: data.targetRole,
       targetClassSectionId: data.targetClassSectionId,
       postedByUserId: data.postedByUserId,
+      isImportant: data.isImportant ?? false,
+      attachmentUrl: data.attachmentUrl ?? null,
     },
   });
 
 export const deleteNotice = (id: number) => prisma.notice.delete({ where: { id } });
+
+// ---------------------------------------------------------------------------
+// Teacher notices: a teacher can post to the classes they teach (class teacher, subject
+// allocation or timetable) in the current session. Class-targeted notices reach the whole
+// class: its students, their parents and the class teacher.
+// ---------------------------------------------------------------------------
+
+type Actor = { id: number; role: Role };
+const URL_RE = /^https:\/\/[^\s<>"']+$/i;
+
+// Pure validation of the shared fields (unit tested).
+export const parseNoticeFields = (body: Record<string, unknown>) => {
+  const title = typeof body.title === "string" ? body.title.trim() : "";
+  const text = typeof body.body === "string" ? body.body.trim() : "";
+  if (title.length < 3) throw httpError(400, "Title must be at least 3 characters");
+  if (title.length > 150) throw httpError(400, "Title must be at most 150 characters");
+  if (text.length < 3) throw httpError(400, "Write the notice text");
+  if (text.length > 5000) throw httpError(400, "Notice text must be at most 5000 characters");
+  let attachmentUrl: string | null = null;
+  if (body.attachmentUrl !== undefined && body.attachmentUrl !== null && body.attachmentUrl !== "") {
+    if (typeof body.attachmentUrl !== "string" || body.attachmentUrl.length > 1000 || !URL_RE.test(body.attachmentUrl)) {
+      throw httpError(400, "Attachment must be an uploaded file link");
+    }
+    attachmentUrl = body.attachmentUrl;
+  }
+  if (body.isImportant !== undefined && typeof body.isImportant !== "boolean") throw httpError(400, "isImportant must be true or false");
+  return { title, body: text, attachmentUrl, isImportant: body.isImportant === true };
+};
+
+export const parseClassSectionIds = (raw: unknown) => {
+  if (!Array.isArray(raw) || raw.length === 0) throw httpError(400, "Choose at least one class");
+  if (raw.length > 20) throw httpError(400, "Choose at most 20 classes");
+  const ids = [...new Set(raw.map(Number))];
+  if (ids.some((n) => !Number.isInteger(n) || n <= 0)) throw httpError(400, "Invalid class");
+  return ids;
+};
+
+export const listTeacherNoticeClasses = async (userId: number) => {
+  const staff = await findStaffByUserId(userId);
+  if (!staff) return [];
+  const classes = await prisma.classSection.findMany({
+    where: {
+      session: { isCurrent: true },
+      OR: [
+        { classTeacherId: staff.id },
+        { subjects: { some: { teacherSubjects: { some: { staffId: staff.id } } } } },
+        { timetableSlots: { some: { staffId: staff.id } } },
+      ],
+    },
+    select: { id: true, className: true, section: true, classTeacherId: true, _count: { select: { students: { where: { isActive: true } } } } },
+    orderBy: [{ className: "asc" }, { section: "asc" }],
+  });
+  return classes.map((c: any) => ({
+    id: c.id,
+    className: c.className,
+    section: c.section,
+    isClassTeacher: c.classTeacherId === staff.id,
+    studentCount: c._count.students,
+  }));
+};
+
+// Admins: existing audience rules (role and/or one class). Teachers: one notice per chosen class.
+export const createNoticesForActor = async (actor: Actor, body: Record<string, unknown>) => {
+  const fields = parseNoticeFields(body ?? {});
+  if (actor.role === "TEACHER") {
+    const ids = parseClassSectionIds(body.classSectionIds);
+    const allowed = new Set((await listTeacherNoticeClasses(actor.id)).map((c: any) => c.id));
+    if (ids.some((id) => !allowed.has(id))) throw httpError(403, "You can only send notices to classes you teach");
+    return prisma.$transaction(
+      ids.map((targetClassSectionId) => prisma.notice.create({ data: { ...fields, targetClassSectionId, postedByUserId: actor.id } }))
+    );
+  }
+  const targetRole = body.targetRole ? String(body.targetRole) : undefined;
+  if (targetRole && !["SUPER_ADMIN", "ADMIN", "TEACHER", "STUDENT", "PARENT"].includes(targetRole)) {
+    throw httpError(400, `Invalid targetRole "${targetRole}"`);
+  }
+  const targetClassSectionId = body.targetClassSectionId ? Number(body.targetClassSectionId) : undefined;
+  if (targetClassSectionId !== undefined && (!Number.isInteger(targetClassSectionId) || targetClassSectionId <= 0)) throw httpError(400, "Invalid class");
+  if (targetClassSectionId && !(await prisma.classSection.findUnique({ where: { id: targetClassSectionId }, select: { id: true } }))) {
+    throw httpError(404, "Class not found");
+  }
+  const notice = await createNotice({ ...fields, targetRole: targetRole as Role | undefined, targetClassSectionId, postedByUserId: actor.id });
+  return [notice];
+};
+
+// Teachers may delete only their own notices; admins any.
+export const deleteNoticeForActor = async (actor: Actor, id: number) => {
+  if (!Number.isInteger(id) || id <= 0) throw httpError(400, "Invalid notice id");
+  const notice = await prisma.notice.findUnique({ where: { id } });
+  if (!notice) throw httpError(404, "Notice not found");
+  if (actor.role === "TEACHER" && notice.postedByUserId !== actor.id) throw httpError(403, "You can only delete notices you posted");
+  await prisma.notice.delete({ where: { id } });
+};
+
+export const listSentNotices = async (userId: number) => {
+  const notices = await prisma.notice.findMany({ where: { postedByUserId: userId }, orderBy: { postedAt: "desc" }, take: 200 });
+  return attachPostedBy(await attachClassSectionLabels(notices));
+};
+
+// "Posted by" name + role for every notice (no Prisma relation, so a manual lookup).
+const attachPostedBy = async (notices: any[]) => {
+  const ids = [...new Set(notices.map((n) => n.postedByUserId))];
+  if (ids.length === 0) return notices;
+  const users = await prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, role: true } });
+  const byId = new Map(users.map((u: any) => [u.id, u]));
+  return notices.map((n) => {
+    const u: any = byId.get(n.postedByUserId);
+    return { ...n, postedBy: u ? { name: u.name, role: u.role } : null };
+  });
+};
 
 type NoticeRow = { targetClassSectionId: number | null };
 
@@ -55,7 +170,7 @@ const attachClassSectionLabels = async <T extends NoticeRow>(
 // SUPER_ADMIN/ADMIN see every notice, unfiltered.
 export const listNoticesForAdmin = async () => {
   const notices = await prisma.notice.findMany({ orderBy: { postedAt: "desc" } });
-  return attachClassSectionLabels(notices);
+  return attachPostedBy(await attachClassSectionLabels(notices));
 };
 
 // Resolves the calling user's own class section id(s) so listNoticesForUser can match
@@ -105,5 +220,5 @@ export const listNoticesForUser = async (userId: number, role: Role) => {
     orderBy: { postedAt: "desc" },
   });
 
-  return attachClassSectionLabels(notices);
+  return attachPostedBy(await attachClassSectionLabels(notices));
 };

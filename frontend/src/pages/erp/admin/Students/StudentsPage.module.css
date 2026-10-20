@@ -1,6 +1,6 @@
 .statsGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
   gap: 1rem;
   margin-bottom: 1.25rem;
 }
@@ -68,4 +68,125 @@
   padding: 0.5rem 0.7rem;
   border-radius: var(--erp-radius-sm);
   background: var(--erp-bg);
+}
+
+/* Phones: two-up instead of one long column */
+@media (max-width: 640px) {
+  .statsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.65rem;
+  }
+}
+
+@media (max-width: 900px) {
+  .controlsRow {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .controlsRow > :first-child {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 640px) {
+  .controlsRow {
+    gap: 0.65rem;
+    margin-bottom: 1rem;
+  }
+
+  .formActions {
+    flex-direction: column-reverse;
+  }
+
+  .formActions > * {
+    width: 100%;
+  }
+
+  .dropZone {
+    padding: 1.1rem;
+  }
+}
+
+/* Directory row: name links to the profile; quiet row actions */
+.nameLink {
+  font-weight: 600;
+  color: var(--erp-text);
+  text-decoration: none;
+}
+
+.nameLink:hover {
+  color: var(--erp-primary-700);
+  text-decoration: underline;
+}
+
+.subText {
+  display: block;
+  color: var(--erp-text-muted);
+}
+
+.rowActions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-wrap: nowrap;
+}
+
+.viewBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.75rem;
+  border: 1px solid var(--erp-primary-100);
+  border-radius: 999px;
+  background: var(--erp-primary-50);
+  color: var(--erp-primary-700);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--erp-transition-fast), border-color var(--erp-transition-fast), color var(--erp-transition-fast);
+}
+
+.viewBtn:hover {
+  background: var(--erp-primary-100);
+  border-color: var(--erp-primary-500);
+}
+
+.viewBtn:focus-visible,
+.toggleBtn:focus-visible {
+  outline: 2px solid var(--erp-primary-600);
+  outline-offset: 2px;
+}
+
+.toggleBtn {
+  padding: 0.4rem 0.6rem;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--erp-text-muted);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--erp-transition-fast), color var(--erp-transition-fast);
+}
+
+.toggleBtn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.toggleDeactivate:hover:not(:disabled) {
+  background: var(--erp-danger-bg);
+  color: var(--erp-danger);
+}
+
+.toggleActivate {
+  color: var(--erp-success);
+}
+
+.toggleActivate:hover:not(:disabled) {
+  background: var(--erp-success-bg);
 }

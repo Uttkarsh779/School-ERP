@@ -123,7 +123,7 @@ const DefaultersTab = ({ onCollect }: { onCollect: (studentId: number) => void }
         ) : isError ? (
           <EmptyState title="Couldn't load defaulters" action={<Button variant="outline" onClick={() => refetch()}>Retry</Button>} />
         ) : (
-          <Table columns={columns} data={rows} keyField="studentId" emptyMessage="No overdue fees — nothing to chase." />
+          <Table columns={columns} data={rows} keyField="studentId" mobilePrimary="student" stackBelow={900} emptyMessage="No overdue fees — nothing to chase." />
         )}
       </Card>
     </div>

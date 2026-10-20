@@ -50,3 +50,29 @@
     align-items: end;
   }
 }
+
+@media (max-width: 640px) {
+  .page {
+    gap: 1rem;
+  }
+
+  .tabs {
+    overflow-x: auto;
+    scrollbar-width: none;
+    gap: 0;
+  }
+
+  .tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .tab {
+    flex-shrink: 0;
+    white-space: nowrap;
+    padding: 0.7rem 0.85rem;
+  }
+
+  .filters {
+    max-width: none;
+  }
+}

@@ -37,7 +37,14 @@ type StatusCounts = { PRESENT: number; ABSENT: number; LATE: number; LEAVE: numb
 // Admin-only full history of one student (GET /students/:id/history).
 export interface StudentHistory {
   studentId: number;
-  academicHistory: Array<{ sessionId: number; sessionName: string; classes: string[]; current: boolean }>;
+  academicHistory: Array<{
+    sessionId: number;
+    sessionName: string;
+    classes: string[];
+    current: boolean;
+    outcome?: "PROMOTED" | "DETAINED" | "PASSED_OUT" | "LEFT" | null;
+    remarks?: string | null;
+  }>;
   attendance: {
     overall: { counts: StatusCounts; marked: number; percentage: number | null };
     sessions: Array<{

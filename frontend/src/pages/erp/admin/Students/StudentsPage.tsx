@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { useForm } from "react-hook-form";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import {
   Badge,
@@ -86,6 +86,7 @@ const StudentsPage = () => {
       name: values.name,
       rollNo: values.rollNo,
       admissionNo: values.admissionNo,
+      admissionDate: values.admissionDate || undefined,
       classSectionId: Number(values.classSectionId),
       dob: values.dob || undefined,
       gender: values.gender ? (values.gender as Gender) : undefined,
@@ -99,11 +100,14 @@ const StudentsPage = () => {
       category: values.category ? (values.category as StudentCategory) : undefined,
       address: values.address || undefined,
       contactNumber: values.contactNumber || undefined,
+      nationality: values.nationality || undefined,
+      previousSchool: values.previousSchool || undefined,
     };
 
     try {
       await createStudent(payload).unwrap();
-      toast.success("Student created successfully.");
+      const pwd = values.dob ? values.dob.split("-").reverse().join("") : values.admissionNo;
+      toast.success(`Student created. Login: ${values.admissionNo} · Password: ${pwd}${values.dob ? " (date of birth)" : ""}`);
       closeModal();
     } catch {
       toast.error("Failed to create student. Please check the details and try again.");
@@ -160,8 +164,10 @@ const StudentsPage = () => {
       label: "Student Name",
       render: (s) => (
         <div>
-          <div style={{ fontWeight: 600 }}>{s.name}</div>
-          {s.fatherName && <small style={{ color: "var(--erp-text-muted)" }}>Father: {s.fatherName}</small>}
+          <Link to={`/admin/students/${s.id}`} className={styles.nameLink}>
+            {s.name}
+          </Link>
+          {s.fatherName && <small className={styles.subText}>Father: {s.fatherName}</small>}
         </div>
       ),
     },
@@ -187,19 +193,22 @@ const StudentsPage = () => {
       key: "actions",
       label: "Actions",
       render: (s) => (
-        <div style={{ display: "flex", gap: "0.4rem" }}>
-          <Button type="button" size="sm" variant="primary" onClick={() => navigate(`/admin/students/${s.id}`)}>
-            View Profile →
-          </Button>
-          <Button
+        <div className={styles.rowActions}>
+          <button type="button" className={styles.viewBtn} onClick={() => navigate(`/admin/students/${s.id}`)} aria-label={`View profile of ${s.name}`}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+            View profile
+          </button>
+          <button
             type="button"
-            size="sm"
-            variant={s.isActive ? "outline" : "primary"}
-            isLoading={togglingId === s.id}
+            className={`${styles.toggleBtn} ${s.isActive ? styles.toggleDeactivate : styles.toggleActivate}`}
+            disabled={togglingId === s.id}
             onClick={() => handleToggleActive(s)}
           >
-            {s.isActive ? "Deactivate" : "Activate"}
-          </Button>
+            {togglingId === s.id ? "Saving…" : s.isActive ? "Deactivate" : "Activate"}
+          </button>
         </div>
       ),
     },
@@ -212,7 +221,7 @@ const StudentsPage = () => {
         subtitle="View, search, and manage all student profiles across RRS Intl School"
         actions={
           <Button type="button" icon={<Icon name="plus" />} onClick={openModal}>
-            + New Student
+            New Student
           </Button>
         }
       />

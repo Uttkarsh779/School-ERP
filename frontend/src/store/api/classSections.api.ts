@@ -15,7 +15,8 @@ export interface CreateClassSectionInput {
 
 export const classSectionsApi = erpApi.injectEndpoints({
   endpoints: (builder) => ({
-    getClassSections: builder.query<IClassSection[], { sessionId?: number } | void>({
+    // Defaults to the current session; pass sessionId "all" for every session.
+    getClassSections: builder.query<IClassSection[], { sessionId?: number | "all" } | void>({
       query: (params) => ({ url: "class-sections", params: params ?? undefined }),
       transformResponse: (res: ApiEnvelope<IClassSection[]>) => res.data,
       providesTags: ["ClassSection"],

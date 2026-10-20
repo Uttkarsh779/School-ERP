@@ -83,3 +83,22 @@
   border-color: var(--erp-primary-600);
   box-shadow: 0 0 0 3px var(--erp-primary-100);
 }
+
+@media (max-width: 640px) {
+  .buttons {
+    width: 100%;
+  }
+
+  .buttons > * {
+    flex: 1;
+  }
+
+  .remark {
+    min-width: 180px;
+    font-size: 16px;
+  }
+
+  .grade {
+    font-size: 16px;
+  }
+}

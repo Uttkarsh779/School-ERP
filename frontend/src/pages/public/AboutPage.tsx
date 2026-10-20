@@ -1,148 +1,145 @@
-import React from "react";
-import { useGetPublicWebsiteDataQuery } from "../../store/api/cms.api";
-import PublicNavbar from "./components/PublicNavbar";
-import PublicFooter from "./components/PublicFooter";
-import { Icon } from "../../components/ui";
-import principalImg from "../../assets/images/principal.jpg";
-import styles from "./AboutPage.module.css";
+import { CORE_VALUES, IMAGES } from "./content";
+import { SiteIcon } from "./icons";
+import { CtaBand, PageBanner, Reveal, SectionHead, cx } from "./parts";
+import { usePageTitle, useSite } from "./useSite";
+import s from "./site.module.css";
 
-const AboutPage: React.FC = () => {
-  const { data } = useGetPublicWebsiteDataQuery();
-  const settings = data?.settings;
+const AboutPage = () => {
+  const site = useSite();
+  const { settings, session } = site;
+  usePageTitle("About Us", settings.schoolName);
 
-  const schoolName = settings?.schoolName || "RRS International School";
-  const principalName = settings?.principalName || "Dr. S. K. Sharma";
-  const establishedYear = settings?.establishedYear || 1998;
-  const affiliationNo = settings?.affiliationNo || "CBSE-2130892";
+  const vision = settings.vision || "To nurture confident, compassionate and curious learners who are ready to lead in a changing world while staying rooted in strong values.";
+  const mission =
+    settings.mission ||
+    "To provide a safe, joyful and inclusive environment; to deliver strong academics through dedicated teachers and modern methods; and to develop every child's talents in sports, arts and community service.";
+
+  const facts = [
+    { label: "Board", value: settings.boardName },
+    { label: "Affiliation No.", value: settings.affiliationNo },
+    { label: "School Code", value: settings.schoolCode },
+    { label: "Established", value: String(settings.establishedYear) },
+    { label: "Classes", value: "Nursery – XII" },
+    { label: "Current session", value: session },
+  ].filter((f) => f.value);
 
   return (
-    <div className={styles.page}>
-      <PublicNavbar settings={settings} />
+    <>
+      <PageBanner crumb="About" title={`About ${settings.schoolName}`} text={settings.tagline} image={IMAGES.campusHero} />
 
-      <header className={styles.heroHeader}>
-        <div className={styles.headerContainer}>
-          <div className={styles.badge}>
-            <Icon name="star" size={14} />
-            <span>Founded in {establishedYear} • Legacy of 28+ Years</span>
-          </div>
-          <h1 className={styles.title}>Nurturing Character, Inspiring Global Excellence</h1>
-          <p className={styles.subtitle}>
-            At {schoolName}, we ignite intellectual curiosity, foster emotional empathy, and prepare resilient global leaders equipped to thrive in an interconnected world.
-          </p>
+      <section className={s.section}>
+        <div className={cx(s.container, s.split)}>
+          <Reveal>
+            <SectionHead align="left" eyebrow="Our story" title={`Educating young minds since ${settings.establishedYear}`} />
+            <div className={s.prose} style={{ marginTop: -24 }}>
+              <p>{settings.aboutText}</p>
+            </div>
+          </Reveal>
+          <Reveal delay={120}>
+            <div className={s.frame}>
+              <img src={site.aboutImage} alt={`${settings.schoolName} campus`} className={s.frameImg} loading="lazy" />
+              <div className={s.frameBadge}>
+                <span className={s.frameBadgeValue}>{site.years}+</span>
+                <span className={s.frameBadgeLabel}>
+                  Years of
+                  <br />
+                  excellence
+                </span>
+              </div>
+            </div>
+          </Reveal>
         </div>
-      </header>
+      </section>
 
-      <main className={styles.container}>
-        {/* Section 1: Principal's Address */}
-        <section className={styles.section}>
-          <div className={styles.principalSection}>
-            <div className={styles.principalPhotoWrapper}>
-              <img src={principalImg} alt={principalName} className={styles.principalPhoto} />
-              <div className={styles.principalAccolade}>
-                <strong>25+ Years</strong>
-                <span>Pedagogical Excellence</span>
-              </div>
-            </div>
+      <section className={cx(s.section, s.sectionMist)}>
+        <div className={s.container}>
+          <div className={s.grid2}>
+            <Reveal>
+              <article className={s.card} style={{ height: "100%" }}>
+                <div className={s.cardIcon}>
+                  <SiteIcon name="eye" size={24} />
+                </div>
+                <h2 className={s.sectionTitle} style={{ fontSize: "1.7rem", marginBottom: 12 }}>
+                  Our vision
+                </h2>
+                <p className={s.prose}>{vision}</p>
+              </article>
+            </Reveal>
+            <Reveal delay={100}>
+              <article className={s.card} style={{ height: "100%" }}>
+                <div className={s.cardIcon}>
+                  <SiteIcon name="target" size={24} />
+                </div>
+                <h2 className={s.sectionTitle} style={{ fontSize: "1.7rem", marginBottom: 12 }}>
+                  Our mission
+                </h2>
+                <p className={s.prose}>{mission}</p>
+              </article>
+            </Reveal>
+          </div>
+        </div>
+      </section>
 
-            <div className={styles.principalContent}>
-              <div className={styles.quoteMark}>“</div>
-              <h2 className={styles.principalHeading}>From the Principal's Desk</h2>
-              <p className={styles.principalBio}>
-                {settings?.principalMessage || "Education at RRS International transcends textbook memorization and exam scores. It is about kindling the spark of curiosity, instilling unwavering integrity, and fostering empathetic hearts capable of understanding diverse cultures and perspectives."}
-              </p>
-              <p className={styles.principalBio}>
-                Our holistic curriculum balances intellectual rigor with competitive sports, advanced robotics, performing arts, and community service. Every student is recognized as a unique universe of limitless possibilities. We warmly invite you to be a part of our thriving educational family.
-              </p>
-              <div className={styles.principalSignature}>
-                <strong>{principalName}</strong>
-                <span>Principal & Director of Academics • Ph.D., M.Ed., Gold Medalist</span>
+      <section className={s.section}>
+        <div className={s.container}>
+          <SectionHead eyebrow="What we believe" title="Our core values" lead="The values that guide our teachers, our students and every decision we make." />
+          <div className={s.grid4}>
+            {CORE_VALUES.map((v, i) => (
+              <Reveal key={v.title} delay={i * 80}>
+                <article className={cx(s.card, s.cardHover)} style={{ height: "100%", textAlign: "center" }}>
+                  <div className={s.cardIcon} style={{ margin: "0 auto 18px" }}>
+                    <SiteIcon name={v.icon} size={24} />
+                  </div>
+                  <h3 className={s.cardTitle}>{v.title}</h3>
+                  <p className={s.cardText}>{v.text}</p>
+                </article>
+              </Reveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {settings.principalMessage && (
+        <section className={cx(s.section, s.sectionMist)} id="principal">
+          <div className={cx(s.container, s.principal)}>
+            <Reveal>
+              <img src={site.principalPhoto} alt={settings.principalName} className={s.principalPhoto} loading="lazy" />
+            </Reveal>
+            <Reveal delay={120}>
+              <div className={s.eyebrow}>{settings.principalTitle}'s message</div>
+              <SiteIcon name="quote" size={40} className={s.quoteMark} strokeWidth={2.2} />
+              <p className={s.principalQuote}>{settings.principalMessage}</p>
+              <div className={s.principalName}>{settings.principalName}</div>
+              <div className={s.principalRole}>
+                {settings.principalTitle}, {settings.schoolName}
               </div>
-            </div>
+            </Reveal>
           </div>
         </section>
+      )}
 
-        {/* Section 2: Core Values */}
-        <section className={styles.section}>
-          <div className={styles.sectionHeader}>
-            <span className={styles.preTitle}>Our Institutional Ethos</span>
-            <h2 className={styles.sectionTitle}>The Four Pillars of {schoolName}</h2>
-            <p className={styles.sectionDesc}>
-              Guided by timeless human values and future-ready 21st century learning competencies.
-            </p>
+      <section className={s.section} id="disclosure">
+        <div className={s.container}>
+          <SectionHead eyebrow="School at a glance" title="Key information" />
+          <div className={s.factGrid}>
+            {facts.map((f) => (
+              <div key={f.label} className={s.fact}>
+                <div className={s.factLabel}>{f.label}</div>
+                <div className={s.factValue}>{f.value}</div>
+              </div>
+            ))}
+            {settings.address && (
+              <div className={s.fact} style={{ gridColumn: "1 / -1" }}>
+                <div className={s.factLabel}>Address</div>
+                <div className={s.factValue}>{settings.address}</div>
+              </div>
+            )}
           </div>
+        </div>
+      </section>
 
-          <div className={styles.valuesGrid}>
-            <div className={styles.valueCard}>
-              <div className={styles.valueIcon}>
-                <Icon name="graduationCap" size={26} />
-              </div>
-              <h3 className={styles.valueTitle}>Intellectual Rigor</h3>
-              <p className={styles.valueText}>
-                Deep conceptual understanding driven by analytical inquiry, scientific questioning, and interdisciplinary problem solving.
-              </p>
-            </div>
-
-            <div className={styles.valueCard}>
-              <div className={styles.valueIcon}>
-                <Icon name="layers" size={26} />
-              </div>
-              <h3 className={styles.valueTitle}>Holistic Mastery</h3>
-              <p className={styles.valueText}>
-                Harmonious integration of high academics, Olympic-level athletics, robotics experimentation, and soulful classical fine arts.
-              </p>
-            </div>
-
-            <div className={styles.valueCard}>
-              <div className={styles.valueIcon}>
-                <Icon name="users" size={26} />
-              </div>
-              <h3 className={styles.valueTitle}>Moral Leadership</h3>
-              <p className={styles.valueText}>
-                Cultivating compassionate global citizens who act with empathy, social responsibility, and ethical courage.
-              </p>
-            </div>
-
-            <div className={styles.valueCard}>
-              <div className={styles.valueIcon}>
-                <Icon name="globe" size={26} />
-              </div>
-              <h3 className={styles.valueTitle}>Global Perspective</h3>
-              <p className={styles.valueText}>
-                Preparing scholars for global universities with multilingual proficiency, Model United Nations, and cross-cultural exchanges.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        {/* Section 3: Affiliation & Board Banner */}
-        <section className={styles.section}>
-          <div className={styles.accreditationBanner}>
-            <div className={styles.accreditationText}>
-              <h3>Official CBSE Board Affiliation & Standards</h3>
-              <p>
-                {schoolName} is permanently affiliated with the Central Board of Secondary Education (CBSE), New Delhi, compliant with the National Education Policy (NEP 2020).
-              </p>
-            </div>
-            <div className={styles.accreditationPills}>
-              <div className={styles.pillItem}>
-                <strong>{affiliationNo}</strong>
-                <span>Affiliation Number</span>
-              </div>
-              <div className={styles.pillItem}>
-                <strong>100%</strong>
-                <span>Board Distinction</span>
-              </div>
-              <div className={styles.pillItem}>
-                <strong>ISO 9001:2015</strong>
-                <span>Quality Certified</span>
-              </div>
-            </div>
-          </div>
-        </section>
-      </main>
-
-      <PublicFooter settings={settings} />
-    </div>
+      <CtaBand session={session} phone={settings.phone} admissionsOpen={settings.admissionsOpen} />
+    </>
   );
 };
 

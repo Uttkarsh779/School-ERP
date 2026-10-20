@@ -10,6 +10,7 @@ import "./i18n";
 
 import DashboardPage from "./pages/erp/admin/Dashboard/DashboardPage";
 import SessionsPage from "./pages/erp/admin/Sessions/SessionsPage";
+import SessionSetupPage from "./pages/erp/admin/Sessions/SessionSetupPage";
 import ClassSectionsPage from "./pages/erp/admin/ClassSections/ClassSectionsPage";
 import StaffPage from "./pages/erp/admin/Staff/StaffPage";
 import StudentsPage from "./pages/erp/admin/Students/StudentsPage";
@@ -27,12 +28,14 @@ import AdminTransportPage from "./pages/erp/admin/Transport/AdminTransportPage";
 import AdminCmsPage from "./pages/erp/admin/Cms/AdminCmsPage";
 import AdmissionReportPage from "./pages/erp/admin/AdmissionReport/AdmissionReportPage";
 import ConstructionExpensePage from "./pages/erp/admin/Construction/ConstructionExpensePage";
-import SchoolHomePage from "./pages/public/SchoolHomePage";
+import PublicLayout from "./pages/public/PublicLayout";
+import HomePage from "./pages/public/HomePage";
 import AboutPage from "./pages/public/AboutPage";
 import AcademicsPage from "./pages/public/AcademicsPage";
-import FacilitiesPage from "./pages/public/FacilitiesPage";
+import CampusPage from "./pages/public/CampusPage";
 import GalleryPage from "./pages/public/GalleryPage";
 import AdmissionsPage from "./pages/public/AdmissionsPage";
+import NoticesPage from "./pages/public/NoticesPage";
 import ContactPage from "./pages/public/ContactPage";
 
 import TeacherDashboardPage from "./pages/erp/teacher/Dashboard/TeacherDashboardPage";
@@ -60,15 +63,19 @@ function App() {
   return (
     <Suspense fallback={<Loader />}>
       <Routes>
-        {/* Public School Website Multi-Page Routes */}
-        <Route path="/" element={<SchoolHomePage />} />
-        <Route path="/home" element={<SchoolHomePage />} />
-        <Route path="/about" element={<AboutPage />} />
-        <Route path="/academics" element={<AcademicsPage />} />
-        <Route path="/facilities" element={<FacilitiesPage />} />
-        <Route path="/gallery" element={<GalleryPage />} />
-        <Route path="/admissions" element={<AdmissionsPage />} />
-        <Route path="/contact" element={<ContactPage />} />
+        {/* Public school website — shared header/footer layout */}
+        <Route element={<PublicLayout />}>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/about" element={<AboutPage />} />
+          <Route path="/academics" element={<AcademicsPage />} />
+          <Route path="/campus" element={<CampusPage />} />
+          <Route path="/gallery" element={<GalleryPage />} />
+          <Route path="/admissions" element={<AdmissionsPage />} />
+          <Route path="/notices" element={<NoticesPage />} />
+          <Route path="/contact" element={<ContactPage />} />
+        </Route>
+        <Route path="/home" element={<Navigate to="/" replace />} />
+        <Route path="/facilities" element={<Navigate to="/campus" replace />} />
         <Route path="/login" element={<Navigate to="/admin/login" replace />} />
 
         {/* Login — redirect away (to the right role's home) if already authenticated */}
@@ -92,6 +99,7 @@ function App() {
         >
           <Route path="/admin" element={<DashboardPage />} />
           <Route path="/admin/sessions" element={<SessionsPage />} />
+          <Route path="/admin/sessions/setup" element={<SessionSetupPage />} />
           <Route path="/admin/class-sections" element={<ClassSectionsPage />} />
           <Route path="/admin/staff" element={<StaffPage />} />
           <Route path="/admin/students" element={<StudentsPage />} />
@@ -109,7 +117,8 @@ function App() {
           <Route path="/admin/assignments" element={<TeacherAssignmentsPage />} />
           <Route path="/admin/cms" element={<AdminCmsPage />} />
           <Route path="/admin/leaves" element={<AdminLeavesPage />} />
-          <Route path="/admin/account" element={<MyProfilePage />} />
+          <Route path="/admin/profile" element={<MyProfilePage />} />
+          <Route path="/admin/account" element={<Navigate to="/admin/profile" replace />} />
 
           {/* SUPER_ADMIN only — an ADMIN entering these URLs is redirected away */}
           <Route

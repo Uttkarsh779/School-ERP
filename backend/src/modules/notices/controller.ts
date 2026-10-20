@@ -1,42 +1,32 @@
 import type { Response } from "express";
 import type { CustomRequest } from "../../middleware/auth";
-import { Role } from "../../generated/prisma/enums";
-import { createNotice, deleteNotice, listNoticesForUser } from "./service";
+import { createNoticesForActor, deleteNoticeForActor, listNoticesForUser, listSentNotices, listTeacherNoticeClasses } from "./service";
 
 export const getNotices = async (req: CustomRequest, res: Response): Promise<void> => {
   const notices = await listNoticesForUser(req.user!.id, req.user!.role);
   res.status(200).json({ success: true, data: notices });
 };
 
+// Teacher: notices I posted.
+export const getSentNotices = async (req: CustomRequest, res: Response): Promise<void> => {
+  res.status(200).json({ success: true, data: await listSentNotices(req.user!.id) });
+};
+
+// Teacher: classes I can send a notice to.
+export const getNoticeClasses = async (req: CustomRequest, res: Response): Promise<void> => {
+  res.status(200).json({ success: true, data: await listTeacherNoticeClasses(req.user!.id) });
+};
+
 export const postNotice = async (req: CustomRequest, res: Response): Promise<void> => {
-  const { title, body, targetRole, targetClassSectionId } = req.body;
-  if (!title || !body) {
-    res.status(400).json({ success: false, message: "title and body are required" });
-    return;
-  }
-
-  if (targetRole && !Object.values(Role).includes(targetRole)) {
-    res.status(400).json({ success: false, message: `Invalid targetRole "${targetRole}"` });
-    return;
-  }
-
-  const notice = await createNotice({
-    title,
-    body,
-    targetRole: targetRole || undefined,
-    targetClassSectionId: targetClassSectionId ? Number(targetClassSectionId) : undefined,
-    postedByUserId: req.user!.id,
+  const created = await createNoticesForActor({ id: req.user!.id, role: req.user!.role }, req.body ?? {});
+  res.status(201).json({
+    success: true,
+    message: created.length > 1 ? `Notice sent to ${created.length} classes` : "Notice posted",
+    data: created.length === 1 ? created[0] : created,
   });
-  res.status(201).json({ success: true, data: notice });
 };
 
 export const deleteNoticeHandler = async (req: CustomRequest, res: Response): Promise<void> => {
-  const id = Number(req.params.id);
-  if (!id) {
-    res.status(400).json({ success: false, message: "Invalid notice id" });
-    return;
-  }
-
-  await deleteNotice(id);
+  await deleteNoticeForActor({ id: req.user!.id, role: req.user!.role }, Number(req.params.id));
   res.status(200).json({ success: true, message: "Notice deleted" });
 };

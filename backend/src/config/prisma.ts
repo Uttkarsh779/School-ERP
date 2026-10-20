@@ -6,12 +6,8 @@ import dotenv from "dotenv";
 dotenv.config({ path: path.resolve(__dirname, "../../.env") });
 
 import { PrismaClient } from "../generated/prisma/client";
-import { PrismaNeon } from "@prisma/adapter-neon";
-import { neonConfig } from "@neondatabase/serverless";
-import ws from "ws";
-
-// Wire WebSocket implementation for Neon in Node.js
-neonConfig.webSocketConstructor = ws;
+import { PrismaPg } from "@prisma/adapter-pg";
+import { Pool } from "pg";
 
 if (!process.env.DATABASE_URL) {
   throw new Error(
@@ -19,9 +15,23 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
-// In @prisma/adapter-neon v7, PrismaNeon takes neon.PoolConfig directly and manages the pool.
-const adapter = new PrismaNeon({
+// Plain TCP Postgres pool (suits a long-running server better than Neon's WebSocket driver).
+// Idle connections are closed before Neon drops them; a connection Neon still cuts (e.g. when
+// the database auto-suspends) is logged in one line and replaced on the next query.
+const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
+  max: 10,
+  idleTimeoutMillis: 30_000,
+  connectionTimeoutMillis: 15_000, // allow time for a suspended Neon database to wake up
+  keepAlive: true,
+});
+pool.on("error", (err) => {
+  console.warn(`[Database] Idle connection closed by the server (${(err as any).code ?? err.message}); it will reconnect on the next query.`);
 });
 
-export const prisma = new PrismaClient({ adapter }) as any;
+const adapter = new PrismaPg(pool);
+
+// Interactive transactions (payment desk, marks entry, leave decisions) run many sequential
+// queries; at ~300 ms per round trip to Neon they overrun Prisma's 5 s default and fail
+// with "Transaction already closed".
+export const prisma = new PrismaClient({ adapter, transactionOptions: { maxWait: 10_000, timeout: 30_000 } }) as any;

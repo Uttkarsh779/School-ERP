@@ -281,3 +281,67 @@
     padding: 0.7rem 0.9rem;
   }
 }
+
+/* Phones (PWA launch screen): sign-in form first, brand as a compact header */
+@media (max-width: 640px) {
+  .loginPage {
+    margin: 0;
+    min-height: 100dvh;
+    background: #ffffff;
+  }
+
+  .leftSection {
+    flex: 0 0 auto;
+    padding: calc(1.25rem + env(safe-area-inset-top)) 1.25rem 1.1rem;
+    border-bottom: none;
+    border-radius: 0 0 24px 24px;
+  }
+
+  .logoContainer {
+    margin-bottom: 0;
+  }
+
+  .logo {
+    width: 64px;
+    margin-bottom: 0.5rem;
+  }
+
+  .collegeName {
+    font-size: 1.3rem;
+    margin-bottom: 0.2rem;
+  }
+
+  .portalTitle {
+    font-size: 0.95rem;
+  }
+
+  .imageContainer {
+    display: none;
+  }
+
+  .rightSection {
+    flex: 1;
+    padding: 1.25rem 1.25rem calc(1.5rem + env(safe-area-inset-bottom));
+  }
+
+  .loginCard {
+    margin: 0 auto;
+  }
+
+  .topBar {
+    margin-bottom: 1.1rem;
+  }
+
+  .modeToggle {
+    max-width: none;
+  }
+
+  .modeButton {
+    min-height: 2.6rem;
+  }
+
+  .input {
+    font-size: 16px;
+    min-height: 2.9rem;
+  }
+}

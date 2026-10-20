@@ -12,6 +12,7 @@ import {
   Select,
 } from "../../../../components/ui";
 import NoticeBoard from "../../../../components/shared/NoticeBoard/NoticeBoard";
+import FileUploadField from "../../../../components/shared/FileUploadField/FileUploadField";
 import { useCreateNoticeMutation, useDeleteNoticeMutation } from "../../../../store/api/notices.api";
 import { useGetClassSectionsQuery } from "../../../../store/api/classSections.api";
 import styles from "./AdminNoticesPage.module.css";
@@ -21,6 +22,7 @@ interface NoticeFormInputs {
   body: string;
   targetRole: string;
   targetClassSectionId: string;
+  isImportant: boolean;
 }
 
 const getErrorMessage = (err: unknown, fallback: string) => {
@@ -39,6 +41,7 @@ const AdminNoticesPage = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<INotice | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [attachmentUrl, setAttachmentUrl] = useState<string | null>(null);
 
   const {
     register,
@@ -47,12 +50,13 @@ const AdminNoticesPage = () => {
     watch,
     setValue,
     formState: { errors },
-  } = useForm<NoticeFormInputs>({ defaultValues: { targetRole: "", targetClassSectionId: "" } });
+  } = useForm<NoticeFormInputs>({ defaultValues: { targetRole: "", targetClassSectionId: "", isImportant: false } });
 
   const selectedRole = watch("targetRole");
 
   const closeModal = () => {
     setIsModalOpen(false);
+    setAttachmentUrl(null);
     reset();
   };
 
@@ -66,6 +70,8 @@ const AdminNoticesPage = () => {
           values.targetRole === "STUDENT" && values.targetClassSectionId
             ? Number(values.targetClassSectionId)
             : undefined,
+        isImportant: values.isImportant,
+        attachmentUrl,
       }).unwrap();
       toast.success("Notice posted");
       closeModal();
@@ -170,6 +176,13 @@ const AdminNoticesPage = () => {
                   ]}
                   {...register("targetClassSectionId")}
                 />
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <FileUploadField label="Attachment (optional)" value={attachmentUrl} onChange={setAttachmentUrl} folder="school_erp/notices" />
+                </div>
+                <label style={{ gridColumn: "1 / -1", display: "flex", flexWrap: "wrap", alignItems: "center", gap: "0.5rem", fontWeight: 600, fontSize: "0.9rem" }}>
+                  <input type="checkbox" style={{ width: 18, height: 18, accentColor: "var(--erp-primary-600)" }} {...register("isImportant")} />
+                  Mark as important
+                </label>
               </FormGrid>
             </FormSection>
             <div className={styles.formActions}>

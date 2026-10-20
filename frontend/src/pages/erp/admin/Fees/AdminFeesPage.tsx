@@ -15,9 +15,9 @@ import styles from "./Fees.module.css";
 
 type Tab = "overview" | "collect" | "bills" | "dues" | "structures" | "refunds" | "settings" | "audit";
 
-// Fee Management shell. Each tab lives in its own file under ./tabs. Money decisions
-// (waivers, refund approval, deletes, bulk fee changes, audit log) are Super Admin only —
-// hidden here and enforced by the server.
+// Fee Management shell. Each tab lives in its own file under ./tabs. Waivers are open to
+// Admins too; other money decisions (refund approval, deletes, bulk fee changes, audit log)
+// are Super Admin only — hidden here and enforced by the server.
 const AdminFeesPage = () => {
   const isSuperAdmin = useAppSelector((s) => s.auth.user?.role) === "SUPER_ADMIN";
   const [params, setParams] = useSearchParams();
@@ -45,27 +45,39 @@ const AdminFeesPage = () => {
     { key: "settings", label: "Settings" },
     { key: "audit", label: "Audit Log", superOnly: true },
   ];
+  const visibleTabs = tabs.filter((t) => !t.superOnly || isSuperAdmin);
 
   return (
     <div className={styles.page}>
       <PageHeader title="Fee Management" subtitle="Collections, bills, dues, fee structures and refunds" />
 
-      <div className={styles.tabs} role="tablist">
-        {tabs
-          .filter((t) => !t.superOnly || isSuperAdmin)
-          .map((t) => (
-            <button
-              key={t.key}
-              type="button"
-              role="tab"
-              aria-selected={tab === t.key}
-              className={`${styles.tab} ${tab === t.key ? styles.tabActive : ""}`}
-              onClick={() => go(t.key)}
-            >
+      {/* Phones: one compact picker instead of tabs scrolling off-screen */}
+      <label className={styles.tabSelectWrap}>
+        <span className={styles.tabSelectLabel}>Section</span>
+        <select className={styles.tabSelect} value={tab} onChange={(e) => go(e.target.value as Tab)}>
+          {visibleTabs.map((t) => (
+            <option key={t.key} value={t.key}>
               {t.label}
-              {!!t.count && <span className={styles.tabCount}>{t.count}</span>}
-            </button>
+              {t.count ? ` (${t.count})` : ""}
+            </option>
           ))}
+        </select>
+      </label>
+
+      <div className={`${styles.tabs} ${styles.tabsWithPicker}`} role="tablist">
+        {visibleTabs.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.key}
+            className={`${styles.tab} ${tab === t.key ? styles.tabActive : ""}`}
+            onClick={() => go(t.key)}
+          >
+            {t.label}
+            {!!t.count && <span className={styles.tabCount}>{t.count}</span>}
+          </button>
+        ))}
       </div>
 
       {tab === "overview" && <FeeOverviewTab onGoTo={go} />}

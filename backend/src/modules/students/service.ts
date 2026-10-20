@@ -1,6 +1,8 @@
 import { prisma } from "../../config/prisma";
 import { Role } from "../../generated/prisma/enums";
+import { hashPassword } from "../../utils/password";
 import type { Gender, StudentCategory } from "../../generated/prisma/enums";
+import { syncCurrentEnrollment } from "../sessions/enrollmentService";
 
 export const listStudents = (classSectionId?: number) =>
   prisma.student.findMany({
@@ -9,11 +11,19 @@ export const listStudents = (classSectionId?: number) =>
     orderBy: [{ classSectionId: "asc" }, { rollNo: "asc" }],
   });
 
+// Bus route with its vehicle(s) — what families need: bus number, driver and phone.
+const transportRouteInclude = {
+  include: { vehicles: { select: { id: true, vehicleNo: true, driverName: true, driverContact: true, capacity: true } } },
+} as const;
+
 export const getStudentById = (id: number) =>
-  prisma.student.findUnique({ where: { id }, include: { classSection: true, parents: { include: { parent: true } } } });
+  prisma.student.findUnique({
+    where: { id },
+    include: { classSection: true, parents: { include: { parent: true } }, transportRoute: transportRouteInclude },
+  });
 
 export const getStudentByUserId = (userId: number) =>
-  prisma.student.findUnique({ where: { userId }, include: { classSection: true } });
+  prisma.student.findUnique({ where: { userId }, include: { classSection: true, transportRoute: transportRouteInclude } });
 
 // Shared shape for the optional profile fields on both create and update — keeps the
 // two functions from drifting out of sync as fields get added.
@@ -36,16 +46,35 @@ export interface StudentProfileFields {
   admissionDate?: Date;
 }
 
-export const createStudent = (
+// Starting password for a new student's login: date of birth as DDMMYYYY (what the family
+// knows), or the admission number when no DOB is on file. The admin can reset it later.
+export const defaultStudentPassword = (admissionNo: string, dob?: Date | null) => {
+  if (!dob || Number.isNaN(new Date(dob).getTime())) return admissionNo;
+  const d = new Date(dob);
+  return `${String(d.getUTCDate()).padStart(2, "0")}${String(d.getUTCMonth() + 1).padStart(2, "0")}${d.getUTCFullYear()}`;
+};
+
+// Every student gets a login at admission: they sign in with their admission number.
+export const createStudent = async (
   data: {
     name: string;
     rollNo: string;
     classSectionId: number;
     admissionNo: string;
   } & StudentProfileFields
-) => prisma.student.create({ data });
+) => {
+  const passwordHash = await hashPassword(defaultStudentPassword(data.admissionNo, data.dob));
+  return prisma.$transaction(async (tx: any) => {
+    const user = await tx.user.create({
+      data: { email: syntheticEmail(data.admissionNo), passwordHash, role: Role.STUDENT, name: data.name },
+    });
+    const student = await tx.student.create({ data: { ...data, userId: user.id } });
+    await syncCurrentEnrollment(tx, student.id);
+    return student;
+  });
+};
 
-export const updateStudent = (
+export const updateStudent = async (
   id: number,
   data: {
     name?: string;
@@ -53,7 +82,12 @@ export const updateStudent = (
     classSectionId?: number;
     admissionNo?: string;
   } & StudentProfileFields
-) => prisma.student.update({ where: { id }, data });
+) => {
+  const student = await prisma.student.update({ where: { id }, data });
+  // Class/roll changes are reflected in this session's enrollment history row.
+  if (data.classSectionId !== undefined || data.rollNo !== undefined) await syncCurrentEnrollment(prisma, id);
+  return student;
+};
 
 export const setStudentActive = (id: number, isActive: boolean) =>
   prisma.student.update({ where: { id }, data: { isActive } });

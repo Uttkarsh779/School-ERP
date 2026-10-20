@@ -30,7 +30,6 @@ const STATUS_TONE: Record<string, "success" | "warning" | "danger" | "info" | "n
 // fees stop accruing).
 const BillsTab = () => {
   const { data: sessions } = useGetSessionsQuery();
-  const { data: classSections } = useGetClassSectionsQuery();
   const [sessionId, setSessionId] = useState<number | null>(null);
   const [period, setPeriod] = useState<{ month: number; year: number } | null>(null);
   const [classId, setClassId] = useState("");
@@ -45,6 +44,7 @@ const BillsTab = () => {
     () => sessions?.find((s) => s.id === sessionId) ?? sessions?.find((s) => s.isCurrent) ?? sessions?.[0] ?? null,
     [sessions, sessionId]
   );
+  const { data: classSections } = useGetClassSectionsQuery(session ? { sessionId: session.id } : undefined);
   const startYear = session ? new Date(session.startDate).getFullYear() : new Date().getFullYear();
   const periodOptions = useMemo(
     () => [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3].map((m) => ({ month: m, year: m >= 4 ? startYear : startYear + 1 })),
@@ -245,7 +245,7 @@ const BillsTab = () => {
             <Input label="Search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Bill no, student name or admission no…" />
           </div>
         </div>
-        {invoicesLoading ? <Spinner /> : <Table columns={columns} data={filtered} keyField="id" emptyMessage="No bills match these filters." />}
+        {invoicesLoading ? <Spinner /> : <Table columns={columns} data={filtered} keyField="id" mobilePrimary="student" stackBelow={900} emptyMessage="No bills match these filters." />}
       </Card>
 
       {preview && (

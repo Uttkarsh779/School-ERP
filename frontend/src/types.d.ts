@@ -45,12 +45,14 @@ interface IClassSection {
   classTeacherId?: number | null;
   classTeacher?: IStaff | null;
   _count?: { students: number };
+  isClassTeacher?: boolean; // only on GET /class-sections/mine
 }
 
 interface IStaff {
   id: number;
   userId: number;
   staffCategory?: string | null;
+  isActive: boolean; // employment status; user.isActive is login access
   qualifications?: string | null;
   contact?: string | null;
   user: IUser;
@@ -348,6 +350,9 @@ interface INotice {
   targetClassSection?: { id: number; className: string; section: string } | null;
   postedByUserId: number;
   postedAt: string;
+  isImportant?: boolean;
+  attachmentUrl?: string | null;
+  postedBy?: { name: string; role: UserRole } | null;
 }
 
 type FeeMode = "CASH" | "BANK_TRANSFER" | "UPI_MANUAL" | "GATEWAY";

@@ -16,3 +16,10 @@
   font-size: 0.85rem;
   font-style: italic;
 }
+
+@media (max-width: 640px) {
+  .childChips {
+    max-width: none;
+    justify-content: flex-end;
+  }
+}

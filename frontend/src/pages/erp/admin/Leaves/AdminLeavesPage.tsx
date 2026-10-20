@@ -13,7 +13,7 @@ const AdminLeavesPage = () => {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
       <PageHeader title="Leave Requests" subtitle="Staff leave to approve, and student leave across the school" />
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem" }}>
+      <div className="erp-two-up-sm" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem" }}>
         <StatCard label="Staff requests pending" value={allPending.filter((l) => l.kind === "STAFF").length} />
         <StatCard label="Student requests pending" value={allPending.filter((l) => l.kind === "STUDENT").length} />
       </div>

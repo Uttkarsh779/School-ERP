@@ -4,7 +4,6 @@ import { toast } from "react-toastify";
 import { Button, Card, EmptyState, Input, PageHeader, Select, Spinner } from "../../../../components/ui";
 import ClassRegisterView from "../../admin/Attendance/ClassRegisterView";
 import tabStyles from "../../admin/Attendance/AdminAttendancePage.module.css";
-import { useGetTeacherDashboardQuery } from "../../../../store/api/dashboard.api";
 import type { SelectOption } from "../../../../components/ui";
 import {
   useGetClassAttendanceQuery,
@@ -44,10 +43,11 @@ const TeacherAttendancePage = () => {
   const [lastResults, setLastResults] = useState<MarkAttendanceResult[] | null>(null);
   const [tab, setTab] = useState<"mark" | "register">(searchParams.get("tab") === "register" ? "register" : "mark");
   const [monthValue, setMonthValue] = useState(todayIso().slice(0, 7));
-  // Which of my classes I'm the class teacher of — only those have a register to show.
-  const { data: teacherDashboard } = useGetTeacherDashboardQuery();
 
-  const { data: classSections, isLoading: sectionsLoading, isError: sectionsError } = useGetMyClassSectionsQuery();
+  // Daily attendance is marked by the class teacher, so only those classes are offered
+  // (subject-teacher classes would just be refused by the server).
+  const { data: myClasses, isLoading: sectionsLoading, isError: sectionsError } = useGetMyClassSectionsQuery();
+  const classSections = useMemo(() => myClasses?.filter((cs) => cs.isClassTeacher), [myClasses]);
 
   const classSectionIdParam = searchParams.get("classSectionId");
   const selectedClassSectionId = classSectionIdParam ? Number(classSectionIdParam) : undefined;
@@ -71,14 +71,14 @@ const TeacherAttendancePage = () => {
   }, [classSections, selectedClassSectionId]);
 
   const {
-    data: students,
+    currentData: students,
     isLoading: studentsLoading,
     isFetching: studentsFetching,
     isError: studentsError,
   } = useGetStudentsQuery({ classSectionId }, { skip: !classSectionId });
 
   const {
-    data: attendanceRecords,
+    currentData: attendanceRecords,
     isFetching: attendanceFetching,
     isError: attendanceError,
   } = useGetClassAttendanceQuery(
@@ -188,9 +188,7 @@ const TeacherAttendancePage = () => {
     );
   }
 
-  const isClassTeacherOfSelected = !!teacherDashboard?.classes?.some(
-    (c) => c.classSectionId === classSectionId && c.isClassTeacher
-  );
+  const isClassTeacherOfSelected = !!classSectionId && classSections.some((c) => c.id === classSectionId);
   const [regYear, regMonth] = monthValue.split("-").map(Number);
 
   return (
@@ -242,9 +240,7 @@ const TeacherAttendancePage = () => {
               <Input label="Month" type="month" value={monthValue} max={todayIso().slice(0, 7)} onChange={(e) => setMonthValue(e.target.value)} />
             </div>
           </Card>
-          {!teacherDashboard ? (
-            <Spinner />
-          ) : !classSectionId || !isClassTeacherOfSelected ? (
+          {!classSectionId || !isClassTeacherOfSelected ? (
             <EmptyState
               title="Register available to the class teacher"
               description="The monthly register is shown for classes where you're the class teacher — the same classes you can mark attendance for."

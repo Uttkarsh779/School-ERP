@@ -39,3 +39,10 @@
     padding: 0.9rem;
   }
 }
+
+@media (max-width: 640px) {
+  .header {
+    flex-wrap: wrap;
+    gap: 0.6rem;
+  }
+}

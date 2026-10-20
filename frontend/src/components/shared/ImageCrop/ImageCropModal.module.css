@@ -71,3 +71,13 @@
   margin: 0;
   color: var(--erp-danger);
 }
+
+@media (max-width: 640px) {
+  .viewport {
+    max-width: 100%;
+  }
+
+  .actions > * {
+    flex: 1;
+  }
+}

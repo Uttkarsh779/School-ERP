@@ -120,3 +120,100 @@
   font-size: 0.75rem;
   font-weight: 500;
 }
+
+/* ---------- Phone day view ---------- */
+.dayView {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .wrapper {
+    display: none;
+  }
+
+  .dayView {
+    display: block;
+  }
+
+  .dayTabs {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 0.3rem;
+    padding: 0.3rem;
+    margin-bottom: 0.85rem;
+    background: var(--erp-surface);
+    border: 1px solid var(--erp-border);
+    border-radius: var(--erp-radius-md);
+    position: sticky;
+    top: calc(3.6rem + env(safe-area-inset-top));
+    z-index: 5;
+    box-shadow: var(--erp-shadow-sm);
+  }
+
+  .dayTab {
+    border: none;
+    background: transparent;
+    border-radius: var(--erp-radius-sm);
+    padding: 0.6rem 0;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--erp-text-muted);
+    cursor: pointer;
+  }
+
+  .dayTabActive {
+    background: var(--erp-primary-600);
+    color: var(--erp-text-inverse);
+  }
+
+  .dayList {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+  }
+
+  .dayRow {
+    display: grid;
+    grid-template-columns: 3.4rem 1fr;
+    gap: 0.6rem;
+    align-items: stretch;
+  }
+
+  .dayPeriod {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: var(--erp-surface);
+    border: 1px solid var(--erp-border);
+    border-radius: var(--erp-radius-sm);
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: var(--erp-text);
+    line-height: 1.1;
+  }
+
+  .dayPeriod small {
+    font-size: 0.6rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--erp-text-muted);
+  }
+
+  .dayRow .cell {
+    min-height: 3.6rem;
+    padding: 0.6rem 0.8rem;
+  }
+
+  .dayRow .emptySlot {
+    align-items: flex-start;
+  }
+
+  .dayRow .subjectName {
+    font-size: 0.95rem;
+  }
+}

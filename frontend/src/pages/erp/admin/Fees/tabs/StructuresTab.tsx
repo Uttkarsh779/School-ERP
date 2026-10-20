@@ -21,7 +21,7 @@ import styles from "../Fees.module.css";
 const StructuresTab = ({ isSuperAdmin }: { isSuperAdmin: boolean }) => {
   const navigate = useNavigate();
   const { data: sessions } = useGetSessionsQuery();
-  const { data: classSections } = useGetClassSectionsQuery();
+  const { data: classSections } = useGetClassSectionsQuery({ sessionId: "all" });
   const { data: feeHeads = [] } = useGetFeeHeadsQuery();
   const { data: structures = [], isLoading } = useGetFeeStructuresQuery();
   const [createStructure, { isLoading: creating }] = useCreateFeeStructureMutation();
@@ -199,7 +199,7 @@ const StructuresTab = ({ isSuperAdmin }: { isSuperAdmin: boolean }) => {
         ) : visible.length === 0 ? (
           <EmptyState title="No fee structures for this session" description="Create one per class so bills can be generated and payments collected." />
         ) : (
-          <Table columns={columns} data={visible} keyField="id" />
+          <Table columns={columns} data={visible} keyField="id" mobilePrimary="class" />
         )}
       </Card>
 

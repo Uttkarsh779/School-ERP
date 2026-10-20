@@ -158,11 +158,91 @@
   .controls {
     flex-direction: column;
     align-items: stretch;
+    gap: 0.75rem;
   }
 
-  .table th,
+  .singleSection {
+    min-width: 0;
+  }
+
+  .dateInput {
+    height: 2.75rem;
+    font-size: 16px;
+    width: 100%;
+  }
+
+  /* Roster as a list: roll + name on top, four big tap targets below */
+  .table thead {
+    display: none;
+  }
+
+  .table,
+  .table tbody {
+    display: block;
+  }
+
+  .table tr {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.55rem 0.65rem;
+    align-items: center;
+    padding: 0.8rem 0.9rem;
+    border-bottom: 1px solid var(--erp-border);
+  }
+
   .table td {
-    padding: 0.6rem 0.75rem;
+    display: block;
+    padding: 0;
+    border: none;
     white-space: normal;
+  }
+
+  .rollCell {
+    min-width: 2rem;
+    height: 2rem;
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    padding: 0 0.4rem !important;
+    border-radius: var(--erp-radius-sm);
+    background: var(--erp-bg);
+    font-size: 0.8rem;
+    font-weight: 700;
+  }
+
+  .rollCell + td {
+    font-weight: 600;
+    font-size: 0.95rem;
+  }
+
+  .table td:last-child {
+    grid-column: 1 / -1;
+  }
+
+  .statusGroup {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.4rem;
+    width: 100%;
+  }
+
+  .statusChip {
+    min-height: 2.6rem;
+    padding: 0.4rem 0.2rem;
+    font-size: 0.82rem;
+    text-align: center;
+  }
+
+  .saveBar {
+    position: sticky;
+    bottom: calc(4.6rem + env(safe-area-inset-bottom));
+    z-index: 3;
+    padding: 0.75rem 0.9rem;
+    background: var(--erp-surface);
+    border-top: 1px solid var(--erp-border);
+  }
+
+  .saveBar > * {
+    width: 100%;
   }
 }

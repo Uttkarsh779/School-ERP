@@ -5,6 +5,7 @@ export interface StudentFormValues {
   rollNo: string;
   classSectionId: string;
   admissionNo: string;
+  admissionDate: string;
   dob: string;
   gender: string;
   bloodGroup: string;
@@ -17,6 +18,8 @@ export interface StudentFormValues {
   category: string;
   address: string;
   contactNumber: string;
+  nationality: string;
+  previousSchool: string;
 }
 
 export const emptyStudentFormValues: StudentFormValues = {
@@ -24,6 +27,7 @@ export const emptyStudentFormValues: StudentFormValues = {
   rollNo: "",
   classSectionId: "",
   admissionNo: "",
+  admissionDate: "",
   dob: "",
   gender: "",
   bloodGroup: "",
@@ -36,4 +40,6 @@ export const emptyStudentFormValues: StudentFormValues = {
   category: "",
   address: "",
   contactNumber: "",
+  nationality: "Indian",
+  previousSchool: "",
 };

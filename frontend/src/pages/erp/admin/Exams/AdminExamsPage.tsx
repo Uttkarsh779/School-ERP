@@ -144,7 +144,7 @@ const AdminExamsPage = () => {
   const openModal = () => {
     reset({
       name: "",
-      sessionId: String(sessions?.[0]?.id || ""),
+      sessionId: String((sessions?.find((s) => s.isCurrent) ?? sessions?.[0])?.id || ""),
       classSectionId: classSectionId || "",
       passPercentage: "33",
     });
@@ -342,14 +342,14 @@ const AdminExamsPage = () => {
       {!selectedExam && (
         <>
           {/* Summary Stat Cards */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "1rem", marginBottom: "1.25rem" }}>
+          <div className="erp-two-up-sm" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "1rem", marginBottom: "1.25rem" }}>
             <StatCard label="Total Exams Scheduled" value={exams?.length || 0} />
             <StatCard label="Class Sections" value={classSections?.length || 0} />
             <StatCard label="Active Session" value={sessions?.find((s) => s.isCurrent)?.name || "2026-27"} />
           </div>
 
           <Card title="School Exams Directory">
-            <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "1rem", alignItems: "flex-end", marginBottom: "1.25rem" }}>
+            <div className="erp-stack-sm" style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "1rem", alignItems: "flex-end", marginBottom: "1.25rem" }}>
               <Input
                 label="Search Exams"
                 type="text"
@@ -392,7 +392,7 @@ const AdminExamsPage = () => {
           }
         >
           {!isTeacher && (
-            <div style={{ background: "var(--erp-surface)", border: "1px solid var(--erp-border)", padding: "0.75rem 1rem", borderRadius: "var(--erp-radius-sm)", marginBottom: "1.25rem", color: "var(--erp-text-muted)", fontSize: "0.88rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <div style={{ background: "var(--erp-surface)", border: "1px solid var(--erp-border)", padding: "0.75rem 1rem", borderRadius: "var(--erp-radius-sm)", marginBottom: "1.25rem", color: "var(--erp-text-muted)", fontSize: "0.88rem", display: "flex", flexWrap: "wrap", alignItems: "center", gap: "0.5rem" }}>
               <span>👁️</span>
               <span>
                 <strong>Read-Only View:</strong> Administrators can review marks and report cards. Only assigned subject teachers can enter or modify marks.

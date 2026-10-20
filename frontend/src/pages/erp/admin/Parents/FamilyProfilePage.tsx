@@ -47,7 +47,7 @@ const FamilyProfilePage = () => {
     { key: "admissionNo", label: "Admission No", render: (r) => r.student.admissionNo },
     { key: "relationship", label: "Relationship", render: (r) => r.relationshipType || "—" },
     { key: "actions", label: "", render: (r) => (
-      <div style={{ display: "flex", gap: "8px" }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
         <Button size="sm" variant="outline" onClick={() => navigate(`/admin/students/${r.student.id}`)}>
           View Ledger
         </Button>
@@ -63,7 +63,7 @@ const FamilyProfilePage = () => {
         title={`${displayName} Family`}
         subtitle={`Contact: ${parent.contact || "N/A"} | Email: ${parent.email || "N/A"}`}
         actions={
-          <div style={{ display: "flex", gap: "10px" }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
             <Button variant="outline" onClick={() => navigate("/admin/parents")}>
               Back
             </Button>
@@ -74,7 +74,7 @@ const FamilyProfilePage = () => {
         }
       />
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px", marginBottom: "20px" }}>
+      <div className="erp-two-up-sm" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px", marginBottom: "20px" }}>
         <StatCard 
           label="Total Family Due" 
           value={`₹${duesSummary.familyTotal.toLocaleString()}`} 
@@ -86,7 +86,7 @@ const FamilyProfilePage = () => {
         />
       </div>
 
-      <div style={{ display: "flex", gap: "12px", marginBottom: "20px" }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", marginBottom: "20px" }}>
         {tabs.map((tab) => (
           <Button
             key={tab.id}
@@ -113,7 +113,7 @@ const FamilyProfilePage = () => {
                         Class {childSummary.student.classSection?.className} {childSummary.student.classSection?.section} • Roll No: {childSummary.student.rollNo}
                       </div>
                     </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "10px" }}>
                       <Badge tone={childSummary.dueSummary.netPayable > 0 ? "danger" : "success"}>
                         Due: ₹{childSummary.dueSummary.netPayable.toLocaleString()}
                       </Badge>
@@ -159,7 +159,7 @@ const FamilyProfilePage = () => {
                       />
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px", fontWeight: 700, color: "var(--erp-text)", borderTop: "1px solid var(--erp-border)", background: "var(--erp-primary-50)", flexWrap: "wrap", gap: "10px" }}>
                         <span>Net Payable for {childSummary.student.name}</span>
-                        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "12px" }}>
                           <span style={{ fontSize: "1.1rem" }}>₹{childSummary.dueSummary.netPayable.toLocaleString()}</span>
                           {childSummary.dueSummary.netPayable > 0 && (
                             <Button

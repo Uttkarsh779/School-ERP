@@ -27,7 +27,7 @@
 
 .statsGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
   gap: 1rem;
 }
 
@@ -63,7 +63,7 @@
 
 .twoCol {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
   gap: 1.25rem;
   align-items: stretch;
 }
@@ -271,4 +271,50 @@
   background: var(--erp-info-bg);
   color: var(--erp-info);
   font-size: 0.85rem;
+}
+
+/* Phones: two-up instead of one long column */
+@media (max-width: 640px) {
+  .statsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.65rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .page {
+    gap: 1rem;
+  }
+
+  .filters {
+    max-width: none;
+  }
+
+  .statusRow {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    margin: 0 -1rem;
+    padding: 0 1rem 2px;
+  }
+
+  .statusChip {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  .topperItem {
+    padding: 0.6rem 0.7rem;
+    gap: 0.6rem;
+  }
+
+  .cardTable th,
+  .cardTable td {
+    padding: 0.45rem 0.3rem;
+    font-size: 0.82rem;
+  }
+
+  .modalActions > * {
+    width: 100%;
+  }
 }

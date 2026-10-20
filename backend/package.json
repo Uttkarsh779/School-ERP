@@ -19,6 +19,10 @@
     "test:fee-flow": "node --no-experimental-strip-types -r ts-node/register src/tests/fee_flow.test.ts",
     "test:admin-dashboard": "node --no-experimental-strip-types -r ts-node/register src/tests/admin_dashboard.test.ts",
     "test:teacher-features": "node --no-experimental-strip-types -r ts-node/register src/tests/teacher_features.test.ts",
+    "test:cms": "node --no-experimental-strip-types -r ts-node/register src/tests/cms.test.ts",
+    "test:billing-rules": "node --no-experimental-strip-types -r ts-node/register --test src/tests/billing_rules.test.ts",
+    "test:notices": "node --no-experimental-strip-types -r ts-node/register src/tests/notices.test.ts",
+    "test:rollover": "node --no-experimental-strip-types -r ts-node/register src/tests/session_rollover.test.ts",
     "seed": "npx ts-node prisma/seed.ts",
     "seed:concessions": "npx ts-node src/utils/seedConcessions.ts"
   },

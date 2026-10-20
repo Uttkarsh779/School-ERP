@@ -17,7 +17,7 @@ const sanitize = (classSection: any) => {
 };
 
 export const getClassSections = async (req: CustomRequest, res: Response): Promise<void> => {
-  const sessionId = req.query.sessionId ? Number(req.query.sessionId) : undefined;
+  const sessionId = req.query.sessionId === "all" ? "all" : req.query.sessionId ? Number(req.query.sessionId) : undefined;
   const classSections = await listClassSections(sessionId);
   res.status(200).json({ success: true, data: classSections.map(sanitize) });
 };
@@ -29,7 +29,8 @@ export const getMyClassSections = async (req: CustomRequest, res: Response): Pro
     return;
   }
   const classSections = await listClassSectionsForTeacher(staff.id);
-  res.status(200).json({ success: true, data: classSections });
+  // isClassTeacher: only the class teacher marks a class's daily attendance.
+  res.status(200).json({ success: true, data: classSections.map((cs: any) => ({ ...cs, isClassTeacher: cs.classTeacherId === staff.id })) });
 };
 
 export const postClassSection = async (req: CustomRequest, res: Response): Promise<void> => {

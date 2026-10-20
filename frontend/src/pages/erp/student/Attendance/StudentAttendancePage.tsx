@@ -1,66 +1,60 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "react-toastify";
-import { Badge, Card, EmptyState, PageHeader, Spinner, StatCard, Table } from "../../../../components/ui";
-import type { TableColumn } from "../../../../components/ui";
+import { EmptyState, PageHeader, Spinner } from "../../../../components/ui";
 import { useGetStudentAttendanceSummaryQuery } from "../../../../store/api/attendance.api";
 import { useGetMyStudentProfileQuery } from "../../../../store/api/students.api";
 import styles from "./StudentAttendancePage.module.css";
 
-const statusTone: Record<AttendanceStatus, "success" | "danger" | "warning" | "info"> = {
-  PRESENT: "success",
-  ABSENT: "danger",
-  LATE: "warning",
-  LEAVE: "info",
+const STATUS: Record<AttendanceStatus, { short: string; label: string; cls: string }> = {
+  PRESENT: { short: "P", label: "Present", cls: "present" },
+  ABSENT: { short: "A", label: "Absent", cls: "absent" },
+  LATE: { short: "L", label: "Late", cls: "late" },
+  LEAVE: { short: "Lv", label: "Leave", cls: "leave" },
 };
+const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
-const formatDate = (value: string) => {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
-};
+type Counts = Record<AttendanceStatus, number>;
+const emptyCounts = (): Counts => ({ PRESENT: 0, ABSENT: 0, LATE: 0, LEAVE: 0 });
+const markedOf = (c: Counts) => c.PRESENT + c.ABSENT + c.LATE + c.LEAVE;
+// Same rule as the school's reports: present days out of days marked.
+const pct = (c: Counts) => (markedOf(c) ? Math.round((c.PRESENT / markedOf(c)) * 1000) / 10 : null);
+const tone = (p: number | null) => (p === null ? "" : p >= 75 ? styles.good : p >= 50 ? styles.warn : styles.bad);
+const pad = (n: number) => String(n).padStart(2, "0");
 
-const percentageTone = (percentage: number) => {
-  if (percentage >= 75) return "good";
-  if (percentage >= 50) return "warn";
-  return "bad";
-};
-
+// Student attendance: overall figures, a month calendar (one coloured cell per school day)
+// and a month-by-month summary — how school ERPs show attendance to families.
 const StudentAttendancePage = () => {
   const { data: profile, isLoading: profileLoading, isError: profileError } = useGetMyStudentProfileQuery();
-
-  const {
-    data: summary,
-    isLoading: summaryLoading,
-    isFetching: summaryFetching,
-    isError: summaryError,
-  } = useGetStudentAttendanceSummaryQuery({ studentId: profile?.id ?? 0 }, { skip: !profile });
+  const { data: summary, isLoading, isError } = useGetStudentAttendanceSummaryQuery({ studentId: profile?.id ?? 0 }, { skip: !profile });
+  const [month, setMonth] = useState<string | null>(null); // "YYYY-MM"
 
   useEffect(() => {
     if (profileError) toast.error("Failed to load your profile.");
-    if (summaryError) toast.error("Failed to load your attendance.");
-  }, [profileError, summaryError]);
+    if (isError) toast.error("Failed to load your attendance.");
+  }, [profileError, isError]);
 
-  const sortedRecords = useMemo(
-    () => [...(summary?.records ?? [])].sort((a, b) => (a.date < b.date ? 1 : -1)),
-    [summary]
-  );
+  // date (YYYY-MM-DD) -> status, plus per-month counts.
+  const { byDate, months, overall } = useMemo(() => {
+    const byDate = new Map<string, AttendanceStatus>();
+    const months = new Map<string, Counts>();
+    const overall = emptyCounts();
+    for (const r of summary?.records ?? []) {
+      const d = r.date.slice(0, 10);
+      byDate.set(d, r.status);
+      const k = d.slice(0, 7);
+      const c = months.get(k) ?? emptyCounts();
+      c[r.status]++;
+      months.set(k, c);
+      overall[r.status]++;
+    }
+    return { byDate, months, overall };
+  }, [summary]);
 
-  const columns: TableColumn<IAttendanceRecord>[] = [
-    { key: "date", label: "Date", render: (row) => formatDate(row.date) },
-    {
-      key: "status",
-      label: "Status",
-      render: (row) => (
-        <Badge tone={statusTone[row.status]}>{row.status.charAt(0) + row.status.slice(1).toLowerCase()}</Badge>
-      ),
-    },
-  ];
+  const monthKeys = useMemo(() => [...months.keys()].sort(), [months]);
+  const active = month && months.has(month) ? month : monthKeys[monthKeys.length - 1];
 
-  const subtitle = profile?.classSection
-    ? `${profile.classSection.className} - ${profile.classSection.section}`
-    : "Ram Raj Singh International School";
-
-  if (profileLoading) {
+  if (profileLoading || (profile && isLoading)) {
     return (
       <div>
         <PageHeader title="Attendance" />
@@ -69,35 +63,165 @@ const StudentAttendancePage = () => {
     );
   }
 
+  const subtitle = profile?.classSection ? `${profile.classSection.className} - ${profile.classSection.section}` : undefined;
+
+  if (isError || !summary || summary.total === 0 || !active) {
+    return (
+      <div>
+        <PageHeader title="Attendance" subtitle={subtitle} />
+        {isError ? (
+          <EmptyState title="Couldn't load attendance" description="Please try refreshing the page." />
+        ) : (
+          <EmptyState title="No attendance recorded yet" description="Your attendance will appear here once your class teacher marks it." />
+        )}
+      </div>
+    );
+  }
+
+  const [y, m] = active.split("-").map(Number);
+  const year = y;
+  const mon = m - 1;
+  const idx = monthKeys.indexOf(active);
+  const monthCounts = months.get(active) ?? emptyCounts();
+  const monthPct = pct(monthCounts);
+  const overallPct = summary.percentage;
+
+  // Calendar cells, weeks starting Monday.
+  const first = new Date(year, mon, 1);
+  const lead = (first.getDay() + 6) % 7;
+  const days = new Date(year, mon + 1, 0).getDate();
+  const today = new Date();
+  const todayKey = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
+  const cells: Array<{ day: number; key: string; status?: AttendanceStatus; weekday: number } | null> = [
+    ...Array.from({ length: lead }, () => null),
+    ...Array.from({ length: days }, (_, i) => {
+      const key = `${year}-${pad(mon + 1)}-${pad(i + 1)}`;
+      return { day: i + 1, key, status: byDate.get(key), weekday: (lead + i) % 7 };
+    }),
+  ];
+
   return (
-    <div>
+    <div className={styles.page}>
       <PageHeader title="Attendance" subtitle={subtitle} />
 
-      {summaryLoading || summaryFetching ? (
-        <Spinner />
-      ) : summaryError ? (
-        <EmptyState title="Couldn't load attendance" description="Please try refreshing the page." />
-      ) : !summary || summary.total === 0 ? (
-        <EmptyState
-          title="No attendance recorded yet"
-          description="Your attendance will appear here once your class teacher marks it."
-        />
-      ) : (
-        <>
-          <div className={styles.statsRow}>
-            <div className={[styles.percentageCard, styles[percentageTone(summary.percentage)]].join(" ")}>
-              <div className={styles.percentageValue}>{summary.percentage.toFixed(1)}%</div>
-              <div className={styles.percentageLabel}>Overall attendance</div>
-            </div>
-            <StatCard label="Days Present" value={summary.present} />
-            <StatCard label="Total Days Marked" value={summary.total} />
+      {/* Overall */}
+      <section className={styles.overview}>
+        <div className={styles.ringWrap}>
+          <div className={`${styles.ring} ${tone(overallPct)}`} style={{ ["--p" as string]: `${overallPct}` }}>
+            <span>{overallPct.toFixed(1)}%</span>
           </div>
+          <div>
+            <div className={styles.overviewTitle}>Overall attendance</div>
+            <div className={styles.muted}>
+              {summary.present} of {summary.total} days present
+            </div>
+            {overallPct < 75 && <div className={styles.warnText}>Below the 75% required — please attend regularly.</div>}
+          </div>
+        </div>
+        <div className={styles.counts}>
+          {(Object.keys(STATUS) as AttendanceStatus[]).map((s) => (
+            <div key={s} className={`${styles.count} ${styles[STATUS[s].cls]}`}>
+              <strong>{overall[s]}</strong>
+              <span>{STATUS[s].label}</span>
+            </div>
+          ))}
+        </div>
+      </section>
 
-          <Card padded={false} className={styles.tableCard}>
-            <Table columns={columns} data={sortedRecords} keyField="id" emptyMessage="No records yet" />
-          </Card>
-        </>
-      )}
+      {/* Month calendar */}
+      <section className={styles.panel}>
+        <header className={styles.calHead}>
+          <button type="button" className={styles.navBtn} onClick={() => setMonth(monthKeys[idx - 1])} disabled={idx <= 0} aria-label="Previous month">
+            ‹
+          </button>
+          <div className={styles.calTitle}>
+            <strong>
+              {MONTHS[mon]} {year}
+            </strong>
+            <span className={`${styles.monthPct} ${tone(monthPct)}`}>{monthPct === null ? "—" : `${monthPct}%`}</span>
+          </div>
+          <button type="button" className={styles.navBtn} onClick={() => setMonth(monthKeys[idx + 1])} disabled={idx >= monthKeys.length - 1} aria-label="Next month">
+            ›
+          </button>
+        </header>
+
+        <div className={styles.calendar} role="grid" aria-label={`Attendance for ${MONTHS[mon]} ${year}`}>
+          {WEEKDAYS.map((d) => (
+            <div key={d} className={`${styles.weekday} ${d === "Sun" ? styles.sunday : ""}`}>
+              {d.slice(0, 1)}
+              <span className={styles.weekdayRest}>{d.slice(1)}</span>
+            </div>
+          ))}
+          {cells.map((c, i) =>
+            c ? (
+              <div
+                key={c.key}
+                role="gridcell"
+                className={`${styles.day} ${c.status ? styles[STATUS[c.status].cls] : c.weekday === 6 ? styles.holiday : ""} ${c.key === todayKey ? styles.today : ""}`}
+                title={c.status ? `${c.day} ${MONTHS[mon]}: ${STATUS[c.status].label}` : undefined}
+              >
+                <span className={styles.dayNum}>{c.day}</span>
+                {c.status && <span className={styles.dayMark}>{STATUS[c.status].short}</span>}
+              </div>
+            ) : (
+              <div key={`b${i}`} />
+            )
+          )}
+        </div>
+
+        <div className={styles.legend}>
+          {(Object.keys(STATUS) as AttendanceStatus[]).map((s) => (
+            <span key={s}>
+              <i className={styles[STATUS[s].cls]} /> {STATUS[s].label} <b>{monthCounts[s]}</b>
+            </span>
+          ))}
+          <span>
+            <i className={styles.blank} /> Not marked / holiday
+          </span>
+        </div>
+      </section>
+
+      {/* Month-wise summary */}
+      <section className={styles.panel}>
+        <h2 className={styles.panelTitle}>Month-wise summary</h2>
+        <div className={styles.tableWrap}>
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th>Month</th>
+                <th>Present</th>
+                <th>Absent</th>
+                <th className={styles.hideSm}>Late</th>
+                <th className={styles.hideSm}>Leave</th>
+                <th>%</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...monthKeys].reverse().map((k) => {
+                const c = months.get(k)!;
+                const p = pct(c);
+                const [ky, km] = k.split("-").map(Number);
+                return (
+                  <tr key={k} className={k === active ? styles.rowActive : undefined} onClick={() => setMonth(k)}>
+                    <td>
+                      <button type="button" className={styles.monthLink}>
+                        {MONTHS[km - 1].slice(0, 3)} {ky}
+                      </button>
+                    </td>
+                    <td>{c.PRESENT}</td>
+                    <td className={c.ABSENT ? styles.absentText : undefined}>{c.ABSENT}</td>
+                    <td className={styles.hideSm}>{c.LATE}</td>
+                    <td className={styles.hideSm}>{c.LEAVE}</td>
+                    <td>
+                      <span className={`${styles.pctPill} ${tone(p)}`}>{p === null ? "—" : `${p}%`}</span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </section>
     </div>
   );
 };

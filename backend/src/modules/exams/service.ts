@@ -7,6 +7,13 @@ export const listExamsForClassSection = (classSectionId?: number) =>
     orderBy: { id: "desc" },
   });
 
+export const listExamsForClassSections = (classSectionIds: number[]) =>
+  prisma.exam.findMany({
+    where: { classSectionId: { in: classSectionIds } },
+    include: { session: true, classSection: true, lockedByUser: { select: { id: true, name: true } } },
+    orderBy: { id: "desc" },
+  });
+
 export const getExamById = (id: number) => prisma.exam.findUnique({ where: { id } });
 
 // All results already entered for an exam (student x subject) — used to pre-fill

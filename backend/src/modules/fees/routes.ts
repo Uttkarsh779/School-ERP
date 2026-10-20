@@ -98,10 +98,10 @@ router.post(
   asyncHandler(controller.postMultiMonthPayment)
 );
 
-// Waivers
-router.post("/fees/adjustments/waive-late-fee", authorizeRoles(["SUPER_ADMIN"]), asyncHandler(controller.postWaiveLateFee));
-router.post("/fees/adjustments/waive-small-balance", authorizeRoles(["SUPER_ADMIN"]), asyncHandler(controller.postWaiveSmallBalance));
-router.post("/fees/adjustments/waive-fee", authorizeRoles(["SUPER_ADMIN"]), asyncHandler(controller.postWaiveFee));
+// Waivers — Admin and Super Admin
+router.post("/fees/adjustments/waive-late-fee", authorizeRoles(["SUPER_ADMIN", "ADMIN"]), asyncHandler(controller.postWaiveLateFee));
+router.post("/fees/adjustments/waive-small-balance", authorizeRoles(["SUPER_ADMIN", "ADMIN"]), asyncHandler(controller.postWaiveSmallBalance));
+router.post("/fees/adjustments/waive-fee", authorizeRoles(["SUPER_ADMIN", "ADMIN"]), asyncHandler(controller.postWaiveFee));
 
 // Receipts
 router.get(

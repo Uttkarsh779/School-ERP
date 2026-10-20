@@ -6,7 +6,7 @@
 
 .statsGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
   gap: 1rem;
 }
 
@@ -171,3 +171,61 @@
   gap: 0.5rem;
 }
 
+/* Phones: two-up instead of one long column */
+@media (max-width: 640px) {
+  .statsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.65rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .container {
+    gap: 1rem;
+  }
+
+  .filterCard {
+    padding: 0.9rem;
+  }
+
+  .tabGroup {
+    width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .tab {
+    flex: 1 0 auto;
+    padding: 0.55rem 0.8rem;
+    white-space: nowrap;
+  }
+
+  .searchBox {
+    min-width: 0;
+    flex-basis: 100%;
+  }
+
+  .filterSelect {
+    flex: 1;
+    width: auto;
+    min-width: 0;
+  }
+
+  .formActions {
+    flex-direction: column-reverse;
+  }
+
+  .formActions > * {
+    width: 100%;
+  }
+
+  .infoGrid {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+    padding: 0.85rem;
+  }
+
+  .infoValue {
+    word-break: break-word;
+  }
+}

@@ -1,25 +1,575 @@
-/* Student fees page — layout bits on top of the shared fee styles (admin/Fees/Fees.module.css). */
+/* Student fee page (standard ERP layout) — on top of the shared fee styles (admin/Fees/Fees.module.css). */
 
-.payRow {
+/* ---------- Account strip ---------- */
+.account {
   display: flex;
-  align-items: flex-end;
-  gap: 1rem;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1.5rem;
   flex-wrap: wrap;
+  background: var(--erp-surface);
+  border: 1px solid var(--erp-border);
+  border-radius: var(--erp-radius-lg);
+  box-shadow: var(--erp-shadow-sm);
+  padding: 1.1rem 1.35rem;
 }
 
-.payInput {
-  width: 200px;
+.accountWho {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  min-width: 0;
 }
 
-.monthList {
+.accountAvatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  flex-shrink: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  place-items: center;
+  background: var(--erp-primary-100);
+  color: var(--erp-primary-700);
+  font-weight: 800;
+  font-size: 1.15rem;
+}
+
+.accountName {
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+
+.accountMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.9rem;
+  font-size: 0.84rem;
+  color: var(--erp-text-muted);
+  margin-top: 0.15rem;
+}
+
+.progressBox {
+  width: min(320px, 100%);
+}
+
+.progressHead {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.84rem;
+  color: var(--erp-text-muted);
+  margin-bottom: 0.4rem;
+}
+
+.progressHead strong {
+  color: var(--erp-success);
+  font-size: 0.95rem;
+}
+
+.progress {
+  height: 10px;
+  border-radius: 999px;
+  background: var(--erp-bg);
+  border: 1px solid var(--erp-border);
+  overflow: hidden;
+}
+
+.progress span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #2eaf6b, var(--erp-success));
+  transition: width 400ms ease;
+}
+
+.progressFoot {
+  font-size: 0.8rem;
+  color: var(--erp-text-muted);
+  margin-top: 0.35rem;
+  text-align: right;
+}
+
+/* ---------- Summary tiles ---------- */
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.tile {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  background: var(--erp-surface);
+  border: 1px solid var(--erp-border);
+  border-top: 3px solid var(--erp-border);
+  border-radius: var(--erp-radius-md);
+  padding: 0.95rem 1.1rem;
+}
+
+.tileLabel {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--erp-text-muted);
+}
+
+.tileValue {
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.tileHint {
+  font-size: 0.8rem;
+  color: var(--erp-text-muted);
+}
+
+.tilePaid {
+  border-top-color: var(--erp-success);
+}
+
+.tilePaid .tileValue {
+  color: var(--erp-success);
+}
+
+.tileDue {
+  border-top-color: var(--erp-info);
+}
+
+.tileDanger {
+  border-top-color: var(--erp-danger);
+  background: linear-gradient(180deg, var(--erp-danger-bg), var(--erp-surface) 70%);
+}
+
+.tileDanger .tileValue {
+  color: var(--erp-danger);
+}
+
+.alert {
+  border: 1px solid #f5c2bd;
+  background: var(--erp-danger-bg);
+  color: #8f2a20;
+  border-radius: var(--erp-radius-md);
+  padding: 0.8rem 1rem;
+  font-size: 0.9rem;
+}
+
+/* ---------- Schedule + pay panel ---------- */
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 330px;
   gap: 1.25rem;
   align-items: start;
 }
 
-@media (max-width: 480px) {
-  .payInput {
+.schedule,
+.payPanel,
+.records {
+  background: var(--erp-surface);
+  border: 1px solid var(--erp-border);
+  border-radius: var(--erp-radius-lg);
+  box-shadow: var(--erp-shadow-sm);
+}
+
+.schedule {
+  overflow: hidden;
+}
+
+.panelHead {
+  padding: 1rem 1.25rem 0.75rem;
+  border-bottom: 1px solid var(--erp-border);
+}
+
+.panelTitle {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--erp-text);
+}
+
+.panelSub {
+  margin: 0.2rem 0 0;
+  font-size: 0.84rem;
+  color: var(--erp-text-muted);
+}
+
+.tableWrap {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.table th {
+  text-align: left;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--erp-text-muted);
+  background: var(--erp-bg);
+  padding: 0.6rem 0.75rem;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--erp-border);
+}
+
+.table td {
+  padding: 0.7rem 0.75rem;
+  border-bottom: 1px solid var(--erp-border);
+  white-space: nowrap;
+  color: var(--erp-text);
+}
+
+.table tfoot td {
+  font-weight: 700;
+  background: var(--erp-bg);
+  border-bottom: none;
+}
+
+.num {
+  text-align: right !important;
+  font-variant-numeric: tabular-nums;
+}
+
+.strong {
+  font-weight: 700;
+}
+
+.dim {
+  color: var(--erp-text-muted);
+  font-size: 0.85rem;
+}
+
+.row {
+  cursor: pointer;
+  transition: background var(--erp-transition-fast);
+}
+
+.row:hover {
+  background: var(--erp-primary-50);
+}
+
+.rowSelected {
+  background: var(--erp-primary-50);
+}
+
+.rowSelected td:first-child {
+  box-shadow: inset 3px 0 0 var(--erp-primary-600);
+}
+
+.rowMuted td {
+  color: var(--erp-text-muted);
+}
+
+.checkCol {
+  width: 44px;
+  text-align: center !important;
+}
+
+.check {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: var(--erp-primary-600);
+}
+
+.paidTick {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--erp-success-bg);
+  color: var(--erp-success);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.monthCell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.dueLine {
+  display: block;
+  font-size: 0.76rem;
+  color: var(--erp-text-muted);
+  font-weight: 400;
+}
+
+.caret {
+  width: 0.8rem;
+  color: var(--erp-text-muted);
+  font-size: 0.75rem;
+}
+
+.detailRow > td {
+  background: #fcfcfd;
+  padding-top: 0.25rem;
+  padding-bottom: 0.75rem;
+  white-space: normal;
+}
+
+.headTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.84rem;
+}
+
+.headTable td {
+  padding: 0.35rem 0.5rem;
+  border-bottom: 1px dashed var(--erp-border);
+}
+
+.headTable tr:last-child td {
+  border-bottom: none;
+}
+
+.note {
+  margin: 0.5rem 0 0;
+  font-size: 0.78rem;
+  color: var(--erp-text-muted);
+}
+
+/* Pay panel */
+.payPanel {
+  position: sticky;
+  top: 1rem;
+  padding: 1.1rem 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.payList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.payList li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.9rem;
+}
+
+.payList small {
+  display: block;
+  font-size: 0.76rem;
+}
+
+.quickPick {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.linkBtn {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--erp-primary-700);
+  cursor: pointer;
+}
+
+.linkBtn:hover {
+  text-decoration: underline;
+}
+
+.custom {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.payTotal {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding-top: 0.75rem;
+  border-top: 1px dashed var(--erp-border);
+  font-size: 0.92rem;
+}
+
+.payTotal strong {
+  font-size: 1.45rem;
+}
+
+.secure {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--erp-text-muted);
+  text-align: center;
+}
+
+.panelNote {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--erp-text-muted);
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--erp-border);
+}
+
+.allPaid {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  text-align: center;
+  padding: 0.75rem 0;
+}
+
+.allPaidIcon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--erp-success-bg);
+  color: var(--erp-success);
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  font-size: 1.3rem;
+  margin-bottom: 0.25rem;
+}
+
+/* ---------- Records ---------- */
+.records {
+  padding: 1rem 1.2rem;
+}
+
+.recordsHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+
+.records .table {
+  border: 1px solid var(--erp-border);
+  border-radius: var(--erp-radius-md);
+}
+
+.receipts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.receipt {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.8rem 0.25rem;
+  border-bottom: 1px solid var(--erp-border);
+}
+
+.receipt:last-child {
+  border-bottom: none;
+}
+
+.receiptIcon {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  background: var(--erp-success-bg);
+  color: var(--erp-success);
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+}
+
+.receiptMain {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.receiptRefunds {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  margin-top: 0.2rem;
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 1100px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .payPanel {
+    position: static;
+  }
+
+  .tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .account {
+    padding: 0.95rem;
+  }
+
+  .progressBox {
     width: 100%;
+  }
+
+  .tiles {
+    gap: 0.65rem;
+  }
+
+  .tile {
+    padding: 0.75rem 0.85rem;
+  }
+
+  .tileValue {
+    font-size: 1.2rem;
+  }
+
+  /* Phones: hide the less important money columns; the breakdown row still shows them. */
+  .hideSm {
+    display: none;
+  }
+
+  .detailRow > td:first-child {
+    display: none;
+  }
+
+  .receipt {
+    flex-wrap: wrap;
+  }
+
+  .receipt > :last-child {
+    width: 100%;
+    padding-left: calc(40px + 0.9rem);
+  }
+
+  .table td,
+  .table th {
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
   }
 }

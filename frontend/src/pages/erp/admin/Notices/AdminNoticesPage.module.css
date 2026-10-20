@@ -49,3 +49,17 @@
   font-size: 0.78rem;
   color: var(--erp-danger);
 }
+
+@media (max-width: 640px) {
+  .textarea {
+    font-size: 16px;
+  }
+
+  .formActions {
+    flex-direction: column-reverse;
+  }
+
+  .formActions > * {
+    width: 100%;
+  }
+}

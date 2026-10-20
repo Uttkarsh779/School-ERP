@@ -74,7 +74,7 @@ const RecordStudentPaymentModal: React.FC<RecordStudentPaymentModalProps> = ({
             <strong>{student.name}</strong>
             <div className={styles.childMeta}>
               {student.classSection
-                ? `Class ${student.classSection.className} ${student.classSection.section}`
+                ? `${student.classSection.className} - ${student.classSection.section}`
                 : "Class N/A"}{" "}
               • Roll No: {student.rollNo || "N/A"}
             </div>

@@ -322,7 +322,7 @@ export const AdminTransportVillagesSection = () => {
             Configure transport location rate masters and per-student assignments
           </p>
         </div>
-        <div style={{ display: "flex", gap: "0.75rem" }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem" }}>
           <Button variant="outline" onClick={() => setShowAddVillage(true)}>
             + Add Location
           </Button>
@@ -362,7 +362,7 @@ export const AdminTransportVillagesSection = () => {
               key: "actions",
               label: "Actions",
               render: (row: Village) => (
-                <div style={{ display: "flex", gap: "0.5rem" }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
                   <Button
                     size="sm"
                     variant="outline"
@@ -453,7 +453,7 @@ export const AdminTransportVillagesSection = () => {
               onChange={(e) => setNewVillageFee(e.target.value)}
               placeholder="e.g. 1200"
             />
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginTop: "0.5rem" }}>
+            <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "flex-end", gap: "0.5rem", marginTop: "0.5rem" }}>
               <Button variant="outline" type="button" onClick={() => setShowAddVillage(false)}>
                 Cancel
               </Button>
@@ -483,7 +483,7 @@ export const AdminTransportVillagesSection = () => {
               onChange={(e) => setEditEffectiveDate(e.target.value)}
               hint="Historical charges remain unchanged; future charges on or after this date use the new fee."
             />
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginTop: "0.5rem" }}>
+            <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "flex-end", gap: "0.5rem", marginTop: "0.5rem" }}>
               <Button variant="outline" type="button" onClick={() => setEditVillageId(null)}>
                 Cancel
               </Button>
@@ -502,7 +502,7 @@ export const AdminTransportVillagesSection = () => {
             {/* RICH STUDENT SEARCH & CLASS FILTER CONTROL BAR */}
             <div style={{ background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", padding: "0.85rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
               <div style={{ fontSize: "0.82rem", fontWeight: 700, color: "#1e293b" }}>Search & Filter Students:</div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+              <div className="erp-stack-sm" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
                 <Input
                   label="Search Name / Admission / Roll No"
                   placeholder="e.g. Rahul, ADM2026001, 801"
@@ -558,7 +558,7 @@ export const AdminTransportVillagesSection = () => {
                 { label: "Stop from next month — Start charging from next month", value: "NEXT_PERIOD" },
               ]}
             />
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginTop: "0.5rem" }}>
+            <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "flex-end", gap: "0.5rem", marginTop: "0.5rem" }}>
               <Button variant="outline" type="button" onClick={() => setShowAssignModal(false)}>
                 Cancel
               </Button>
@@ -598,7 +598,7 @@ export const AdminTransportVillagesSection = () => {
                 { label: "No charge starting next month", value: "NEXT_PERIOD" },
               ]}
             />
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginTop: "0.5rem" }}>
+            <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "flex-end", gap: "0.5rem", marginTop: "0.5rem" }}>
               <Button variant="outline" type="button" onClick={() => setDiscontinueId(null)}>
                 Cancel
               </Button>

@@ -102,6 +102,12 @@ describe("access control", () => {
     assert.strictEqual((await call("GET", "/api/profile/me")).status, 401);
     assert.strictEqual((await call("POST", "/api/profile/change-password")).status, 401);
   });
+  test("profile endpoints are closed to roles without a portal", async () => {
+    assert.strictEqual((await call("GET", "/api/profile/me", tokenFor(999999, "PARENT"))).status, 403);
+    assert.strictEqual((await call("PATCH", "/api/profile/me", tokenFor(999999, "PARENT"), { name: "X Y" })).status, 403);
+    assert.strictEqual((await call("POST", "/api/profile/change-password", tokenFor(999999, "PARENT"), {})).status, 403);
+    assert.strictEqual((await call("GET", "/api/profile/me", tokenFor(999999, "UNKNOWN"))).status, 403);
+  });
   test("My Students is teacher-only", async () => {
     assert.strictEqual((await call("GET", "/api/teaching/students?classSectionId=1", tokenFor(999999, "ADMIN"))).status, 403);
     assert.strictEqual((await call("GET", "/api/teaching/students?classSectionId=1", tokenFor(999999, "TEACHER"))).status, 403);

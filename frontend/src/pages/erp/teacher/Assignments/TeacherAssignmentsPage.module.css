@@ -33,7 +33,7 @@
 
 .formRow {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
   gap: 1rem;
 }
 
@@ -157,4 +157,36 @@
   border-radius: var(--erp-radius-sm);
   background: var(--erp-surface);
   color: var(--erp-text);
+}
+
+@media (max-width: 640px) {
+  .page {
+    gap: 1rem;
+  }
+
+  .filters {
+    max-width: none;
+  }
+
+  .textarea,
+  .commentInput {
+    font-size: 16px;
+  }
+
+  .commentInput {
+    min-width: 0;
+    flex-basis: 100%;
+  }
+
+  .reviewRow > button {
+    flex: 1;
+  }
+
+  .formActions {
+    flex-direction: column-reverse;
+  }
+
+  .formActions > * {
+    width: 100%;
+  }
 }

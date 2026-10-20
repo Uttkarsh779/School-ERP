@@ -45,6 +45,13 @@ export const authSlice = createSlice({
       localStorage.setItem("refreshToken", action.payload.refreshToken);
       localStorage.setItem("user", JSON.stringify(action.payload.user));
     },
+    // Keeps the signed-in user's saved details (name etc.) in step with their profile, so a
+    // renamed account shows the new name everywhere without signing in again.
+    updateUser: (state, action: PayloadAction<Partial<IUser>>) => {
+      if (!state.user?.id) return;
+      state.user = { ...state.user, ...action.payload };
+      localStorage.setItem("user", JSON.stringify(state.user));
+    },
     resetTokens: (state) => {
       state.accessToken = "";
       state.refreshToken = "";
@@ -57,6 +64,6 @@ export const authSlice = createSlice({
   },
 });
 
-export const { setLoading, setTokens, resetTokens } = authSlice.actions;
+export const { setLoading, setTokens, updateUser, resetTokens } = authSlice.actions;
 
 export default authSlice.reducer;

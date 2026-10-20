@@ -209,7 +209,7 @@ export const deleteFeeStructure = async (req: CustomRequest, res: Response) => {
 
 // Fee Charges
 export const postGenerateCharges = async (req: CustomRequest, res: Response) => {
-  const result = await feeChargeService.generateChargesForClassSection(req.body);
+  const result = await feeChargeService.generateChargesForClassSection({ ...req.body, appliedByUserId: req.user!.id });
   await ledgerService.createAuditLog({
     action: "GENERATE_FEE_CHARGES",
     entityType: "ClassSection",
@@ -729,7 +729,7 @@ export const postPreviewCollectionPeriod = async (req: CustomRequest, res: Respo
 };
 
 export const postGenerateCollectionPeriodBills = async (req: CustomRequest, res: Response) => {
-  const result = await collectionEngineService.generateCollectionPeriodBills(req.body);
+  const result = await collectionEngineService.generateCollectionPeriodBills({ ...req.body, appliedByUserId: req.user!.id });
   await ledgerService.createAuditLog({
     action: "GENERATE_COLLECTION_PERIOD_BILLS",
     entityType: "CollectionPeriod",
@@ -837,17 +837,9 @@ export const getStudentMonthsChart = async (req: CustomRequest, res: Response) =
   }
 };
 
+// Admins and Super Admins can both apply waivers/discounts here (the route allows only
+// those two roles); every waiver is stored with its reason and who applied it.
 export const postMultiMonthPayment = async (req: CustomRequest, res: Response) => {
-  const body = req.body ?? {};
-  const requestsWaiver =
-    Boolean(body.waiveLateFines) ||
-    Number(body.lumpSumDiscount?.value) > 0 ||
-    (Array.isArray(body.selectedMonths) &&
-      body.selectedMonths.some((m: any) => Array.isArray(m.headWaivers) && m.headWaivers.some((w: any) => Number(w.waiverAmount) > 0)));
-  if (requestsWaiver && req.user!.role !== "SUPER_ADMIN") {
-    res.status(403).json({ success: false, message: "Only a Super Admin can apply waivers or discounts at the payment desk" });
-    return;
-  }
   try {
     const result = await multiMonthPaymentService.recordMultiMonthPayment(req.body, req.user!.id);
     res.status(201).json({ success: true, data: result });
