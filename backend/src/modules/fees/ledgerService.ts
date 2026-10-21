@@ -164,6 +164,8 @@ export const getCollectionReport = async (startDate?: Date, endDate?: Date) => {
   };
 };
 
+const MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
 // A defaulter has at least one charge PAST its due date that isn't fully paid.
 export const getDefaultersReport = async (classSectionId?: number) => {
   const now = new Date();
@@ -204,6 +206,13 @@ export const getDefaultersReport = async (classSectionId?: number) => {
       classSectionId: s.classSectionId,
       classSection: `${s.classSection.className} - ${s.classSection.section}`,
       contactNumber: s.contactNumber || s.fatherContact || s.motherContact,
+      fatherName: s.fatherName ?? null,
+      // Months with overdue fees, oldest first (e.g. ["Apr 2026", "May 2026"]) — for the printed list.
+      overdueMonths: [...new Set(
+        [...s.feeCharges]
+          .sort((a: any, b: any) => a.billingYear - b.billingYear || a.billingMonth - b.billingMonth)
+          .map((c: any) => `${MONTH_SHORT[c.billingMonth - 1]} ${c.billingYear}`)
+      )],
       overdueChargesCount: s.feeCharges.length,
       totalDue,
       oldestDueDate: oldestDue,

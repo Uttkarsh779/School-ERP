@@ -67,17 +67,6 @@ const canViewClassExams = async (req: CustomRequest, classSectionId: number): Pr
   return false;
 };
 
-// Full class-wise results grid — staff-only (a student seeing classmates' marks would
-// be a privacy problem, so this deliberately excludes STUDENT/PARENT even though they
-// can view their own single report card via getReportCard below).
-const canViewClassResultsGrid = async (req: CustomRequest, classSectionId: number): Promise<boolean> => {
-  const role = req.user?.role;
-  if (role === "SUPER_ADMIN" || role === "ADMIN") return true;
-  if (role !== "TEACHER" || !req.user) return false;
-  const staff = await findStaffByUserId(req.user.id);
-  return !!staff && (await isTeacherLinkedToClassSection(staff.id, classSectionId));
-};
-
 // Same viewer rules as canViewClassExams, resolved against a single student instead
 // of a class section — used by the report-card endpoint (a student/parent only ever
 // asks about themselves/their own linked child).
@@ -146,12 +135,17 @@ export const getExams = async (req: CustomRequest, res: Response): Promise<void>
 // Admin can create an exam for any class; a teacher only for a class they're linked
 // to (class teacher or subject teacher there) — e.g. a subject teacher setting up
 // their own unit test for a class doesn't need to go through the admin.
+// Exams are created by admins and by the class's CLASS TEACHER (a subject teacher only
+// enters marks for their subject). The exam always belongs to its class's session.
 export const postExam = async (req: CustomRequest, res: Response): Promise<void> => {
-  const { sessionId, name, classSectionId, passPercentage } = req.body;
-  if (!sessionId || !name || !classSectionId) {
-    res
-      .status(400)
-      .json({ success: false, message: "sessionId, name and classSectionId are required" });
+  const { name, classSectionId, passPercentage } = req.body;
+  const examName = typeof name === "string" ? name.trim() : "";
+  if (!examName || !classSectionId) {
+    res.status(400).json({ success: false, message: "Exam name and class are required" });
+    return;
+  }
+  if (examName.length > 80) {
+    res.status(400).json({ success: false, message: "Exam name must be 80 characters or fewer" });
     return;
   }
 
@@ -162,22 +156,80 @@ export const postExam = async (req: CustomRequest, res: Response): Promise<void>
     return;
   }
 
-  if (!(await canViewClassResultsGrid(req, Number(classSectionId)))) {
-    res.status(403).json({ success: false, message: "Forbidden" });
+  const classSection = await prisma.classSection.findUnique({ where: { id: Number(classSectionId) }, select: { id: true, sessionId: true } });
+  if (!classSection) {
+    res.status(404).json({ success: false, message: "Class not found" });
+    return;
+  }
+  const role = req.user?.role;
+  if (role !== "SUPER_ADMIN" && role !== "ADMIN") {
+    const staff = role === "TEACHER" && req.user ? await findStaffByUserId(req.user.id) : null;
+    if (!staff || !(await isClassTeacherOfSection(staff.id, classSection.id))) {
+      res.status(403).json({ success: false, message: "Only the class teacher can create exams for this class" });
+      return;
+    }
+  }
+  const duplicate = await prisma.exam.findFirst({
+    where: { classSectionId: classSection.id, name: { equals: examName, mode: "insensitive" } },
+    select: { id: true },
+  });
+  if (duplicate) {
+    res.status(409).json({ success: false, message: `An exam named "${examName}" already exists for this class` });
     return;
   }
 
   const exam = await createExam({
-    sessionId: Number(sessionId),
-    name,
+    sessionId: classSection.sessionId,
+    name: examName,
     classSectionId: Number(classSectionId),
     passPercentage: passMark,
   });
   res.status(201).json({ success: true, data: exam });
 };
 
+// Marks-entry progress per subject: how many students have a mark (or AB) saved. Admins
+// and the class teacher see every subject (with its teacher), a subject teacher only theirs.
+export const getExamProgress = async (req: CustomRequest, res: Response): Promise<void> => {
+  const exam = await getExamById(Number(req.params.id));
+  if (!exam) {
+    res.status(404).json({ success: false, message: "Exam not found" });
+    return;
+  }
+  const scope = await getExamScope(req, exam.classSectionId);
+  if (!scope) {
+    res.status(403).json({ success: false, message: "Forbidden" });
+    return;
+  }
+  const staff = req.user?.role === "TEACHER" ? await findStaffByUserId(req.user.id) : null;
+  const [subjects, totalStudents, counts] = await Promise.all([
+    prisma.subject.findMany({
+      where: { classSectionId: exam.classSectionId, ...(scope.mode === "SUBJECT" ? { id: { in: scope.subjectIds } } : {}) },
+      include: { teacherSubjects: { include: { staff: { select: { id: true, user: { select: { name: true } } } } } } },
+      orderBy: { name: "asc" },
+    }),
+    prisma.student.count({ where: { classSectionId: exam.classSectionId, isActive: true } }),
+    prisma.examResult.groupBy({ by: ["subjectId"], where: { examId: exam.id, student: { isActive: true } }, _count: { _all: true } }),
+  ]);
+  const entered = new Map<number, number>(counts.map((c: any) => [c.subjectId, c._count._all]));
+  res.json({
+    success: true,
+    data: {
+      examId: exam.id,
+      totalStudents,
+      isClassTeacher: scope.mode === "FULL",
+      subjects: subjects.map((s: any) => ({
+        subjectId: s.id,
+        name: s.name,
+        teachers: s.teacherSubjects.map((t: any) => t.staff?.user?.name).filter(Boolean),
+        isMine: !!staff && s.teacherSubjects.some((t: any) => t.staffId === staff.id),
+        entered: Math.min(entered.get(s.id) ?? 0, totalStudents),
+      })),
+    },
+  });
+};
+
 // Every result already saved for this exam — used to pre-fill the marks-entry grid on
-// reopen, and as the staff-only "class-wise" results view (see canViewClassResultsGrid).
+// reopen. A subject teacher only gets their own subjects (see getExamScope).
 export const getExamResults = async (req: CustomRequest, res: Response): Promise<void> => {
   const examId = Number(req.params.id);
   const exam = await getExamById(examId);

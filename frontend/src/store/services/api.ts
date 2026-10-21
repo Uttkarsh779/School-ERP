@@ -4,13 +4,20 @@ import { fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 import type { RootState } from "../store";
 import { resetTokens, setTokens } from "../reducers/authReducer";
 
-// In development the backend URL is "localhost". When the app is opened from another device
-// on the Wi-Fi (e.g. http://192.168.1.105:5173 on a phone), "localhost" would mean that
-// device, so point at the same computer the page came from. Production URLs are unchanged.
-const backendUrl = String(import.meta.env.VITE_BACKEND_SERVER ?? "").replace(
-  /\/\/(localhost|127\.0\.0\.1)(?=[:/])/,
-  `//${typeof window !== "undefined" ? window.location.hostname : "localhost"}`
-);
+// In development the backend URL is "localhost". Opened from another device:
+//  - on the Wi-Fi (http://192.168.x.x:5173) -> the same computer's backend on port 5000;
+//  - through a tunnel (ngrok) -> same origin "/api", which the Vite dev proxy forwards.
+// Production URLs (not localhost) are used as they are.
+const resolveBackendUrl = () => {
+  const configured = String(import.meta.env.VITE_BACKEND_SERVER ?? "");
+  const isLocal = /\/\/(localhost|127\.0\.0\.1)(?=[:/])/.test(configured);
+  if (!isLocal || typeof window === "undefined") return configured;
+  const host = window.location.hostname;
+  if (host === "localhost" || host === "127.0.0.1") return configured;
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return configured.replace(/\/\/(localhost|127\.0\.0\.1)(?=[:/])/, `//${host}`);
+  return `${window.location.origin}/`;
+};
+const backendUrl = resolveBackendUrl();
 
 const baseQuery = fetchBaseQuery({
   baseUrl: backendUrl + "api/",

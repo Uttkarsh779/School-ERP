@@ -117,6 +117,14 @@ export interface RemarksSheet {
 }
 export type RemarkInput = Omit<RemarksSheet["rows"][number], "name" | "rollNo" | "result">;
 
+// Marks-entry progress per subject (all subjects for admins/class teacher, own for others).
+export interface ExamProgress {
+  examId: number;
+  totalStudents: number;
+  isClassTeacher: boolean;
+  subjects: Array<{ subjectId: number; name: string; teachers: string[]; isMine: boolean; entered: number }>;
+}
+
 export const examsApi = erpApi.injectEndpoints({
   endpoints: (builder) => ({
     getExams: builder.query<IExam[], { classSectionId?: number } | void>({
@@ -124,7 +132,8 @@ export const examsApi = erpApi.injectEndpoints({
       transformResponse: (res: ApiEnvelope<IExam[]>) => res.data,
       providesTags: ["Exam"],
     }),
-    createExam: builder.mutation<IExam, { sessionId: number; name: string; classSectionId: number; passPercentage?: number }>({
+    // The server sets the session from the class; sessionId is accepted but not needed.
+    createExam: builder.mutation<IExam, { sessionId?: number; name: string; classSectionId: number; passPercentage?: number }>({
       query: (body) => ({ url: "exams", method: "POST", body }),
       transformResponse: (res: ApiEnvelope<IExam>) => res.data,
       invalidatesTags: ["Exam"],
@@ -137,6 +146,11 @@ export const examsApi = erpApi.injectEndpoints({
     getExamResults: builder.query<IExamResult[], number>({
       query: (examId) => `exams/${examId}/results`,
       transformResponse: (res: ApiEnvelope<IExamResult[]>) => res.data,
+      providesTags: ["Exam"],
+    }),
+    getExamProgress: builder.query<ExamProgress, number>({
+      query: (examId) => `exams/${examId}/progress`,
+      transformResponse: (res: ApiEnvelope<ExamProgress>) => res.data,
       providesTags: ["Exam"],
     }),
     getExamAnalysis: builder.query<ExamAnalysis, number>({
@@ -182,6 +196,7 @@ export const {
   useCreateExamMutation,
   useEnterExamResultsMutation,
   useGetExamResultsQuery,
+  useGetExamProgressQuery,
   useGetReportCardQuery,
   useGetExamAnalysisQuery,
   useGetExamAuditQuery,

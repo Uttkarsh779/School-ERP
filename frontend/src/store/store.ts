@@ -29,6 +29,14 @@ sessionListener.startListening({
       (current as RootState).auth.user?.id !== (previous as RootState).auth.user?.id),
   effect: (_action, api) => {
     api.dispatch(erpApi.util.resetApiState());
+    // Also drop any API responses the service worker saved (older app versions cached
+    // signed-in data), so nothing from the previous account can be shown.
+    if (typeof caches !== "undefined") {
+      caches
+        .keys()
+        .then((keys) => Promise.all(keys.filter((k) => k.startsWith("api-")).map((k) => caches.delete(k))))
+        .catch(() => undefined);
+    }
   },
 });
 
@@ -42,6 +50,9 @@ sessionListener.startListening({
     if (profile && user?.id === profile.id && user.name !== profile.name) api.dispatch(updateUser({ name: profile.name }));
   },
 });
+
+// Earlier versions cached signed-in API responses per URL ("api-get-cache"); remove it.
+if (typeof caches !== "undefined") caches.delete("api-get-cache").catch(() => undefined);
 
 export const store = configureStore({
   reducer: {

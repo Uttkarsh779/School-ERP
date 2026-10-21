@@ -3,7 +3,10 @@ import { Badge, Button, Card, EmptyState, Input, Select, Spinner, StatCard, Tabl
 import type { TableColumn } from "../../../../../components/ui";
 import { useGetClassSectionsQuery } from "../../../../../store/api/classSections.api";
 import { useGetFeeDefaultersQuery } from "../../../../../store/api/fees.api";
+import { useGetPublicWebsiteDataQuery } from "../../../../../store/api/cms.api";
+import { useAppSelector } from "../../../../../store/store";
 import { classLabel, fmtDate, inr } from "../feeUtils";
+import { printDefaultersReport } from "./defaultersPrint";
 import styles from "../Fees.module.css";
 
 type Defaulter = {
@@ -14,6 +17,8 @@ type Defaulter = {
   classSectionId: number;
   classSection: string;
   contactNumber: string | null;
+  fatherName?: string | null;
+  overdueMonths?: string[];
   overdueChargesCount: number;
   totalDue: number;
   oldestDueDate: string | null;
@@ -28,6 +33,8 @@ const DefaultersTab = ({ onCollect }: { onCollect: (studentId: number) => void }
   const [search, setSearch] = useState("");
   const [minDays, setMinDays] = useState("");
   const { data, isLoading, isError, refetch } = useGetFeeDefaultersQuery(classId ? { classSectionId: Number(classId) } : undefined);
+  const { data: site } = useGetPublicWebsiteDataQuery();
+  const me = useAppSelector((s) => s.auth.user);
 
   const rows: Defaulter[] = useMemo(() => {
     const q = search.toLowerCase().trim();
@@ -39,6 +46,17 @@ const DefaultersTab = ({ onCollect }: { onCollect: (studentId: number) => void }
   }, [data, search, minDays]);
 
   const total = rows.reduce((s, r) => s + r.totalDue, 0);
+
+  // Printed list: letterhead (Website settings), the filters in use, class-wise table.
+  const printList = () => {
+    const cls = classSections?.find((c) => c.id === Number(classId));
+    const filters = [
+      cls ? `Class ${classLabel(cls)}` : "All classes",
+      minDays ? `Overdue ${minDays}+ days` : "Any overdue period",
+      ...(search.trim() ? [`Search "${search.trim()}"`] : []),
+    ];
+    printDefaultersReport(rows, { school: site?.settings, filters, preparedBy: me?.name ?? null });
+  };
 
   const columns: TableColumn<Defaulter>[] = [
     {
@@ -90,7 +108,7 @@ const DefaultersTab = ({ onCollect }: { onCollect: (studentId: number) => void }
         title="Fee defaulters"
         subtitle="Students with fees past the due date, including late fees"
         action={
-          <Button size="sm" variant="outline" onClick={() => window.print()}>
+          <Button size="sm" variant="outline" onClick={printList} disabled={rows.length === 0}>
             Print list
           </Button>
         }

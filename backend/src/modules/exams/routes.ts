@@ -13,6 +13,7 @@ import {
   getReportCard,
   postExam,
   postExamResults,
+  getExamProgress,
 } from "./controller";
 
 const router = Router();
@@ -31,6 +32,7 @@ router.post(
   asyncHandler(postExamResults)
 );
 router.get("/:id/results", authorizeRoles(["SUPER_ADMIN", "ADMIN", "TEACHER"]), asyncHandler(getExamResults));
+router.get("/:id/progress", authorizeRoles(["SUPER_ADMIN", "ADMIN", "TEACHER"]), asyncHandler(getExamProgress));
 router.get("/:id/analysis", authorizeRoles(["SUPER_ADMIN", "ADMIN", "TEACHER"]), asyncHandler(getExamAnalysisHandler));
 router.get("/:id/audit", authorizeRoles(["SUPER_ADMIN", "ADMIN", "TEACHER"]), asyncHandler(getExamAudit));
 router.patch("/:id/lock", authorizeRoles(["SUPER_ADMIN", "ADMIN"]), asyncHandler(patchExamLock));

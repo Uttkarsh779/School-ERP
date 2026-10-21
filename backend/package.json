@@ -22,6 +22,7 @@
     "test:cms": "node --no-experimental-strip-types -r ts-node/register src/tests/cms.test.ts",
     "test:billing-rules": "node --no-experimental-strip-types -r ts-node/register --test src/tests/billing_rules.test.ts",
     "test:notices": "node --no-experimental-strip-types -r ts-node/register src/tests/notices.test.ts",
+    "test:exam-scope": "node --no-experimental-strip-types -r ts-node/register src/tests/exam_teacher_scope.test.ts",
     "test:rollover": "node --no-experimental-strip-types -r ts-node/register src/tests/session_rollover.test.ts",
     "seed": "npx ts-node prisma/seed.ts",
     "seed:concessions": "npx ts-node src/utils/seedConcessions.ts"
