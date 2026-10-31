@@ -422,3 +422,87 @@ thead .stickyCol2 {
     flex-wrap: wrap;
   }
 }
+
+/* Admit cards: date sheet form */
+.admitForm {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.admitHint {
+  margin: 0;
+  font-size: 0.86rem;
+  color: var(--erp-text-muted);
+}
+
+.admitTableWrap {
+  overflow-x: auto;
+  border: 1px solid var(--erp-border);
+  border-radius: var(--erp-radius-md);
+}
+
+.admitTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.admitTable th,
+.admitTable td {
+  padding: 0.45rem 0.6rem;
+  border-bottom: 1px solid var(--erp-border);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.admitTable th {
+  background: var(--erp-bg);
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--erp-text-muted);
+}
+
+.admitTable tr:last-child td {
+  border-bottom: none;
+}
+
+.admitTable input {
+  padding: 0.35rem 0.45rem;
+  border: 1px solid var(--erp-border);
+  border-radius: var(--erp-radius-sm);
+  background: var(--erp-surface);
+  color: var(--erp-text);
+  font: inherit;
+}
+
+.admitLabel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.admitLabel span {
+  font-weight: 400;
+  color: var(--erp-text-muted);
+}
+
+.admitLabel textarea {
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--erp-border);
+  border-radius: var(--erp-radius-md);
+  background: var(--erp-surface);
+  color: var(--erp-text);
+  font: inherit;
+  font-weight: 400;
+  resize: vertical;
+}
+
+.admitActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.6rem;
+}

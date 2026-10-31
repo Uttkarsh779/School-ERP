@@ -58,6 +58,7 @@ import StudentAttendancePage from "./pages/erp/student/Attendance/StudentAttenda
 import StudentTimetablePage from "./pages/erp/student/Timetable/StudentTimetablePage";
 import StudentReportCardPage from "./pages/erp/student/ReportCard/StudentReportCardPage";
 import SettingsPage from "./pages/erp/admin/Settings/SettingsPage";
+import CertificateRegisterPage from "./pages/erp/admin/Students/certificates/CertificateRegisterPage";
 import StudentFeesPage from "./pages/erp/student/Fees/StudentFeesPage";
 import StudentNoticesPage from "./pages/erp/student/Notices/StudentNoticesPage";
 import StudentAssignmentsPage from "./pages/erp/student/Assignments/StudentAssignmentsPage";
@@ -123,6 +124,7 @@ function App() {
           <Route path="/admin/accounts" element={<AccountsPage />} />
           <Route path="/admin/calendar" element={<SchoolCalendar canManage who="ALL" />} />
           <Route path="/admin/settings" element={<SettingsPage />} />
+          <Route path="/admin/certificates" element={<CertificateRegisterPage />} />
           <Route path="/admin/profile" element={<MyProfilePage />} />
           <Route path="/admin/account" element={<Navigate to="/admin/profile" replace />} />
 

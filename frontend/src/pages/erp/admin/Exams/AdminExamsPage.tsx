@@ -34,6 +34,7 @@ import { useAppSelector } from "../../../../store/store";
 import styles from "./AdminExamsPage.module.css";
 import ExamResultsView from "./ExamResultsView";
 import RemarksEditor from "./RemarksEditor";
+import AdmitCardModal from "./AdmitCardModal";
 import { isAbsentText, validateMarksCell } from "./marksCell";
 
 interface NewExamFormInputs {
@@ -95,6 +96,7 @@ const AdminExamsPage = () => {
   const [lastOutcomes, setLastOutcomes] = useState<IExamResultOutcome[] | null>(null);
   const [resultsExamId, setResultsExamId] = useState<number | null>(null);
   const [remarksExamId, setRemarksExamId] = useState<number | null>(null);
+  const [admitExamId, setAdmitExamId] = useState<number | null>(null);
   const [pendingPublish, setPendingPublish] = useState<IExam | null>(null);
   const [setPublished, { isLoading: publishing }] = useSetResultsPublishedMutation();
   const [pendingLock, setPendingLock] = useState<IExam | null>(null);
@@ -437,6 +439,11 @@ const AdminExamsPage = () => {
                               Remarks
                             </button>
                           )}
+                          {!isTeacher && (
+                            <button type="button" className={styles.quietBtn} onClick={() => setAdmitExamId(exam.id)}>
+                              Admit cards
+                            </button>
+                          )}
                           {!isTeacher && status !== "published" && (
                             <button type="button" className={styles.quietBtn} disabled={lockingId === exam.id} onClick={() => setPendingLock(exam)}>
                               {exam.isLocked ? "Unlock" : "Lock"}
@@ -582,6 +589,7 @@ const AdminExamsPage = () => {
       )}
 
       {remarksExamId !== null && <RemarksEditor examId={remarksExamId} onClose={() => setRemarksExamId(null)} />}
+      {admitExamId !== null && <AdmitCardModal examId={admitExamId} onClose={() => setAdmitExamId(null)} />}
 
       {pendingPublish && (
         <ConfirmDialog

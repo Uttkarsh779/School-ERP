@@ -376,6 +376,9 @@ model Exam {
   classSectionId Int
   classSection   ClassSection    @relation(fields: [classSectionId], references: [id])
   passPercentage Float           @default(33) // per-subject pass mark, % of that subject's max
+  // Date sheet printed on admit cards: { entries: [{ subjectId, date, start, end }], instructions }
+  // (prisma/exam_date_sheet.sql, exams/admitCardService.ts)
+  dateSheet      Json?
 
   // Once locked (by an admin) teachers can no longer enter/edit marks. Corrections:
   // unlock -> edit (logged in ExamResultAudit) -> lock again.

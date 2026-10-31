@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { getDayBook } from "./dayBookService";
 import { authenticateToken, authorizeRoles } from "../../middleware/auth";
 import { asyncHandler } from "../../utils/asyncHandler";
 import * as controller from "./controller";
@@ -149,6 +150,14 @@ router.get(
 // Reports & Audit Logs
 router.get("/fees/overview", authorizeRoles(["SUPER_ADMIN", "ADMIN"]), asyncHandler(controller.getFeeOverview));
 router.get("/fees/reports/collection", authorizeRoles(["SUPER_ADMIN", "ADMIN"]), asyncHandler(controller.getCollectionReport));
+// Day book: receipts, totals by mode and collector, cancellations and refunds for closing the counter.
+router.get(
+  "/fees/reports/day-book",
+  authorizeRoles(["SUPER_ADMIN", "ADMIN"]),
+  asyncHandler(async (req: CustomRequest, res: Response) => {
+    res.json({ success: true, data: await getDayBook(req.query.from, req.query.to) });
+  })
+);
 router.get("/fee-payments/defaulters", authorizeRoles(["SUPER_ADMIN", "ADMIN"]), asyncHandler(controller.getDefaultersReport));
 router.get("/fees/audit-logs", authorizeRoles(["SUPER_ADMIN"]), asyncHandler(controller.getAuditLogs));
 

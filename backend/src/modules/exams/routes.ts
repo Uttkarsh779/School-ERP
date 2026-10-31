@@ -1,6 +1,10 @@
 import { Router } from "express";
 import { authenticateToken, authorizeRoles } from "../../middleware/auth";
 import { asyncHandler } from "../../utils/asyncHandler";
+import type { Response } from "express";
+import type { CustomRequest } from "../../middleware/auth";
+import { httpError } from "../../utils/httpError";
+import { getAdmitCards, saveDateSheet } from "./admitCardService";
 import {
   getExamAnalysisHandler,
   getExamAudit,
@@ -49,6 +53,27 @@ router.get(
   "/:id/report-cards/print",
   authorizeRoles(["SUPER_ADMIN", "ADMIN", "TEACHER", "STUDENT", "PARENT"]),
   asyncHandler(getReportCardsPrint)
+);
+
+// Admit cards: the office sets the date sheet and prints a card per student.
+const examId = (req: CustomRequest) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) throw httpError(400, "Invalid exam");
+  return id;
+};
+router.put(
+  "/:id/date-sheet",
+  authorizeRoles(["SUPER_ADMIN", "ADMIN"]),
+  asyncHandler(async (req: CustomRequest, res: Response) => {
+    res.json({ success: true, message: "Date sheet saved", data: await saveDateSheet(examId(req), req.body) });
+  })
+);
+router.get(
+  "/:id/admit-cards",
+  authorizeRoles(["SUPER_ADMIN", "ADMIN"]),
+  asyncHandler(async (req: CustomRequest, res: Response) => {
+    res.json({ success: true, data: await getAdmitCards(examId(req)) });
+  })
 );
 
 export default router;

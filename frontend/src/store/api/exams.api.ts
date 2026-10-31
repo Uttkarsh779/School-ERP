@@ -168,6 +168,26 @@ export interface PrintableReportCards {
   cards: PrintableReportCard[];
 }
 
+// Admit cards: the exam's date sheet and the class list (exams/admitCardService.ts).
+export interface DateSheetEntry {
+  subjectId: number;
+  date: string;
+  start: string;
+  end: string;
+}
+export interface DateSheet {
+  entries: DateSheetEntry[];
+  instructions: string | null;
+}
+export interface AdmitCardSet {
+  exam: { id: number; name: string; session: string | null };
+  classSection: { className: string; section: string };
+  classTeacher: string | null;
+  subjects: { id: number; name: string }[];
+  dateSheet: { entries: (DateSheetEntry & { subjectName: string })[]; instructions: string | null };
+  students: { id: number; name: string; admissionNo: string; rollNo: string; dob: string | null; fatherName: string | null; photoUrl: string | null }[];
+}
+
 export const examsApi = erpApi.injectEndpoints({
   endpoints: (builder) => ({
     getExams: builder.query<IExam[], { classSectionId?: number } | void>({
@@ -231,6 +251,16 @@ export const examsApi = erpApi.injectEndpoints({
       transformResponse: (res: ApiEnvelope<IReportCard>) => res.data,
       providesTags: ["Exam"],
     }),
+    getAdmitCards: builder.query<AdmitCardSet, number>({
+      query: (examId) => `exams/${examId}/admit-cards`,
+      transformResponse: (res: ApiEnvelope<AdmitCardSet>) => res.data,
+      providesTags: ["Exam"],
+    }),
+    saveDateSheet: builder.mutation<DateSheet, { examId: number; entries: DateSheetEntry[]; instructions: string | null }>({
+      query: ({ examId, ...body }) => ({ url: `exams/${examId}/date-sheet`, method: "PUT", body }),
+      transformResponse: (res: ApiEnvelope<DateSheet>) => res.data,
+      invalidatesTags: ["Exam"],
+    }),
     getPrintableReportCards: builder.query<PrintableReportCards, { examId: number; studentId?: number }>({
       query: ({ examId, studentId }) => ({ url: `exams/${examId}/report-cards/print`, params: studentId ? { studentId } : undefined }),
       transformResponse: (res: ApiEnvelope<PrintableReportCards>) => res.data,
@@ -240,6 +270,9 @@ export const examsApi = erpApi.injectEndpoints({
 });
 
 export const {
+  useGetAdmitCardsQuery,
+  useLazyGetAdmitCardsQuery,
+  useSaveDateSheetMutation,
   useGetExamsQuery,
   useCreateExamMutation,
   useEnterExamResultsMutation,

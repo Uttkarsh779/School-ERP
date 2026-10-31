@@ -27,7 +27,7 @@ const PLACES: { key: keyof DocumentSettings; label: string; hint: string }[] = [
   },
   {
     key: "signReportCards",
-    label: "Report cards",
+    label: "Report cards & admit cards",
     hint: "Usual practice: printed signature. Class teacher and parent still sign by hand.",
   },
   {

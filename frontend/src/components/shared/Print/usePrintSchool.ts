@@ -2,7 +2,7 @@ import { useGetPublicWebsiteDataQuery } from "../../../store/api/cms.api";
 import { useGetDocumentSettingsQuery } from "../../../store/api/settings.api";
 import type { PrintSchool } from "./printDocument";
 
-export type PrintedDocument = "idCard" | "reportCard" | "certificate" | "tc";
+export type PrintedDocument = "idCard" | "reportCard" | "admitCard" | "certificate" | "tc";
 
 // School details for a printout: letterhead from the website settings, plus the principal's
 // signature (and, on certificates, the seal) when Settings says to print them on that
@@ -15,7 +15,7 @@ export const usePrintSchool = () => {
     const school = site?.settings;
     if (!school) return undefined;
     const on = docs
-      ? { idCard: docs.signIdCards, reportCard: docs.signReportCards, certificate: docs.signCertificates, tc: docs.signTc }[doc]
+      ? { idCard: docs.signIdCards, reportCard: docs.signReportCards, admitCard: docs.signReportCards, certificate: docs.signCertificates, tc: docs.signTc }[doc]
       : false;
     return {
       ...school,

@@ -528,3 +528,38 @@
     color: var(--erp-primary-700);
   }
 }
+
+/* Day book: totals by mode / collector */
+.dayBookSplit {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+.dayBookList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.dayBookList li {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--erp-border);
+  font-size: 0.9rem;
+}
+
+.dayBookList li:last-child {
+  border-bottom: none;
+}
+
+.dayBookList small {
+  color: var(--erp-text-muted);
+  font-size: 0.8rem;
+}

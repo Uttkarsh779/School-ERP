@@ -95,3 +95,29 @@
     flex-wrap: wrap;
   }
 }
+
+/* Certificate register page */
+.registerStats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(170px, 100%), 1fr));
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.registerFilters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(190px, 100%), 1fr));
+  gap: 0.75rem;
+  padding: 1rem 1.1rem;
+  border-bottom: 1px solid var(--erp-border);
+}
+
+.muted {
+  font-size: 0.8rem;
+  color: var(--erp-text-muted);
+}
+
+.struck {
+  text-decoration: line-through;
+  color: var(--erp-text-muted);
+}

@@ -18,6 +18,7 @@ export const navByRole: Record<string, NavEntry[]> = {
     { label: "Students", path: "/admin/students", icon: "graduationCap", group: "People" },
     { label: "Staff", path: "/admin/staff", icon: "users", group: "People" },
     { label: "Families & Parents", path: "/admin/parents", icon: "familyCheck", group: "People" },
+    { label: "Certificate Register", path: "/admin/certificates", icon: "fileText", group: "People" },
     { label: "Leave Requests", path: "/admin/leaves", icon: "calendar", group: "People" },
     { label: "Admission Report", path: "/admin/admission-report", icon: "fileText", group: "People", superAdminOnly: true },
 

@@ -6,6 +6,7 @@ import { useGetFeeOverviewQuery } from "../../../../store/api/fees.api";
 import MultiMonthPaymentDesk from "./MultiMonthPaymentDesk";
 import FeeOverviewTab from "./tabs/FeeOverviewTab";
 import BillsTab from "./tabs/BillsTab";
+import DayBookTab from "./tabs/DayBookTab";
 import DefaultersTab from "./tabs/DefaultersTab";
 import StructuresTab from "./tabs/StructuresTab";
 import RefundsTab from "./tabs/RefundsTab";
@@ -13,7 +14,7 @@ import FeeSettingsTab from "./tabs/FeeSettingsTab";
 import FeeAuditTab from "./tabs/FeeAuditTab";
 import styles from "./Fees.module.css";
 
-type Tab = "overview" | "collect" | "bills" | "dues" | "structures" | "refunds" | "settings" | "audit";
+type Tab = "overview" | "collect" | "daybook" | "bills" | "dues" | "structures" | "refunds" | "settings" | "audit";
 
 // Fee Management shell. Each tab lives in its own file under ./tabs. Waivers are open to
 // Admins too; other money decisions (refund approval, deletes, bulk fee changes, audit log)
@@ -45,6 +46,7 @@ const AdminFeesPage = () => {
   const tabs: Array<{ key: Tab; label: string; hint: string; icon: string; count?: number; superOnly?: boolean }> = [
     { key: "overview", label: "Overview", hint: "Today's collection and totals", icon: "dashboard" },
     { key: "collect", label: "Collect Payment", hint: "Take a fee payment and print the receipt", icon: "wallet" },
+    { key: "daybook", label: "Day Book", hint: "Each day's collection by mode and collector · print", icon: "clipboardCheck" },
     { key: "bills", label: "Bills & Invoices", hint: "Monthly bills issued to students", icon: "fileText" },
     { key: "dues", label: "Dues & Defaulters", hint: "Who hasn't paid · print the list", icon: "bell", count: overview?.defaulterCount },
     { key: "structures", label: "Fee Structures", hint: "Fee amounts for each class", icon: "layers" },
@@ -116,6 +118,7 @@ const AdminFeesPage = () => {
 
       {tab === "overview" && <FeeOverviewTab onGoTo={go} />}
       {tab === "collect" && <MultiMonthPaymentDesk initialStudentId={collectStudentId} />}
+      {tab === "daybook" && <DayBookTab />}
       {tab === "bills" && <BillsTab isSuperAdmin={isSuperAdmin} />}
       {tab === "dues" && (
         <DefaultersTab

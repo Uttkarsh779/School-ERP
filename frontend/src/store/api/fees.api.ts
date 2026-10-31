@@ -132,6 +132,37 @@ export interface CollectionPeriodPreview {
   expectedAmount: number;
 }
 
+// Fee day book (fees/dayBookService.ts): receipts and totals for closing the counter.
+export interface DayBookReceipt {
+  id: number;
+  receiptNumber: string;
+  paidAt: string | null;
+  day: string | null;
+  student: string;
+  studentId: number;
+  admissionNo: string;
+  className: string | null;
+  amount: number;
+  mode: string;
+  transactionRef: string | null;
+  collectedBy: string;
+  cancelled: boolean;
+  cancelledAt: string | null;
+  cancelReason: string | null;
+  cancelledBy: string | null;
+}
+export interface DayBook {
+  from: string;
+  to: string;
+  totals: { collected: number; receipts: number; refunded: number; net: number; cancelled: number };
+  byMode: { key: string; count: number; amount: number }[];
+  byCollector: { key: string; count: number; amount: number }[];
+  byDay: { key: string; count: number; amount: number }[];
+  receipts: DayBookReceipt[];
+  cancelled: DayBookReceipt[];
+  refunds: { id: number; refundNumber: string; processedAt: string | null; student: string; admissionNo: string; amount: number; reason: string }[];
+}
+
 export const feesApi = erpApi.injectEndpoints({
   endpoints: (builder) => ({
     getFeeOverview: builder.query<FeeOverview, void>({
@@ -278,6 +309,11 @@ export const feesApi = erpApi.injectEndpoints({
       transformResponse: (res: ApiEnvelope<any>) => res.data,
       providesTags: feeTags,
     }),
+    getDayBook: builder.query<DayBook, { from: string; to: string }>({
+      query: (params) => ({ url: "fees/reports/day-book", params }),
+      transformResponse: (res: ApiEnvelope<DayBook>) => res.data,
+      providesTags: feeTags,
+    }),
     getAuditLogs: builder.query<any[], void>({
       query: () => ({ url: "fees/audit-logs" }),
       transformResponse: (res: ApiEnvelope<any[]>) => res.data,
@@ -385,6 +421,7 @@ export interface BulkBillResult {
 }
 
 export const {
+  useGetDayBookQuery,
   useGetBillingSettingsQuery,
   useUpdateBillingSettingsMutation,
   useCancelPaymentMutation,
