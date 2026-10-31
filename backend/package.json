@@ -26,6 +26,7 @@
     "test:end-transport": "node --no-experimental-strip-types -r ts-node/register src/tests/end_transport.test.ts",
     "test:rollover": "node --no-experimental-strip-types -r ts-node/register src/tests/session_rollover.test.ts",
     "reset-password": "npx ts-node scripts/reset-password.ts",
+    "restore-backup": "npx ts-node scripts/restore-backup.ts",
     "seed": "npx ts-node prisma/seed.ts",
     "seed:concessions": "npx ts-node src/utils/seedConcessions.ts"
   },

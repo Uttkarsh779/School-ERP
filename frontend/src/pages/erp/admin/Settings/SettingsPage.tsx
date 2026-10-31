@@ -5,15 +5,17 @@ import { Button, Card, Icon, ImageUpload, PageHeader, Spinner } from "../../../.
 import { useAppSelector } from "../../../../store/store";
 import { useGetDocumentSettingsQuery, useUpdateDocumentSettingsMutation, type DocumentSettings } from "../../../../store/api/settings.api";
 import SettingsEditor from "../Cms/SettingsEditor";
+import BackupPanel from "./BackupPanel";
 import styles from "./SettingsPage.module.css";
 
 // School-wide settings. Module rules stay in their own pages (fee fines in Fees, weekly offs
 // in the calendar...); the Shortcuts tab links to them.
 
-type Tab = "school" | "documents" | "shortcuts";
+type Tab = "school" | "documents" | "backup" | "shortcuts";
 const TABS: { key: Tab; label: string }[] = [
   { key: "school", label: "School profile" },
   { key: "documents", label: "Signature & seal" },
+  { key: "backup", label: "Backup" }, // Super Admin only
   { key: "shortcuts", label: "Other settings" },
 ];
 
@@ -174,14 +176,15 @@ const DocumentSettingsPanel = ({ canEdit }: { canEdit: boolean }) => {
 const SettingsPage = () => {
   const isSuperAdmin = useAppSelector((s) => s.auth.user?.role) === "SUPER_ADMIN";
   const [params, setParams] = useSearchParams();
-  const tab = (TABS.find((t) => t.key === params.get("tab"))?.key ?? "school") as Tab;
+  const tabs = TABS.filter((t) => t.key !== "backup" || isSuperAdmin);
+  const tab = (tabs.find((t) => t.key === params.get("tab"))?.key ?? "school") as Tab;
 
   return (
     <div>
       <PageHeader title="Settings" subtitle="School details used across the ERP, printed documents and the website" />
 
       <div className={styles.tabs} role="tablist" aria-label="Settings sections">
-        {TABS.map((t) => (
+        {tabs.map((t) => (
           <button
             key={t.key}
             type="button"
@@ -203,6 +206,8 @@ const SettingsPage = () => {
         <SettingsEditor section="school" />
       ) : tab === "documents" ? (
         <DocumentSettingsPanel canEdit={isSuperAdmin} />
+      ) : tab === "backup" ? (
+        <BackupPanel />
       ) : (
         <div className={styles.shortcuts}>
           {SHORTCUTS.map((s) => (

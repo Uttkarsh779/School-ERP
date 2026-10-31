@@ -31,6 +31,7 @@ import notificationsRouter from "./modules/notifications/routes";
 import accountsRouter from "./modules/accounts/routes";
 import calendarRouter from "./modules/calendar/routes";
 import settingsRouter from "./modules/settings/routes";
+import backupRouter from "./modules/backup/routes";
 
 const app: Application = express();
 
@@ -77,6 +78,7 @@ app.use("/api/notifications", notificationsRouter); // the caller's own
 app.use("/api/accounts", accountsRouter); // ADMIN / SUPER_ADMIN
 app.use("/api/calendar", calendarRouter); // view: everyone · manage: admins
 app.use("/api/settings", settingsRouter); // signature/seal for printouts · change: Super Admin
+app.use("/api/backups", backupRouter); // database backups · Super Admin
 
 import { runFullResetAndSeed } from "./config/seed";
 

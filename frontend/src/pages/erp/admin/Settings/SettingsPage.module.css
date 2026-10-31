@@ -184,3 +184,60 @@
 .chevron {
   color: var(--erp-text-muted);
 }
+
+.backupTop {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.backupWhen {
+  margin-top: 0.15rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.backupError {
+  margin-top: 0.3rem;
+  font-size: 0.82rem;
+  color: var(--erp-danger);
+}
+
+.backupList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.backupList li {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.8rem 1.1rem;
+  border-bottom: 1px solid var(--erp-border);
+}
+
+.backupList li:last-child {
+  border-bottom: none;
+}
+
+.backupList li > div {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.backupList small {
+  font-size: 0.8rem;
+  color: var(--erp-text-muted);
+}
+
+@media (max-width: 640px) {
+  .backupList li {
+    flex-wrap: wrap;
+  }
+}

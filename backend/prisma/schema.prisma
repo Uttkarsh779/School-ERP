@@ -1434,3 +1434,21 @@ model DocumentSetting {
   signTc                Boolean  @default(false)
   updatedAt             DateTime @default(now()) @updatedAt
 }
+
+// Database backups (prisma/backups.sql). Each is a gzipped JSON copy of every table, stored
+// privately (authenticated) in Cloudinary under school_erp/backups. kind: AUTO | MANUAL.
+// A failed attempt keeps its error and no publicId.
+model BackupRecord {
+  id              Int       @id @default(autoincrement())
+  kind            String
+  publicId        String?
+  sizeBytes       Int?
+  tableCount      Int?
+  rowCount        Int?
+  error           String?
+  deletedAt       DateTime? // removed from storage by the 30-day clean-up
+  createdByUserId Int?
+  createdAt       DateTime  @default(now())
+
+  @@index([createdAt])
+}
