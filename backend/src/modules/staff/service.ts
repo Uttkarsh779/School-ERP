@@ -2,6 +2,8 @@ import { prisma } from "../../config/prisma";
 import { Role } from "../../generated/prisma/enums";
 import type { Prisma } from "../../generated/prisma/client";
 import { httpError } from "../../utils/httpError";
+import { hashPassword } from "../../utils/password";
+import { validateNewPassword } from "../profile/service";
 import type { StaffDetails } from "./details";
 
 const staffWithUser = {
@@ -138,5 +140,16 @@ export const setStaffActive = async (id: number, isActive: boolean) => {
 };
 
 export const findUserByEmail = (email: string) => prisma.user.findUnique({ where: { email } });
+
+// Super Admin sets a new password for a staff member who forgot theirs (there's no email
+// reset). The staff member should change it from My Profile after signing in.
+export const resetStaffPassword = async (id: number, password: unknown) => {
+  validateNewPassword(password);
+  const staff = await prisma.staff.findUnique({ where: { id }, include: { user: true } });
+  if (!staff) throw httpError(404, "Staff not found");
+  if (staff.user.role === Role.SUPER_ADMIN) throw httpError(400, "A Super Admin's password can only be changed from their own profile");
+  await prisma.user.update({ where: { id: staff.userId }, data: { passwordHash: await hashPassword(password as string) } });
+  return { email: staff.user.email };
+};
 
 export const findStaffByUserId = (userId: number) => prisma.staff.findUnique({ where: { userId } });

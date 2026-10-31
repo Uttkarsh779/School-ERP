@@ -4,6 +4,7 @@ dns.setDefaultResultOrder("ipv4first");
 import "dotenv/config";
 import app from "./app";
 import { connectDB } from "./config/db";
+import { assertSecrets } from "./config/secrets";
 import { seedAdminUser } from "./config/seed";
 import { startFeeReminderJob } from "./modules/notifications/events";
 import { startAutoBillingJob } from "./modules/fees/billingSettingsService";
@@ -12,6 +13,7 @@ import { startCalendarJob } from "./modules/calendar/service";
 const PORT = process.env.PORT || 5000;
 
 const start = async (): Promise<void> => {
+  assertSecrets();
   await connectDB();
   await seedAdminUser();
 

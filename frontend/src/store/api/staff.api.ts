@@ -39,6 +39,10 @@ export const staffApi = erpApi.injectEndpoints({
       transformResponse: (res: ApiEnvelope<IStaff>) => res.data,
       invalidatesTags: ["Staff"],
     }),
+    resetStaffPassword: builder.mutation<{ email: string }, { id: number; password: string }>({
+      query: ({ id, password }) => ({ url: `staff/${id}/reset-password`, method: "POST", body: { password } }),
+      transformResponse: (res: ApiEnvelope<{ email: string }>) => res.data,
+    }),
     setStaffActive: builder.mutation<void, { id: number; isActive: boolean }>({
       query: ({ id, isActive }) => ({ url: `staff/${id}/active`, method: "PATCH", body: { isActive } }),
       invalidatesTags: ["Staff"],
@@ -52,4 +56,5 @@ export const {
   useCreateStaffMutation,
   useUpdateStaffMutation,
   useSetStaffActiveMutation,
+  useResetStaffPasswordMutation,
 } = staffApi;

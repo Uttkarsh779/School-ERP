@@ -31,7 +31,6 @@ type LoginMode = "family" | "staff";
 const Login: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
-  const [resetEmailSent, setResetEmailSent] = useState(false);
   const [loginMode, setLoginMode] = useState<LoginMode>("family");
   const [loginUser] = useLoginUserMutation();
   const dispatch = useDispatch();
@@ -85,17 +84,6 @@ const Login: React.FC = () => {
       toast.error(message);
     }
     setIsLoading(false);
-  };
-
-  const handleForgotPassword = (data: ILoginFormInputs) => {
-    setIsLoading(true);
-    console.log(data);
-    // Simulate password reset API call
-    //loginUser(data).unwrap()
-    setTimeout(() => {
-      setIsLoading(false);
-      setResetEmailSent(true);
-    }, 1500);
   };
 
   const itemVariants = {
@@ -214,58 +202,23 @@ const Login: React.FC = () => {
               </Div>
             ) : (
               <Div key="forgot-password" direction="bottom" immediate>
-                <h1 className={styles.title}>Reset Password</h1>
-                <p className={styles.subtitle}>
-                  {resetEmailSent
-                    ? "We've sent a password reset link to your email."
-                    : "Enter your registered email to receive a reset link"}
-                </p>
-
-                {!resetEmailSent ? (
-                  <form
-                    onSubmit={handleSubmit(handleForgotPassword)}
-                    className={styles.form}
-                  >
-                    <Input
-                      name="email"
-                      label="Email"
-                      type="email"
-                      register={register}
-                      errors={errors}
-                      required
-                    />
-
-                    <motion.div
-                      className={styles.buttonGroup}
-                      variants={itemVariants}
-                    >
-                      <Button
-                        type="button"
-                        onClick={() => setShowForgotPassword(false)}
-                        isLoading={isLoading}
-                        buttonType="secondary"
-                        title="Back to Login"
-                      />
-
-                      <Button
-                        type="submit"
-                        isLoading={isLoading}
-                        buttonType="primary"
-                        title="Send Reset Link"
-                      />
-                    </motion.div>
-                  </form>
-                ) : (
-                  <Button
-                    type="button"
-                    buttonType="primary"
-                    title="Return to Login"
-                    onClick={() => {
-                      setShowForgotPassword(false);
-                      setResetEmailSent(false);
-                    }}
-                  />
-                )}
+                {/* No email/SMS service: passwords are reset by the school. */}
+                <h1 className={styles.title}>Forgot your password?</h1>
+                <p className={styles.subtitle}>The school office can set a new one for you.</p>
+                <div className={styles.form}>
+                  {loginMode === "family" ? (
+                    <p className={styles.subtitle} style={{ textAlign: "left" }}>
+                      <strong>Students &amp; parents:</strong> contact the school office or your class teacher with the admission number. They will
+                      give you a new password. You can change it later from <strong>My Profile</strong>.
+                    </p>
+                  ) : (
+                    <p className={styles.subtitle} style={{ textAlign: "left" }}>
+                      <strong>Staff:</strong> ask the Super Admin to reset your password from the Staff page. You can change it later from{" "}
+                      <strong>My Profile</strong>.
+                    </p>
+                  )}
+                  <Button type="button" buttonType="primary" title="Back to sign in" onClick={() => setShowForgotPassword(false)} />
+                </div>
               </Div>
             )}
           </AnimatePresence>

@@ -1,5 +1,5 @@
 import express, { type Application, type Request, type Response, type NextFunction } from "express";
-import cors from "cors";
+import { applySecurity } from "./middleware/security";
 import authRouter from "./modules/auth/routes";
 import sessionsRouter from "./modules/sessions/routes";
 import staffRouter from "./modules/staff/routes";
@@ -35,7 +35,7 @@ import settingsRouter from "./modules/settings/routes";
 const app: Application = express();
 
 // Middlewares
-app.use(cors());
+applySecurity(app);
 // Keep the raw body too: the Razorpay webhook signature is computed over the exact bytes.
 app.use(
   express.json({

@@ -5,8 +5,7 @@ import { hashPassword, comparePassword } from "../../utils/password";
 import { createUser, findUserByEmail } from "./service";
 import { getStudentByAdmissionNo } from "../students/service";
 
-const JWT_SECRET = process.env.JWT_SECRET || "fallback_jwt_secret_key";
-const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || "fallback_refresh_secret_key";
+import { JWT_REFRESH_SECRET, JWT_SECRET } from "../../config/secrets";
 
 // Public self-registration is a placeholder for local dev/testing only.
 // M1 replaces this with admin-driven account creation (staff/parent/student
@@ -96,13 +95,13 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
 
     const accessToken = jwt.sign(
       { id: user.id, email: user.email, role: user.role },
-      JWT_SECRET,
+      JWT_SECRET(),
       { expiresIn: "15m" }
     );
 
     const refreshToken = jwt.sign(
       { id: user.id, email: user.email, role: user.role },
-      JWT_REFRESH_SECRET,
+      JWT_REFRESH_SECRET(),
       { expiresIn: "7d" }
     );
 
@@ -135,7 +134,7 @@ export const refreshToken = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    jwt.verify(token, JWT_REFRESH_SECRET, (err, decoded: any) => {
+    jwt.verify(token, JWT_REFRESH_SECRET(), (err, decoded: any) => {
       if (err) {
         res.status(401).json({ success: false, message: "Invalid or expired refresh token" });
         return;
@@ -143,13 +142,13 @@ export const refreshToken = async (req: Request, res: Response): Promise<void> =
 
       const accessToken = jwt.sign(
         { id: decoded.id, email: decoded.email, role: decoded.role },
-        JWT_SECRET,
+        JWT_SECRET(),
         { expiresIn: "15m" }
       );
 
       const newRefreshToken = jwt.sign(
         { id: decoded.id, email: decoded.email, role: decoded.role },
-        JWT_REFRESH_SECRET,
+        JWT_REFRESH_SECRET(),
         { expiresIn: "7d" }
       );
 

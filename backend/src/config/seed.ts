@@ -1,32 +1,32 @@
 import { prisma } from "./prisma";
 import { Role } from "../generated/prisma/enums";
-import { hashPassword } from "../utils/password";
+import { randomBytes } from "crypto";
+import { comparePassword, hashPassword } from "../utils/password";
+
+// First start only: creates a Super Admin (and an Admin) when none exists yet. It no longer
+// recreates superadmin@school.com / superadmin123 whenever that account is renamed or
+// removed. In production the password comes from SEED_SUPERADMIN_PASSWORD, or a random one
+// is generated and printed once in the server log.
+const DEFAULT_LOGINS = [
+  { email: "superadmin@school.com", password: "superadmin123", role: Role.SUPER_ADMIN, name: "System Super Admin", env: "SEED_SUPERADMIN_PASSWORD" },
+  { email: "admin@school.com", password: "admin123", role: Role.ADMIN, name: "School Accountant Admin", env: "SEED_ADMIN_PASSWORD" },
+] as const;
 
 export const seedAdminUser = async (): Promise<void> => {
-  const existingSuper = await prisma.user.findUnique({ where: { email: "superadmin@school.com" } });
-  if (!existingSuper) {
-    const superPasswordHash = await hashPassword("superadmin123");
-    await prisma.user.create({
-      data: {
-        email: "superadmin@school.com",
-        passwordHash: superPasswordHash,
-        role: Role.SUPER_ADMIN,
-        name: "System Super Admin",
-      },
-    });
+  const production = process.env.NODE_ENV === "production";
+  for (const d of DEFAULT_LOGINS) {
+    if (await prisma.user.findFirst({ where: { role: d.role } })) continue;
+    const password = process.env[d.env] || (production ? randomBytes(9).toString("base64url") : d.password);
+    await prisma.user.create({ data: { email: d.email, passwordHash: await hashPassword(password), role: d.role, name: d.name } });
+    if (production && !process.env[d.env]) console.log(`[Setup] Created ${d.email} with password: ${password}  (change it after signing in)`);
   }
 
-  const existingAdmin = await prisma.user.findUnique({ where: { email: "admin@school.com" } });
-  if (!existingAdmin) {
-    const adminPasswordHash = await hashPassword("admin123");
-    await prisma.user.create({
-      data: {
-        email: "admin@school.com",
-        passwordHash: adminPasswordHash,
-        role: Role.ADMIN,
-        name: "School Accountant Admin",
-      },
-    });
+  // Remind (in the log) while the well-known starter passwords still work.
+  for (const d of DEFAULT_LOGINS) {
+    const user = await prisma.user.findUnique({ where: { email: d.email } });
+    if (user?.isActive && (await comparePassword(d.password, user.passwordHash))) {
+      console.warn(`[Security] ${d.email} still uses the starter password "${d.password}". Change it from My Profile before going live.`);
+    }
   }
 };
 

@@ -25,6 +25,7 @@ import {
 } from "../../../../store/api/staff.api";
 import { useIdCards } from "../../../../components/shared/Print/useIdCards";
 import { useAppSelector } from "../../../../store/store";
+import ResetPasswordModal from "./ResetPasswordModal";
 import StaffDetailsFields, { detailsFromStaff, detailsPayload, emptyStaffDetails, type StaffDetailsForm } from "./StaffDetailsFields";
 import styles from "./StaffPage.module.css";
 
@@ -100,6 +101,7 @@ const StaffPage = () => {
   const isSuperAdmin = useAppSelector((s) => s.auth.user?.role) === "SUPER_ADMIN";
   const [newDetails, setNewDetails] = useState<StaffDetailsForm>(emptyStaffDetails);
   const [editDetails, setEditDetails] = useState<StaffDetailsForm>(emptyStaffDetails);
+  const [resetFor, setResetFor] = useState<IStaff | null>(null);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [togglingId, setTogglingId] = useState<number | null>(null);
@@ -686,6 +688,11 @@ const StaffPage = () => {
                   <Button type="button" variant="outline" onClick={() => printStaff([profileStaff])}>
                     Print ID card
                   </Button>
+                  {isSuperAdmin && isAccountRequiredRole(profileStaff.staffCategory ?? undefined) && (
+                    <Button type="button" variant="outline" onClick={() => setResetFor(profileStaff)}>
+                      Reset password
+                    </Button>
+                  )}
                   <Button type="button" variant="ghost" onClick={closeProfile}>
                     Cancel
                   </Button>
@@ -714,6 +721,7 @@ const StaffPage = () => {
           }}
         />
       )}
+      {resetFor && <ResetPasswordModal staff={resetFor} onClose={() => setResetFor(null)} />}
     </div>
   );
 };

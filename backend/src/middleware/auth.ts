@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import type { Role } from "../generated/prisma/enums";
+import { JWT_SECRET } from "../config/secrets";
 
 // Extend Express Request type to include user information
 export interface CustomRequest extends Request {
@@ -24,7 +25,7 @@ export const authenticateToken = (
     return;
   }
 
-  const SECRET = process.env.JWT_SECRET || "fallback_jwt_secret_key";
+  const SECRET = JWT_SECRET();
 
   jwt.verify(token, SECRET, (err, decoded) => {
     if (err) {
