@@ -1,11 +1,23 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Badge, Button, Card, EmptyState, Input, Modal, PageHeader, Select, Spinner, Table } from "../../../../components/ui";
+import { Badge, Button, Card, EmptyState, Icon, Input, Modal, PageHeader, Select, Spinner, Table } from "../../../../components/ui";
 import type { TableColumn } from "../../../../components/ui";
 import { useGetMyClassSectionsQuery } from "../../../../store/api/classSections.api";
 import { useGetClassRosterQuery, useGetTeacherStudentOverviewQuery, type ClassRoster } from "../../../../store/api/teaching.api";
 import { formatPct, monthLabel, pctTone } from "../../admin/Attendance/attendanceFormat";
 import styles from "./MyStudentsPage.module.css";
+// Same detail cards as the admin student profile, so both portals look alike.
+import card from "../../../../components/shared/StudentProfileView/StudentProfileView.module.css";
+
+const ageOf = (dob?: string | null) => {
+  if (!dob) return null;
+  const d = new Date(dob);
+  if (Number.isNaN(d.getTime())) return null;
+  const now = new Date();
+  let age = now.getFullYear() - d.getFullYear();
+  if (now < new Date(now.getFullYear(), d.getMonth(), d.getDate())) age -= 1;
+  return age >= 0 ? `${age} yrs` : null;
+};
 
 type Row = ClassRoster["students"][number];
 
@@ -134,26 +146,47 @@ const StudentModal = ({ studentId, onClose }: { studentId: number; onClose: () =
   const [tab, setTab] = useState<"profile" | "attendance" | "exams">("profile");
 
   return (
-    <Modal title={data?.profile.name ?? "Student"} size="lg" onClose={onClose}>
+    <Modal title="Student profile" size="lg" onClose={onClose}>
       {isLoading ? (
         <Spinner />
       ) : isError || !data ? (
         <p className={styles.muted}>Couldn't load this student.</p>
       ) : (
         <div className={styles.modalBody}>
-          <div className={styles.modalHero}>
-            {data.profile.photoUrl ? (
-              <img src={data.profile.photoUrl} alt="" className={styles.bigThumb} />
-            ) : (
-              <span className={`${styles.thumbFallback} ${styles.bigThumb}`}>{data.profile.name.charAt(0)}</span>
-            )}
-            <div>
-              <div className={styles.name}>{data.profile.name}</div>
-              <div className={styles.muted}>
-                {data.profile.classSection} · Roll {data.profile.rollNo} · Adm {data.profile.admissionNo}
+          <div className={styles.hero}>
+            <div className={styles.heroTop}>
+              {data.profile.photoUrl ? (
+                <img src={data.profile.photoUrl} alt="" className={styles.heroAvatar} />
+              ) : (
+                <span className={styles.heroAvatar}>{data.profile.name.charAt(0)}</span>
+              )}
+              <div className={styles.heroMain}>
+                <div className={styles.heroName}>{data.profile.name}</div>
+                <div className={styles.heroChips}>
+                  <span className={`${styles.heroChip} ${styles.heroChipStrong}`}>{data.profile.classSection}</span>
+                  {data.profile.rollNo && <span className={styles.heroChip}>Roll {data.profile.rollNo}</span>}
+                  <span className={styles.heroChip}>Adm {data.profile.admissionNo}</span>
+                </div>
               </div>
             </div>
-            <Badge tone="info">{formatPct(data.attendance?.overall.percentage ?? null)} attendance</Badge>
+            <div className={styles.heroStats}>
+              {(() => {
+                const pct = data.attendance?.overall.percentage ?? null;
+                const latest = data.exams[0];
+                return (
+                  <>
+                    <button type="button" className={styles.heroStat} onClick={() => setTab("attendance")}>
+                      <span>Attendance</span>
+                      <strong className={pct == null ? "" : pct >= 85 ? styles.good : pct >= 75 ? styles.warn : styles.bad}>{formatPct(pct)}</strong>
+                    </button>
+                    <button type="button" className={styles.heroStat} onClick={() => setTab("exams")}>
+                      <span>{latest ? latest.examName : "Latest exam"}</span>
+                      <strong>{latest?.percentage != null ? `${latest.percentage}%` : "No marks"}</strong>
+                    </button>
+                  </>
+                );
+              })()}
+            </div>
           </div>
 
           <div className={styles.tabs} role="tablist">
@@ -165,35 +198,87 @@ const StudentModal = ({ studentId, onClose }: { studentId: number; onClose: () =
           </div>
 
           {tab === "profile" && (
-            <dl className={styles.fields}>
-              {[
-                ["Date of birth", fmtDate(data.profile.dob)],
-                ["Gender", data.profile.gender ? data.profile.gender[0] + data.profile.gender.slice(1).toLowerCase() : "—"],
-                ["Blood group", data.profile.bloodGroup ?? "—"],
-                ["Father", data.profile.fatherName ?? "—"],
-                ["Mother", data.profile.motherName ?? "—"],
-                ...(data.access === "CLASS_TEACHER"
-                  ? [
-                      ["Father's phone", data.profile.fatherContact ?? "—"],
-                      ["Mother's phone", data.profile.motherContact ?? "—"],
-                      ["Student's phone", data.profile.contactNumber ?? "—"],
-                      ["Address", data.profile.address ?? "—"],
-                    ]
-                  : []),
-              ].map(([label, value]) => (
-                <div key={label}>
-                  <dt>{label}</dt>
-                  <dd>{value}</dd>
+            <div className={styles.profileCards}>
+              <section className={card.card}>
+                <header className={card.cardHead}>
+                  <span className={card.cardIcon}>
+                    <Icon name="users" size={16} />
+                  </span>
+                  <h3>Personal</h3>
+                </header>
+                <div className={card.grid}>
+                  {(
+                    [
+                      ["Date of birth", data.profile.dob ? fmtDate(data.profile.dob) : null, ageOf(data.profile.dob)],
+                      ["Gender", data.profile.gender ? data.profile.gender[0] + data.profile.gender.slice(1).toLowerCase() : null, null],
+                      ["Blood group", data.profile.bloodGroup, null],
+                    ] as const
+                  ).map(([label, value, hint]) => (
+                    <div key={label} className={card.field}>
+                      <span className={card.label}>{label}</span>
+                      <span className={`${card.value} ${value ? "" : card.empty}`}>
+                        {value || "Not added"}
+                        {value && hint && <small className={card.hint}>{hint}</small>}
+                      </span>
+                    </div>
+                  ))}
                 </div>
-              ))}
-              {data.profile.guardians.length > 0 && (
-                <div className={styles.full}>
-                  <dt>Guardian accounts</dt>
-                  <dd>{data.profile.guardians.map((g) => `${g.name}${g.relationship ? ` (${g.relationship})` : ""}${g.contact ? ` · ${g.contact}` : ""}`).join("; ")}</dd>
+              </section>
+
+              <section className={card.card}>
+                <header className={card.cardHead}>
+                  <span className={card.cardIcon}>
+                    <Icon name="familyCheck" size={16} />
+                  </span>
+                  <h3>Family</h3>
+                </header>
+                <div className={card.parents}>
+                  {(
+                    [
+                      ["Father", data.profile.fatherName, data.access === "CLASS_TEACHER" ? data.profile.fatherContact : null],
+                      ["Mother", data.profile.motherName, data.access === "CLASS_TEACHER" ? data.profile.motherContact : null],
+                      ...data.profile.guardians.map((g) => [g.relationship ? `Guardian · ${g.relationship}` : "Guardian", g.name, data.access === "CLASS_TEACHER" ? g.contact : null] as const),
+                    ] as ReadonlyArray<readonly [string, string | null | undefined, string | null | undefined]>
+                  ).map(([relation, name, phone], i) => (
+                    <div key={`${relation}-${i}`} className={card.parent}>
+                      <span className={card.parentAvatar}>{(name || relation).charAt(0).toUpperCase()}</span>
+                      <span className={card.parentMain}>
+                        <small>{relation}</small>
+                        <strong className={name ? "" : card.empty}>{name || "Not added"}</strong>
+                        {phone && <span className={card.phoneText}>{phone}</span>}
+                      </span>
+                      {phone && (
+                        <a className={card.callBtn} href={`tel:${phone}`} aria-label={`Call ${name || relation}`}>
+                          <Icon name="phone" size={16} />
+                        </a>
+                      )}
+                    </div>
+                  ))}
                 </div>
-              )}
-              {data.access !== "CLASS_TEACHER" && <p className={`${styles.muted} ${styles.full}`}>Family contact details are shown to the class teacher.</p>}
-            </dl>
+                {data.access === "CLASS_TEACHER" ? (
+                  <div className={card.grid} style={{ marginTop: "0.85rem" }}>
+                    <div className={card.field}>
+                      <span className={card.label}>Student&apos;s phone</span>
+                      <span className={`${card.value} ${data.profile.contactNumber ? "" : card.empty}`}>
+                        {data.profile.contactNumber ? (
+                          <a className={card.link} href={`tel:${data.profile.contactNumber}`}>
+                            {data.profile.contactNumber}
+                          </a>
+                        ) : (
+                          "Not added"
+                        )}
+                      </span>
+                    </div>
+                    <div className={`${card.field} ${card.wide}`}>
+                      <span className={card.label}>Address</span>
+                      <span className={`${card.value} ${data.profile.address ? "" : card.empty}`}>{data.profile.address || "Not added"}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <p className={styles.privacyNote}>Phone numbers and address are shown to the class teacher.</p>
+                )}
+              </section>
+            </div>
           )}
 
           {tab === "attendance" &&

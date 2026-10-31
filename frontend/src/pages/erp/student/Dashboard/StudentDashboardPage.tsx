@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router-dom";
+import UpcomingHolidays from "../../../../components/shared/SchoolCalendar/UpcomingHolidays";
 import { Badge, Button, Card, EmptyState, Icon, PageHeader, Spinner, StatCard } from "../../../../components/ui";
 import { useGetStudentDashboardQuery } from "../../../../store/api/dashboard.api";
 import { useGetMyStudentProfileQuery } from "../../../../store/api/students.api";
@@ -146,7 +147,7 @@ const StudentDashboardPage = () => {
                     <div className={styles.itemTitle}>{p.subjectName ?? "Period"}</div>
                     <div className={styles.muted}>
                       {p.teacherName ?? "Teacher not set"}
-                      {p.room && ` · Room ${p.room}`}
+                      {p.room && ` · Room ${p.room.replace(/^room\s*/i, "")}`}
                     </div>
                   </div>
                 </li>
@@ -309,6 +310,10 @@ const StudentDashboardPage = () => {
             </ul>
           )}
         </Card>
+      </div>
+
+      <div className={styles.twoCol}>
+        <UpcomingHolidays who="STUDENTS" calendarPath="/student/calendar" />
       </div>
     </div>
   );

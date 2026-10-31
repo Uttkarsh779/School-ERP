@@ -1,7 +1,6 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "react-toastify";
-import { Badge, Button, EmptyState, Input, Modal, PageHeader, Spinner, Table } from "../../../../components/ui";
-import type { TableColumn } from "../../../../components/ui";
+import { Badge, Button, EmptyState, Icon, Input, Modal, PageHeader, Spinner } from "../../../../components/ui";
 import ReceiptModal from "../../../../components/shared/FeeReceipt/ReceiptModal";
 import { useGetMyStudentProfileQuery } from "../../../../store/api/students.api";
 import {
@@ -14,7 +13,7 @@ import {
   useVerifyRazorpayPaymentMutation,
   type LedgerEntry,
 } from "../../../../store/api/fees.api";
-import { fmtDate, getErrorMessage, inr } from "../../admin/Fees/feeUtils";
+import { MONTH_NAMES, fmtDate, getErrorMessage, inr } from "../../admin/Fees/feeUtils";
 import shared from "../../admin/Fees/Fees.module.css";
 import styles from "./StudentFeesPage.module.css";
 
@@ -63,12 +62,24 @@ interface ChartMonth {
   heads: ChartHead[];
 }
 interface MonthsChart {
-  student: { name: string; admissionNo: string; rollNo: string; classSection: string; fatherName: string };
+  student: {
+    name: string;
+    admissionNo: string;
+    rollNo: string;
+    classSection: string;
+    fatherName: string;
+  };
   session: { name: string };
   months: ChartMonth[];
   feeStructureMissing: boolean;
   // Unpaid fees of other sessions (previous-year dues carried forward).
-  otherSessionDues?: Array<{ sessionId: number; sessionName: string; outstanding: number; months: string[]; isPrevious: boolean }>;
+  otherSessionDues?: Array<{
+    sessionId: number;
+    sessionName: string;
+    outstanding: number;
+    months: string[];
+    isPrevious: boolean;
+  }>;
 }
 
 const STATUS: Record<MonthStatus, { label: string; tone: "success" | "warning" | "danger" | "info" | "neutral" }> = {
@@ -95,18 +106,122 @@ const downloadStatement = (rows: LedgerEntry[], who: string) => {
   URL.revokeObjectURL(a.href);
 };
 
-// Student fees, laid out like a standard school ERP fee page: account summary, the full
-// session schedule (pick the months to pay — oldest first, as the office allocates), a
-// payment summary with online payment, receipts, the statement and the fee structure.
+// The statement in plain terms: each month's fee lines (and their concessions) become one
+// "<Month> fees" bill, payments and refunds stay as their own rows. Newest first.
+type StatementItem =
+  | {
+      kind: "bill";
+      key: string;
+      date: string;
+      title: string;
+      lines: { name: string; amount: number }[];
+      discount: number;
+      amount: number;
+      balance: number;
+    }
+  | {
+      kind: "payment";
+      key: string;
+      date: string;
+      title: string;
+      sub: string;
+      amount: number;
+      balance: number;
+    }
+  | {
+      kind: "other";
+      key: string;
+      date: string;
+      title: string;
+      amount: number;
+      credit: boolean;
+      balance: number;
+    };
+
+const PERIOD_RE = /^(Discount on )?(.+) \((\d{1,2})\/(\d{4})\)$/;
+const modeLabel = (mode?: string) => {
+  if (!mode) return "";
+  if (/razorpay|online/i.test(mode)) return "Online";
+  return mode.charAt(0).toUpperCase() + mode.slice(1).toLowerCase();
+};
+
+const buildStatement = (entries: LedgerEntry[]): StatementItem[] => {
+  const items: StatementItem[] = [];
+  const bills = new Map<string, Extract<StatementItem, { kind: "bill" }>>();
+  for (const e of entries) {
+    const m = e.type === "CHARGE" || e.type === "ADJUSTMENT" ? PERIOD_RE.exec(e.description) : null;
+    if (m) {
+      const period = `${m[4]}-${m[3]}`;
+      let bill = bills.get(period);
+      if (!bill) {
+        bill = {
+          kind: "bill",
+          key: `bill-${period}`,
+          date: e.date,
+          title: `${MONTH_NAMES[Number(m[3]) - 1]} ${m[4]} fees`,
+          lines: [],
+          discount: 0,
+          amount: 0,
+          balance: e.balance,
+        };
+        bills.set(period, bill);
+        items.push(bill);
+      }
+      if (m[1]) bill.discount += e.credit;
+      else bill.lines.push({ name: m[2], amount: e.debit });
+      bill.amount += e.debit - e.credit;
+      bill.balance = e.balance;
+    } else if (e.type === "PAYMENT") {
+      const sub = [modeLabel(/\(([^)]+)\)/.exec(e.description)?.[1]), e.referenceNo ? `Receipt ${e.referenceNo}` : ""].filter(Boolean).join(" · ");
+      items.push({
+        kind: "payment",
+        key: `pay-${e.paymentId ?? items.length}`,
+        date: e.date,
+        title: "Payment received",
+        sub,
+        amount: e.credit,
+        balance: e.balance,
+      });
+    } else {
+      const title = e.type === "REFUND" ? "Refund to you" : e.description.replace(/^Discount\/Adjustment: /, "Adjustment: ");
+      items.push({
+        kind: "other",
+        key: `other-${items.length}`,
+        date: e.date,
+        title,
+        amount: e.debit || e.credit,
+        credit: e.credit > 0,
+        balance: e.balance,
+      });
+    }
+  }
+  return items.reverse();
+};
+
+// "₹2,000 × 12 months", "Once a year", or "4 months" when the monthly amount varies.
+const headSchedule = (amounts: number[]) => {
+  if (amounts.length === 1) return "Once a year";
+  if (amounts.every((a) => a === amounts[0])) return `${inr(amounts[0])} × ${amounts.length} months`;
+  return `${amounts.length} months`;
+};
+
+// Student fees, phone first: one "Pay fees" card (what is due, pick months, pay), then
+// tabs for the month-by-month view, receipts, the statement and the fee structure.
 const StudentFeesPage = () => {
-  const [tab, setTab] = useState<"history" | "statement" | "structure">("history");
+  const [tab, setTab] = useState<"months" | "history" | "statement" | "structure">("months");
+  const [openBill, setOpenBill] = useState<string | null>(null);
+  const [showAllStatement, setShowAllStatement] = useState(false);
   const [selected, setSelected] = useState<string[] | null>(null); // periodCodes; null = default (all payable)
   const [expanded, setExpanded] = useState<string | null>(null);
   const [customOpen, setCustomOpen] = useState(false);
   const [customAmount, setCustomAmount] = useState("");
   const [isPaying, setIsPaying] = useState(false);
   const [receiptId, setReceiptId] = useState<number | null>(null);
-  const [refundFor, setRefundFor] = useState<{ paymentId: number; max: number; ref: string } | null>(null);
+  const [refundFor, setRefundFor] = useState<{
+    paymentId: number;
+    max: number;
+    ref: string;
+  } | null>(null);
   const [refundAmount, setRefundAmount] = useState("");
   const [refundReason, setRefundReason] = useState("");
 
@@ -141,7 +256,17 @@ const StudentFeesPage = () => {
     const dueNow = payable.reduce((s, m) => s + m.balanceDue, 0);
     const upcoming = months.filter((m) => m.status === "UNBILLED").reduce((s, m) => s + m.balanceDue, 0);
     const annualNet = gross - concession;
-    return { gross, concession, late, paid, overdue, dueNow, upcoming, annualNet, pct: annualNet > 0 ? Math.min(100, Math.round((paid / annualNet) * 100)) : 0 };
+    return {
+      gross,
+      concession,
+      late,
+      paid,
+      overdue,
+      dueNow,
+      upcoming,
+      annualNet,
+      pct: annualNet > 0 ? Math.min(100, Math.round((paid / annualNet) * 100)) : 0,
+    };
   }, [months, payable]);
 
   // The office's outstanding figure is the payment cap (it is what the server checks).
@@ -152,7 +277,6 @@ const StudentFeesPage = () => {
   const prevTotal = round2(prevDues.reduce((s, d) => s + d.outstanding, 0));
   const selectedTotal = round2(selectedMonths.reduce((s, m) => s + m.balanceDue, 0));
   const payAmount = customOpen ? Number(customAmount) || 0 : Math.min(prevTotal + selectedTotal, outstandingCap);
-  const firstOverdue = months.find((m) => m.status === "OVERDUE");
 
   // Payments settle the oldest dues first, so selection is always a run from the oldest month.
   const toggleMonth = (code: string) => {
@@ -170,12 +294,28 @@ const StudentFeesPage = () => {
   }, [refunds]);
 
   const structure = useMemo(() => {
-    const byHead = new Map<string, { head: string; months: number; gross: number; concession: number }>();
+    const byHead = new Map<
+      string,
+      {
+        head: string;
+        months: number;
+        gross: number;
+        concession: number;
+        amounts: number[];
+      }
+    >();
     for (const m of months) {
       if (m.status === "NOT_APPLICABLE") continue;
       for (const h of m.heads) {
-        const row = byHead.get(h.headName) ?? { head: h.headName, months: 0, gross: 0, concession: 0 };
+        const row = byHead.get(h.headName) ?? {
+          head: h.headName,
+          months: 0,
+          gross: 0,
+          concession: 0,
+          amounts: [],
+        };
         row.months += 1;
+        row.amounts.push(h.baseAmount);
         row.gross += h.baseAmount;
         row.concession += h.discountAmount;
         byHead.set(h.headName, row);
@@ -203,11 +343,19 @@ const StudentFeesPage = () => {
     if (amount > outstandingCap) return toast.error(`You can pay at most ${inr(outstandingCap)} online`);
     setIsPaying(true);
     try {
-      const order = await createOrder({ studentId: profile.id, requestedAmount: amount }).unwrap();
+      const order = await createOrder({
+        studentId: profile.id,
+        requestedAmount: amount,
+      }).unwrap();
 
       // Development mock mode (server-controlled): no Razorpay window, confirm directly.
       if (order.mock) {
-        await verifyPayment({ razorpayOrderId: order.orderId, razorpayPaymentId: `pay_mock_${Date.now()}`, razorpaySignature: "mock", studentId: profile.id }).unwrap();
+        await verifyPayment({
+          razorpayOrderId: order.orderId,
+          razorpayPaymentId: `pay_mock_${Date.now()}`,
+          razorpaySignature: "mock",
+          studentId: profile.id,
+        }).unwrap();
         afterPayment(order.paymentId);
         setIsPaying(false);
         return;
@@ -225,8 +373,13 @@ const StudentFeesPage = () => {
         name: "School Fees",
         description: customOpen ? `Fee payment · ${profile.admissionNo}` : `Fees for ${forWhat}`,
         order_id: order.orderId,
-        prefill: { name: profile.name, contact: profile.contactNumber || profile.fatherContact || "" },
-        theme: { color: getComputedStyle(document.documentElement).getPropertyValue("--erp-primary-600").trim() || "#fa8c39" },
+        prefill: {
+          name: profile.name,
+          contact: profile.contactNumber || profile.fatherContact || "",
+        },
+        theme: {
+          color: getComputedStyle(document.documentElement).getPropertyValue("--erp-primary-600").trim() || "#fa8c39",
+        },
         handler: async (response: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) => {
           try {
             await verifyPayment({
@@ -257,7 +410,12 @@ const StudentFeesPage = () => {
     if (!(amount > 0) || amount > refundFor.max) return toast.error(`Enter an amount up to ${inr(refundFor.max)}`);
     if (refundReason.trim().length < 5) return toast.error("Please explain the reason (at least 5 characters)");
     try {
-      await requestRefund({ studentId: profile.id, paymentId: refundFor.paymentId, amount, reason: refundReason.trim() }).unwrap();
+      await requestRefund({
+        studentId: profile.id,
+        paymentId: refundFor.paymentId,
+        amount,
+        reason: refundReason.trim(),
+      }).unwrap();
       toast.success("Refund request sent to the school office");
       setRefundFor(null);
     } catch (e) {
@@ -268,7 +426,7 @@ const StudentFeesPage = () => {
   if (profileLoading || (profile && chartLoading)) {
     return (
       <div className={shared.page}>
-        <PageHeader title="Fee Details" />
+        <PageHeader title="Fees" />
         <Spinner />
       </div>
     );
@@ -276,7 +434,7 @@ const StudentFeesPage = () => {
   if (!profile) {
     return (
       <div className={shared.page}>
-        <PageHeader title="Fee Details" />
+        <PageHeader title="Fees" />
         <EmptyState title="Your student record isn't linked yet" description="Please contact the school office." />
       </div>
     );
@@ -284,396 +442,487 @@ const StudentFeesPage = () => {
   if (chartError || !chart) {
     return (
       <div className={shared.page}>
-        <PageHeader title="Fee Details" />
-        <EmptyState title="Couldn't load your fee details" action={<Button variant="outline" onClick={() => refetchChart()}>Retry</Button>} />
+        <PageHeader title="Fees" />
+        <EmptyState
+          title="Couldn't load your fee details"
+          action={
+            <Button variant="outline" onClick={() => refetchChart()}>
+              Retry
+            </Button>
+          }
+        />
       </div>
     );
   }
 
-  const statementRows = [...(ledger?.entries ?? [])].reverse();
-  const hasConcession = totals.concession > 0;
-  const colCount = hasConcession ? 8 : 7;
-  const statementColumns: TableColumn<LedgerEntry & { _k: number }>[] = [
-    { key: "date", label: "Date", render: (e) => fmtDate(e.date) },
-    { key: "description", label: "Details" },
-    { key: "debit", label: "Charged", render: (e) => (e.debit ? inr(e.debit) : "—") },
-    { key: "credit", label: "Paid / discount", render: (e) => (e.credit ? <span className={shared.success}>{inr(e.credit)}</span> : "—") },
-    { key: "balance", label: "Balance", render: (e) => <strong>{inr(e.balance)}</strong> },
-  ];
+  const ledgerRows = ledger?.entries ?? [];
+  const statement = buildStatement(ledgerRows);
+  const statementShown = showAllStatement ? statement : statement.slice(0, 12);
+  const balanceNow = Number(ledger?.finalBalance ?? (ledgerRows.length ? ledgerRows[ledgerRows.length - 1].balance : 0));
+  const overdueMonths = months.filter((m) => m.status === "OVERDUE");
+  const upcomingMonths = months.filter((m) => m.status === "UNBILLED");
+  const nothingDue = payable.length === 0 && prevTotal === 0;
+  const dueTotal = round2(Math.min(prevTotal + totals.dueNow, outstandingCap || prevTotal + totals.dueNow));
+  const advance = Number(due?.totalAdvanceAvailable ?? 0);
+  const monthAmount = (m: ChartMonth) => (m.status === "PAID" ? m.paidAmount : m.balanceDue);
 
   return (
     <div className={shared.page}>
-      <PageHeader title="Fee Details" subtitle={`Academic session ${chart.session.name}`} />
+      <PageHeader title="Fees" subtitle={`${chart.session.name} · ${chart.student.classSection} · Adm. No ${chart.student.admissionNo}`} />
 
-      {/* Student fee account */}
-      <section className={styles.account}>
-        <div className={styles.accountWho}>
-          <span className={styles.accountAvatar}>{chart.student.name.charAt(0)}</span>
-          <div>
-            <div className={styles.accountName}>{chart.student.name}</div>
-            <div className={styles.accountMeta}>
-              <span>{chart.student.classSection}</span>
-              <span>Adm. No {chart.student.admissionNo}</span>
-              <span>Roll {chart.student.rollNo}</span>
-              {chart.student.fatherName && <span>Father: {chart.student.fatherName}</span>}
-            </div>
-          </div>
-        </div>
-        <div className={styles.progressBox}>
-          <div className={styles.progressHead}>
-            <span>Annual fee paid</span>
-            <strong>{totals.pct}%</strong>
-          </div>
-          <div className={styles.progress} role="progressbar" aria-valuenow={totals.pct} aria-valuemin={0} aria-valuemax={100}>
-            <span style={{ width: `${totals.pct}%` }} />
-          </div>
-          <div className={styles.progressFoot}>
-            {inr(totals.paid)} of {inr(totals.annualNet)}
-          </div>
-        </div>
-      </section>
-
-      {chart.feeStructureMissing && <div className={shared.notice}>The fee structure for your class hasn't been published yet. Please check with the school office.</div>}
-
-      {/* Summary tiles */}
-      <div className={styles.tiles}>
-        <div className={styles.tile}>
-          <span className={styles.tileLabel}>Annual fee</span>
-          <span className={styles.tileValue}>{inr(totals.annualNet)}</span>
-          <span className={styles.tileHint}>{totals.concession > 0 ? `After ${inr(totals.concession)} concession` : "For the full session"}</span>
-        </div>
-        <div className={`${styles.tile} ${styles.tilePaid}`}>
-          <span className={styles.tileLabel}>Paid so far</span>
-          <span className={styles.tileValue}>{inr(totals.paid)}</span>
-          <span className={styles.tileHint}>{payments.length} payment{payments.length === 1 ? "" : "s"}</span>
-        </div>
-        <div className={`${styles.tile} ${totals.overdue > 0 ? styles.tileDanger : styles.tileDue}`}>
-          <span className={styles.tileLabel}>Due now</span>
-          <span className={styles.tileValue}>{inr(totals.dueNow)}</span>
-          <span className={styles.tileHint}>{totals.overdue > 0 ? `${inr(totals.overdue)} overdue${totals.late > 0 ? ` · incl. ${inr(totals.late)} late fee` : ""}` : totals.dueNow > 0 ? "Pay before the due date" : "Nothing due"}</span>
-        </div>
-        <div className={styles.tile}>
-          <span className={styles.tileLabel}>Upcoming</span>
-          <span className={styles.tileValue}>{inr(totals.upcoming)}</span>
-          <span className={styles.tileHint}>Rest of the session{Number(due?.totalAdvanceAvailable ?? 0) > 0 ? ` · ${inr(due?.totalAdvanceAvailable ?? 0)} advance credit` : ""}</span>
-        </div>
-      </div>
-
-      {prevDues.length > 0 && (
-        <div className={styles.alert} role="alert">
-          <strong>Previous session dues: {inr(prevTotal)}.</strong>{" "}
-          {prevDues.map((d) => `${d.sessionName} (${d.months.join(", ")})`).join("; ")} — unpaid from last year. These are added to your payment and settled first.
-        </div>
+      {chart.feeStructureMissing && (
+        <div className={shared.notice}>The fee structure for your class hasn't been published yet. Please check with the school office.</div>
       )}
 
-      {firstOverdue && (
-        <div className={styles.alert} role="alert">
-          <strong>Payment overdue.</strong> Fees from {short(firstOverdue)} (due {fmtDate(firstOverdue.dueDate)}) are unpaid. Late fee is added as per the school's rule — please pay at the earliest.
-        </div>
-      )}
-
-      {/* Schedule + pay panel */}
+      {/* Phone: one column. Desktop: the pay card on the left (sticky), records on the right. */}
       <div className={styles.layout}>
-        <section className={styles.schedule} aria-label="Fee schedule">
-          <header className={styles.panelHead}>
-            <div>
-              <h2 className={styles.panelTitle}>Fee schedule · {chart.session.name}</h2>
-              <p className={styles.panelSub}>Tick the months you want to pay. Tap a month to see the fee breakdown.</p>
-            </div>
-          </header>
-          <div className={styles.tableWrap}>
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th className={styles.checkCol} aria-label="Select" />
-                  <th>Month</th>
-                  <th className={`${styles.num} ${styles.hideSm}`}>Fee</th>
-                  {hasConcession && <th className={`${styles.num} ${styles.hideSm}`}>Concession</th>}
-                  <th className={`${styles.num} ${styles.hideSm}`}>Late fee</th>
-                  <th className={`${styles.num} ${styles.hideSm}`}>Paid</th>
-                  <th className={styles.num}>Balance</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {months.map((m) => {
-                  const canPay = m.isBilled && m.balanceDue > 0;
-                  const isSel = canPay && selectedCodes.includes(m.periodCode);
-                  const open = expanded === m.periodCode;
-                  const na = m.status === "NOT_APPLICABLE";
-                  return (
-                    <Fragment key={m.periodCode}>
-                      <tr
-                        className={`${styles.row} ${isSel ? styles.rowSelected : ""} ${na || m.status === "UNBILLED" ? styles.rowMuted : ""}`}
-                        onClick={() => !na && setExpanded(open ? null : m.periodCode)}
-                      >
-                        <td className={styles.checkCol} onClick={(e) => e.stopPropagation()}>
-                          {canPay ? (
-                            <input type="checkbox" className={styles.check} checked={isSel} onChange={() => toggleMonth(m.periodCode)} aria-label={`Pay ${m.monthName} ${m.year}`} />
-                          ) : m.status === "PAID" ? (
-                            <span className={styles.paidTick} aria-label="Paid">✓</span>
-                          ) : null}
-                        </td>
-                        <td>
-                          <span className={styles.monthCell}>
-                            <span className={styles.caret} aria-hidden="true">{na ? "" : open ? "▾" : "▸"}</span>
-                            <span>
-                              <strong>{m.monthName}</strong> {m.year}
-                              <span className={styles.dueLine}>{na ? m.statusReason || "Not applicable" : `Due ${fmtDate(m.dueDate)}`}</span>
-                            </span>
-                          </span>
-                        </td>
-                        <td className={`${styles.num} ${styles.hideSm}`}>{na ? "—" : inr(m.baseAmount)}</td>
-                        {hasConcession && <td className={`${styles.num} ${styles.hideSm} ${shared.success}`}>{m.discountAmount ? `−${inr(m.discountAmount)}` : "—"}</td>}
-                        <td className={`${styles.num} ${styles.hideSm} ${shared.danger}`}>{m.lateFeeAmount ? `+${inr(m.lateFeeAmount)}` : "—"}</td>
-                        <td className={`${styles.num} ${styles.hideSm}`}>{m.paidAmount ? inr(m.paidAmount) : "—"}</td>
-                        <td className={`${styles.num} ${styles.strong}`}>{na ? "—" : inr(m.balanceDue)}</td>
-                        <td>
-                          <Badge tone={STATUS[m.status].tone}>{STATUS[m.status].label}</Badge>
-                        </td>
-                      </tr>
-                      {open && (
-                        <tr className={styles.detailRow}>
-                          <td />
-                          <td colSpan={colCount - 1}>
-                            <table className={styles.headTable}>
-                              <tbody>
-                                {m.heads.map((h) => (
-                                  <tr key={h.headName}>
-                                    <td>{h.headName}</td>
-                                    <td className={styles.num}>{inr(h.baseAmount)}</td>
-                                    <td className={`${styles.num} ${shared.success}`}>{h.discountAmount ? `−${inr(h.discountAmount)}` : ""}</td>
-                                    <td className={`${styles.num} ${shared.danger}`}>{h.lateFeeAmount ? `+${inr(h.lateFeeAmount)} late` : ""}</td>
-                                    <td className={styles.num}>{h.paidAmount ? `${inr(h.paidAmount)} paid` : ""}</td>
-                                    <td className={`${styles.num} ${styles.strong}`}>{inr(h.balanceDue)}</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                            {m.status === "UNBILLED" && <p className={styles.note}>Estimated from your class fee structure. The bill is issued closer to the month.</p>}
-                          </td>
-                        </tr>
+        <div className={styles.side}>
+          {/* Pay fees: what is due, pick the months, pay */}
+          <section className={styles.payCard} aria-label="Pay fees">
+            {nothingDue ? (
+              <div className={styles.allPaid}>
+                <span className={styles.allPaidIcon} aria-hidden="true">
+                  ✓
+                </span>
+                <div>
+                  <strong>No dues right now</strong>
+                  <span className={styles.dim}>All issued fees are paid. Thank you!</span>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className={`${styles.dueHead} ${overdueMonths.length ? styles.dueHeadLate : ""}`}>
+                  <span className={styles.dueLabel}>{overdueMonths.length ? "Overdue · please pay" : "Due now"}</span>
+                  <span className={styles.dueBig}>{inr(dueTotal)}</span>
+                  <span className={styles.dueSub}>
+                    {payable.length > 0 && `${payable.length} month${payable.length === 1 ? "" : "s"} unpaid`}
+                    {totals.late > 0 && ` · includes ${inr(totals.late)} late fee`}
+                    {prevTotal > 0 && `${payable.length ? " · " : ""}${inr(prevTotal)} from last session`}
+                  </span>
+                </div>
+
+                {!customOpen ? (
+                  <>
+                    <div className={styles.pickHead}>
+                      <span>Choose what to pay</span>
+                      {payable.length > 1 && selectedMonths.length < payable.length && (
+                        <button type="button" className={styles.linkBtn} onClick={() => setSelected(payable.map((m) => m.periodCode))}>
+                          Select all
+                        </button>
                       )}
-                    </Fragment>
+                    </div>
+                    <ul className={styles.dueList}>
+                      {prevDues.map((d) => (
+                        <li key={`prev-${d.sessionId}`}>
+                          <div className={`${styles.dueRow} ${styles.dueRowOn} ${styles.dueRowFixed}`}>
+                            <input type="checkbox" className={styles.check} checked disabled aria-label={`${d.sessionName} dues`} />
+                            <span className={styles.dueWhat}>
+                              <strong>Last session dues</strong>
+                              <small>
+                                {d.sessionName} · {d.months.join(", ")} · always paid first
+                              </small>
+                            </span>
+                            <span className={styles.dueAmt}>{inr(d.outstanding)}</span>
+                          </div>
+                        </li>
+                      ))}
+                      {payable.map((m) => {
+                        const on = selectedCodes.includes(m.periodCode);
+                        return (
+                          <li key={m.periodCode}>
+                            <label className={`${styles.dueRow} ${on ? styles.dueRowOn : ""}`}>
+                              <input type="checkbox" className={styles.check} checked={on} onChange={() => toggleMonth(m.periodCode)} />
+                              <span className={styles.dueWhat}>
+                                <strong>
+                                  {m.monthName} {m.year}
+                                </strong>
+                                <small className={m.status === "OVERDUE" ? styles.lateText : undefined}>
+                                  {m.status === "OVERDUE" ? `Overdue since ${fmtDate(m.dueDate)}` : `Due ${fmtDate(m.dueDate)}`}
+                                  {m.lateFeeAmount > 0 && ` · ${inr(m.lateFeeAmount)} late fee`}
+                                </small>
+                              </span>
+                              <span className={styles.dueAmt}>{inr(m.balanceDue)}</span>
+                            </label>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                    {payable.length > 1 && <p className={styles.hint}>Months are paid in order, oldest first.</p>}
+                  </>
+                ) : (
+                  <div className={styles.custom}>
+                    <Input
+                      label="Amount (₹)"
+                      inputMode="decimal"
+                      value={customAmount}
+                      onChange={(e) => setCustomAmount(e.target.value)}
+                      hint={`Up to ${inr(outstandingCap)} · clears the oldest dues first`}
+                      autoFocus
+                    />
+                  </div>
+                )}
+
+                <Button fullWidth onClick={payOnline} isLoading={isPaying} disabled={!(payAmount > 0)}>
+                  {payAmount > 0 ? `Pay ${inr(round2(payAmount))}` : customOpen ? "Enter an amount" : "Select a month to pay"}
+                </Button>
+                <button
+                  type="button"
+                  className={`${styles.linkBtn} ${styles.centerLink}`}
+                  onClick={() => {
+                    setCustomOpen((o) => !o);
+                    setCustomAmount("");
+                  }}
+                >
+                  {customOpen ? "Choose months instead" : "Pay a different amount"}
+                </button>
+                <p className={styles.secure}>🔒 Secure payment by Razorpay · UPI, cards, net banking. Receipt is instant.</p>
+              </>
+            )}
+
+            {/* The year at a glance */}
+            <div className={styles.year}>
+              <div className={styles.yearHead}>
+                <span>
+                  Paid <strong>{inr(totals.paid)}</strong> of {inr(totals.annualNet)} this year
+                </span>
+                <strong className={styles.yearPct}>{totals.pct}%</strong>
+              </div>
+              <div className={styles.progress} role="progressbar" aria-valuenow={totals.pct} aria-valuemin={0} aria-valuemax={100}>
+                <span style={{ width: `${totals.pct}%` }} />
+              </div>
+              {(upcomingMonths.length > 0 || advance > 0 || totals.concession > 0) && (
+                <div className={styles.yearFoot}>
+                  {upcomingMonths.length > 0 && (
+                    <span>
+                      {inr(totals.upcoming)} still to come ({short(upcomingMonths[0])}
+                      {upcomingMonths.length > 1 ? ` – ${short(upcomingMonths[upcomingMonths.length - 1])}` : ""})
+                    </span>
+                  )}
+                  {totals.concession > 0 && <span className={shared.success}>{inr(totals.concession)} concession applied</span>}
+                  {advance > 0 && <span className={shared.success}>{inr(advance)} advance credit</span>}
+                </div>
+              )}
+            </div>
+          </section>
+          <p className={styles.panelNote}>To pay in advance for upcoming months, or to pay by cash or cheque, please visit the school fee counter.</p>
+        </div>
+
+        <div className={styles.main}>
+          {/* Records */}
+          <div className={`${shared.tabs} ${styles.tabs}`} role="tablist">
+            {(
+              [
+                ["months", "Months"],
+                ["history", `Receipts${payments.length ? ` (${payments.length})` : ""}`],
+                ["statement", "Statement"],
+                ["structure", "Fee structure"],
+              ] as const
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                role="tab"
+                aria-selected={tab === key}
+                className={`${shared.tab} ${tab === key ? shared.tabActive : ""}`}
+                onClick={() => setTab(key)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {tab === "months" && (
+            <section className={styles.records}>
+              <p className={styles.recordsIntro}>Every month of {chart.session.name}. Tap a month to see what it includes.</p>
+              <ul className={styles.list}>
+                {months.map((m) => {
+                  const na = m.status === "NOT_APPLICABLE";
+                  const open = expanded === m.periodCode;
+                  return (
+                    <li key={m.periodCode} className={`${styles.item} ${na || m.status === "UNBILLED" ? styles.itemMuted : ""}`}>
+                      <button
+                        type="button"
+                        className={styles.itemBtn}
+                        disabled={na}
+                        aria-expanded={open}
+                        onClick={() => setExpanded(open ? null : m.periodCode)}
+                      >
+                        <span className={`${styles.dot} ${styles[`dot${m.status}`]}`} aria-hidden="true" />
+                        <span className={styles.itemMain}>
+                          <strong>
+                            {m.monthName} {m.year}
+                          </strong>
+                          <small>
+                            {na
+                              ? m.statusReason || "Not applicable"
+                              : m.status === "PAID"
+                                ? "Paid in full"
+                                : m.status === "UNBILLED"
+                                  ? `Due ${fmtDate(m.dueDate)} · estimate`
+                                  : `Due ${fmtDate(m.dueDate)}`}
+                          </small>
+                        </span>
+                        <span className={styles.itemEnd}>
+                          <span className={styles.itemAmt}>{na ? "—" : inr(monthAmount(m))}</span>
+                          <Badge tone={STATUS[m.status].tone}>{STATUS[m.status].label}</Badge>
+                        </span>
+                        {!na && (
+                          <span className={`${styles.chev} ${open ? styles.chevOpen : ""}`} aria-hidden="true">
+                            ›
+                          </span>
+                        )}
+                      </button>
+                      {open && (
+                        <div className={styles.breakdown}>
+                          {m.heads.map((h) => (
+                            <div key={h.headName} className={styles.bdRow}>
+                              <span>{h.headName}</span>
+                              <span>{inr(h.baseAmount)}</span>
+                            </div>
+                          ))}
+                          {m.discountAmount > 0 && (
+                            <div className={`${styles.bdRow} ${shared.success}`}>
+                              <span>Concession</span>
+                              <span>−{inr(m.discountAmount)}</span>
+                            </div>
+                          )}
+                          {m.lateFeeAmount > 0 && (
+                            <div className={`${styles.bdRow} ${shared.danger}`}>
+                              <span>Late fee</span>
+                              <span>+{inr(m.lateFeeAmount)}</span>
+                            </div>
+                          )}
+                          {m.paidAmount > 0 && (
+                            <div className={`${styles.bdRow} ${shared.success}`}>
+                              <span>Paid</span>
+                              <span>−{inr(m.paidAmount)}</span>
+                            </div>
+                          )}
+                          <div className={`${styles.bdRow} ${styles.bdTotal}`}>
+                            <span>{m.status === "PAID" ? "Balance" : "To pay"}</span>
+                            <span>{inr(m.balanceDue)}</span>
+                          </div>
+                          {m.status === "UNBILLED" && (
+                            <p className={styles.hint}>Estimated from your class fee structure. The bill is issued closer to the month.</p>
+                          )}
+                        </div>
+                      )}
+                    </li>
                   );
                 })}
-              </tbody>
-              <tfoot>
-                <tr>
-                  <td />
-                  <td>Session total</td>
-                  <td className={`${styles.num} ${styles.hideSm}`}>{inr(totals.gross)}</td>
-                  {hasConcession && <td className={`${styles.num} ${styles.hideSm} ${shared.success}`}>−{inr(totals.concession)}</td>}
-                  <td className={`${styles.num} ${styles.hideSm} ${shared.danger}`}>{totals.late ? `+${inr(totals.late)}` : "—"}</td>
-                  <td className={`${styles.num} ${styles.hideSm}`}>{inr(totals.paid)}</td>
-                  <td className={styles.num}>{inr(totals.dueNow + totals.upcoming)}</td>
-                  <td />
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-        </section>
+              </ul>
+            </section>
+          )}
 
-        <aside className={styles.payPanel} aria-label="Payment summary">
-          <h2 className={styles.panelTitle}>Payment summary</h2>
-          {payable.length === 0 && prevTotal === 0 ? (
-            <div className={styles.allPaid}>
-              <span className={styles.allPaidIcon}>✓</span>
-              <strong>No dues right now</strong>
-              <span className={styles.dim}>All issued fees are paid. Thank you!</span>
-            </div>
-          ) : (
-            <>
-              {!customOpen ? (
-                <>
-                  <ul className={styles.payList}>
-                    {prevDues.map((d) => (
-                      <li key={`prev-${d.sessionId}`}>
-                        <span>
-                          Previous dues · {d.sessionName}
-                          <small className={shared.danger}> {d.months.length} month{d.months.length === 1 ? "" : "s"}, settled first</small>
+          {tab === "history" && (
+            <section className={styles.records}>
+              {ledgerLoading ? (
+                <Spinner />
+              ) : payments.length === 0 ? (
+                <EmptyState title="No payments yet" description="Your receipts will appear here after you pay." />
+              ) : (
+                <ul className={styles.list}>
+                  {payments.map((p) => {
+                    const max = Number(p.credit) - (refundedByPayment.get(p.paymentId!) ?? 0);
+                    const r = refunds.filter((x) => x.paymentId === p.paymentId);
+                    return (
+                      <li key={p.paymentId} className={styles.receipt}>
+                        <span className={styles.receiptIcon} aria-hidden="true">
+                          ₹
                         </span>
-                        <span>{inr(d.outstanding)}</span>
+                        <div className={styles.receiptMain}>
+                          <strong>{inr(p.credit)}</strong>
+                          <span className={styles.dim}>
+                            {fmtDate(p.date)}
+                            {p.referenceNo ? ` · ${p.referenceNo}` : ""}
+                          </span>
+                          {r.length > 0 && (
+                            <span className={styles.receiptRefunds}>
+                              {r.map((x) => (
+                                <Badge key={x.id} tone={x.status === "REFUND_PROCESSED" ? "success" : x.status === "REFUND_REJECTED" ? "danger" : "warning"}>
+                                  Refund {x.status.replace("REFUND_", "").toLowerCase()} · {inr(x.amount)}
+                                </Badge>
+                              ))}
+                            </span>
+                          )}
+                        </div>
+                        <div className={styles.receiptActions}>
+                          <Button size="sm" variant="outline" onClick={() => setReceiptId(p.paymentId!)}>
+                            Receipt
+                          </Button>
+                          {max > 0 && (
+                            <button
+                              type="button"
+                              className={styles.linkBtn}
+                              onClick={() => {
+                                setRefundFor({
+                                  paymentId: p.paymentId!,
+                                  max,
+                                  ref: p.referenceNo ?? "",
+                                });
+                                setRefundAmount("");
+                                setRefundReason("");
+                              }}
+                            >
+                              Request refund
+                            </button>
+                          )}
+                        </div>
                       </li>
-                    ))}
-                    {selectedMonths.length === 0 && payable.length > 0 && <li className={styles.dim}>Select months in the fee schedule.</li>}
-                    {selectedMonths.map((m) => (
-                      <li key={m.periodCode}>
-                        <span>
-                          {m.monthName} {m.year}
-                          {m.lateFeeAmount > 0 && <small className={shared.danger}> incl. {inr(m.lateFeeAmount)} late fee</small>}
+                    );
+                  })}
+                </ul>
+              )}
+            </section>
+          )}
+
+          {tab === "statement" && (
+            <section className={styles.records}>
+              <div className={styles.balanceBox}>
+                <div>
+                  <span className={styles.dim}>Balance you owe today</span>
+                  <strong className={styles.balanceBig}>{inr(Math.max(0, balanceNow))}</strong>
+                  {balanceNow < 0 && <span className={shared.success}>{inr(-balanceNow)} paid in advance</span>}
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={ledgerRows.length === 0}
+                  onClick={() => downloadStatement([...ledgerRows].reverse(), chart.student.admissionNo)}
+                >
+                  Download
+                </Button>
+              </div>
+              <p className={styles.recordsIntro}>
+                Fees added to your account each month, and the payments you made. Newest first. The balance after each line is shown under it.
+              </p>
+              {ledgerLoading ? (
+                <Spinner />
+              ) : statement.length === 0 ? (
+                <EmptyState title="No fee activity yet" description="Bills and payments will appear here." />
+              ) : (
+                <>
+                  <ul className={styles.list}>
+                    {statementShown.map((it) => {
+                      const open = it.kind === "bill" && openBill === it.key;
+                      const credit = it.kind === "payment" || (it.kind === "other" && it.credit);
+                      const body = (
+                        <>
+                          <span className={`${styles.stIcon} ${credit ? styles.stIconIn : ""}`} aria-hidden="true">
+                            <Icon name={it.kind === "bill" ? "fileText" : credit ? "check" : "arrowLeft"} size={16} />
+                          </span>
+                          <span className={styles.itemMain}>
+                            <strong>{it.title}</strong>
+                            <small>
+                              {fmtDate(it.date)}
+                              {it.kind === "payment" && it.sub ? ` · ${it.sub}` : ""}
+                              {it.kind === "bill" ? ` · ${it.lines.length} item${it.lines.length === 1 ? "" : "s"}` : ""}
+                            </small>
+                          </span>
+                          <span className={styles.itemEnd}>
+                            <span className={`${styles.itemAmt} ${credit ? shared.success : ""}`}>
+                              {credit ? "−" : "+"}
+                              {inr(it.amount)}
+                            </span>
+                            <small className={styles.balAfter}>{it.balance < 0 ? `${inr(-it.balance)} in advance` : `Balance ${inr(it.balance)}`}</small>
+                          </span>
+                          {/* Rows without details keep an empty slot so amounts line up */}
+                          <span className={`${styles.chev} ${open ? styles.chevOpen : ""}`} style={it.kind === "bill" ? undefined : { visibility: "hidden" }} aria-hidden="true">
+                            ›
+                          </span>
+                        </>
+                      );
+                      return (
+                        <li key={it.key} className={styles.item}>
+                          {it.kind === "bill" ? (
+                            <button type="button" className={styles.itemBtn} aria-expanded={open} onClick={() => setOpenBill(open ? null : it.key)}>
+                              {body}
+                            </button>
+                          ) : (
+                            <div className={styles.itemBtn}>{body}</div>
+                          )}
+                          {open && it.kind === "bill" && (
+                            <div className={styles.breakdown}>
+                              {it.lines.map((l, i) => (
+                                <div key={i} className={styles.bdRow}>
+                                  <span>{l.name}</span>
+                                  <span>{inr(l.amount)}</span>
+                                </div>
+                              ))}
+                              {it.discount > 0 && (
+                                <div className={`${styles.bdRow} ${shared.success}`}>
+                                  <span>Concession</span>
+                                  <span>−{inr(it.discount)}</span>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  {statement.length > statementShown.length && (
+                    <button type="button" className={`${styles.linkBtn} ${styles.centerLink}`} onClick={() => setShowAllStatement(true)}>
+                      Show older ({statement.length - statementShown.length})
+                    </button>
+                  )}
+                  <p className={styles.legend}>
+                    <span>+ fee added</span>
+                    <span className={shared.success}>− payment / concession</span>
+                  </p>
+                </>
+              )}
+            </section>
+          )}
+
+          {tab === "structure" && (
+            <section className={styles.records}>
+              {structure.length === 0 ? (
+                <EmptyState title="No fee structure" description="The school hasn't published the fee structure for your class yet." />
+              ) : (
+                <>
+                  <p className={styles.recordsIntro}>What your class pays in {chart.session.name}, fee by fee.</p>
+                  <ul className={styles.list}>
+                    {structure.map((h) => (
+                      <li key={h.head} className={`${styles.item} ${styles.itemBtn}`}>
+                        <span className={styles.itemMain}>
+                          <strong>{h.head}</strong>
+                          <small>{headSchedule(h.amounts)}</small>
                         </span>
-                        <span>{inr(m.balanceDue)}</span>
+                        <span className={styles.itemEnd}>
+                          <span className={styles.itemAmt}>{inr(h.gross - h.concession)}</span>
+                          {h.concession > 0 && <small className={shared.success}>{inr(h.concession)} off</small>}
+                        </span>
                       </li>
                     ))}
                   </ul>
-                  <div className={styles.quickPick}>
-                    {payable.length > 1 && (
-                      <button type="button" className={styles.linkBtn} onClick={() => setSelected(payable.map((m) => m.periodCode))}>
-                        Select all dues
-                      </button>
-                    )}
-                    <button type="button" className={styles.linkBtn} onClick={() => { setCustomOpen(true); setCustomAmount(""); }}>
-                      Pay a different amount
-                    </button>
+                  <div className={styles.structureTotal}>
+                    <span>
+                      Total for the year
+                      {totals.concession > 0 && <small>after {inr(totals.concession)} concession</small>}
+                    </span>
+                    <strong>{inr(totals.annualNet)}</strong>
                   </div>
                 </>
-              ) : (
-                <div className={styles.custom}>
-                  <Input label="Amount (₹)" inputMode="decimal" value={customAmount} onChange={(e) => setCustomAmount(e.target.value)} hint={`Up to ${inr(outstandingCap)} · settles the oldest dues first`} autoFocus />
-                  <button type="button" className={styles.linkBtn} onClick={() => setCustomOpen(false)}>
-                    Back to month selection
-                  </button>
-                </div>
               )}
-              <div className={styles.payTotal}>
-                <span>Total payable</span>
-                <strong>{inr(round2(payAmount))}</strong>
-              </div>
-              <Button fullWidth onClick={payOnline} isLoading={isPaying} disabled={!(payAmount > 0)}>
-                Pay {inr(round2(payAmount))} securely
-              </Button>
-              <p className={styles.secure}>🔒 Secured by Razorpay · UPI, cards, net banking & wallets. A receipt is generated instantly.</p>
-            </>
+            </section>
           )}
-          <p className={styles.panelNote}>To pay in advance for upcoming months, or to pay by cash/cheque, please visit the school fee counter.</p>
-        </aside>
+        </div>
       </div>
-
-      {/* Records */}
-      <div className={shared.tabs} role="tablist">
-        {(
-          [
-            ["history", `Payment history (${payments.length})`],
-            ["statement", "Statement"],
-            ["structure", "Fee structure"],
-          ] as const
-        ).map(([key, label]) => (
-          <button key={key} type="button" role="tab" aria-selected={tab === key} className={`${shared.tab} ${tab === key ? shared.tabActive : ""}`} onClick={() => setTab(key)}>
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {tab === "history" && (
-        <section className={styles.records}>
-          {ledgerLoading ? (
-            <Spinner />
-          ) : payments.length === 0 ? (
-            <EmptyState title="No payments yet" description="Your receipts will appear here after you pay." />
-          ) : (
-            <ul className={styles.receipts}>
-              {payments.map((p) => {
-                const max = Number(p.credit) - (refundedByPayment.get(p.paymentId!) ?? 0);
-                const r = refunds.filter((x) => x.paymentId === p.paymentId);
-                return (
-                  <li key={p.paymentId} className={styles.receipt}>
-                    <span className={styles.receiptIcon} aria-hidden="true">₹</span>
-                    <div className={styles.receiptMain}>
-                      <strong>{inr(p.credit)}</strong>
-                      <span className={styles.dim}>
-                        {fmtDate(p.date)}
-                        {p.referenceNo ? ` · Receipt ${p.referenceNo}` : ""}
-                      </span>
-                      {r.length > 0 && (
-                        <span className={styles.receiptRefunds}>
-                          {r.map((x) => (
-                            <Badge key={x.id} tone={x.status === "REFUND_PROCESSED" ? "success" : x.status === "REFUND_REJECTED" ? "danger" : "warning"}>
-                              Refund {x.status.replace("REFUND_", "").toLowerCase()} · {inr(x.amount)}
-                            </Badge>
-                          ))}
-                        </span>
-                      )}
-                    </div>
-                    <div className={shared.rowActions}>
-                      <Button size="sm" variant="outline" onClick={() => setReceiptId(p.paymentId!)}>
-                        View receipt
-                      </Button>
-                      {max > 0 && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => {
-                            setRefundFor({ paymentId: p.paymentId!, max, ref: p.referenceNo ?? "" });
-                            setRefundAmount("");
-                            setRefundReason("");
-                          }}
-                        >
-                          Request refund
-                        </Button>
-                      )}
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </section>
-      )}
-
-      {tab === "statement" && (
-        <section className={styles.records}>
-          <div className={styles.recordsHead}>
-            <p className={styles.panelSub}>Every charge, concession, payment and refund with your running balance.</p>
-            <Button size="sm" variant="outline" disabled={statementRows.length === 0} onClick={() => downloadStatement(statementRows, chart.student.admissionNo)}>
-              Download statement
-            </Button>
-          </div>
-          {ledgerLoading ? <Spinner /> : <Table columns={statementColumns} data={statementRows.map((e, i) => ({ ...e, _k: i }))} keyField="_k" emptyMessage="No fee activity yet." />}
-        </section>
-      )}
-
-      {tab === "structure" && (
-        <section className={styles.records}>
-          {structure.length === 0 ? (
-            <EmptyState title="No fee structure" description="The school hasn't published the fee structure for your class yet." />
-          ) : (
-            <div className={styles.tableWrap}>
-              <table className={styles.table}>
-                <thead>
-                  <tr>
-                    <th>Fee head</th>
-                    <th className={styles.num}>Months</th>
-                    <th className={styles.num}>Annual amount</th>
-                    <th className={styles.num}>Concession</th>
-                    <th className={styles.num}>Payable</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {structure.map((h) => (
-                    <tr key={h.head}>
-                      <td>
-                        <strong>{h.head}</strong>
-                      </td>
-                      <td className={styles.num}>{h.months}</td>
-                      <td className={styles.num}>{inr(h.gross)}</td>
-                      <td className={`${styles.num} ${shared.success}`}>{h.concession ? `−${inr(h.concession)}` : "—"}</td>
-                      <td className={`${styles.num} ${styles.strong}`}>{inr(h.gross - h.concession)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr>
-                    <td>Total</td>
-                    <td />
-                    <td className={styles.num}>{inr(totals.gross)}</td>
-                    <td className={`${styles.num} ${shared.success}`}>{totals.concession ? `−${inr(totals.concession)}` : "—"}</td>
-                    <td className={styles.num}>{inr(totals.annualNet)}</td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          )}
-        </section>
-      )}
 
       {receiptId !== null && <ReceiptModal paymentId={receiptId} onClose={() => setReceiptId(null)} />}
 
       {refundFor && (
         <Modal title="Request a refund" onClose={() => setRefundFor(null)}>
           <div className={shared.formStack}>
-            <p className={shared.muted}>For payment {refundFor.ref}. The school office reviews every request; you'll see the status under Payment history.</p>
-            <Input label="Amount (₹)" inputMode="decimal" value={refundAmount} onChange={(e) => setRefundAmount(e.target.value)} hint={`Up to ${inr(refundFor.max)}`} />
+            <p className={shared.muted}>For payment {refundFor.ref}. The school office reviews every request; you'll see the status under Receipts.</p>
+            <Input
+              label="Amount (₹)"
+              inputMode="decimal"
+              value={refundAmount}
+              onChange={(e) => setRefundAmount(e.target.value)}
+              hint={`Up to ${inr(refundFor.max)}`}
+            />
             <Input label="Reason" value={refundReason} onChange={(e) => setRefundReason(e.target.value)} placeholder="e.g. Paid twice by mistake" />
           </div>
           <div className={shared.formActions}>

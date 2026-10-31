@@ -3,6 +3,7 @@ import { authenticateToken, authorizeRoles, type CustomRequest } from "../../mid
 import { asyncHandler } from "../../utils/asyncHandler";
 import { httpError } from "../../utils/httpError";
 import { applyForLeave, cancelLeave, decideLeave, listAllLeaves, listClassLeaves, listMyLeaves } from "./service";
+import { onLeaveApplied, onLeaveDecided } from "../notifications/events";
 
 const router = Router();
 router.use(authenticateToken);
@@ -18,7 +19,9 @@ router.post(
   "/",
   authorizeRoles(["STUDENT", "TEACHER", "ADMIN", "SUPER_ADMIN"]),
   asyncHandler(async (req: CustomRequest, res: Response) => {
-    res.status(201).json({ success: true, message: "Leave request sent", data: await applyForLeave(req.user!, req.body ?? {}) });
+    const leave = await applyForLeave(req.user!, req.body ?? {});
+    onLeaveApplied(leave.id);
+    res.status(201).json({ success: true, message: "Leave request sent", data: leave });
   })
 );
 router.get(
@@ -63,7 +66,9 @@ router.patch(
   authorizeRoles(["TEACHER", "ADMIN", "SUPER_ADMIN"]),
   asyncHandler(async (req: CustomRequest, res: Response) => {
     if (typeof req.body?.approved !== "boolean") throw httpError(400, "approved (true/false) is required");
-    res.json({ success: true, data: await decideLeave(req.user!, idParam(req), req.body.approved, req.body.note) });
+    const leave = await decideLeave(req.user!, idParam(req), req.body.approved, req.body.note);
+    onLeaveDecided(leave.id);
+    res.json({ success: true, data: leave });
   })
 );
 

@@ -1,4 +1,4 @@
-import { Badge, Card, Table } from "../../../../../components/ui";
+import { Badge, Button, Card, Table } from "../../../../../components/ui";
 import type { TableColumn } from "../../../../../components/ui";
 import TransportInfoCard from "../../../../../components/shared/TransportInfoCard/TransportInfoCard";
 import type { StudentHistory } from "../../../../../store/api/students.api";
@@ -12,11 +12,14 @@ const TransportHistoryTab = ({
   student,
   history,
   onManageTransport,
+  onEndTransport,
 }: {
   student: IStudent;
   history: StudentHistory;
   onManageTransport: () => void;
+  onEndTransport?: () => void;
 }) => {
+  const active = history.transport.find((a) => a.status === "ACTIVE") ?? null;
   const columns: TableColumn<Assignment>[] = [
     { key: "villageName", label: "Village / Stop", render: (a) => <strong>{a.villageName ?? "—"}</strong> },
     { key: "monthlyFee", label: "Monthly Fee", render: (a) => (a.monthlyFee === null ? "—" : inr(a.monthlyFee)) },
@@ -37,11 +40,15 @@ const TransportHistoryTab = ({
 
   return (
     <div className={styles.tab}>
-      <TransportInfoCard
-        student={student}
-        activeAssignment={history.transport.find((a) => a.status === "ACTIVE") ?? null}
-        onAssignTransport={onManageTransport}
-      />
+      <TransportInfoCard student={student} activeAssignment={active} onAssignTransport={onManageTransport} />
+      {onEndTransport && (active || student.transportRoute) && (
+        <div className={styles.endBar}>
+          <span className={styles.muted}>Student no longer needs the bus? Ending transport stops the transport fee after the last day.</span>
+          <Button size="sm" variant="outline" onClick={onEndTransport}>
+            End transport
+          </Button>
+        </div>
+      )}
       <Card title="Transport history" subtitle="Every village / fee-location assignment, newest first">
         <Table columns={columns} data={history.transport} keyField="id" emptyMessage="This student has never used school transport." />
       </Card>

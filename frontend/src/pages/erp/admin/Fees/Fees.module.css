@@ -404,3 +404,127 @@
     -webkit-appearance: none;
   }
 }
+
+/* Phones: Fee Management home is a list of sections; a section opens full screen with a
+   back link. (Desktop and tablets keep the tab strip; these elements are hidden there.) */
+.phoneSectionHead,
+.phoneHub {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .hideOnPhone {
+    display: none;
+  }
+
+  .phoneSectionHead {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.2rem;
+  }
+
+  .phoneBack {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-height: 2.25rem;
+    padding: 0 0.1rem;
+    border: none;
+    background: none;
+    font: inherit;
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--erp-primary-700);
+    cursor: pointer;
+  }
+
+  .phoneSectionTitle {
+    margin: 0;
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: var(--erp-text);
+  }
+
+  .phoneHub {
+    display: flex;
+    flex-direction: column;
+    background: var(--erp-surface);
+    border: 1px solid var(--erp-border);
+    border-radius: var(--erp-radius-lg);
+    box-shadow: var(--erp-shadow-sm);
+    overflow: hidden;
+  }
+
+  .hubRow {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    width: 100%;
+    min-height: 3.6rem;
+    padding: 0.7rem 0.95rem;
+    border: none;
+    border-top: 1px solid var(--erp-border);
+    background: none;
+    font: inherit;
+    color: var(--erp-text);
+    text-align: left;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .hubRow:first-child {
+    border-top: none;
+  }
+
+  .hubRow:active {
+    background: var(--erp-bg);
+  }
+
+  .hubIcon {
+    width: 2.3rem;
+    height: 2.3rem;
+    border-radius: 0.7rem;
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+    background: var(--erp-bg);
+    color: var(--erp-text-muted);
+  }
+
+  .hubText {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.05rem;
+  }
+
+  .hubText strong {
+    font-size: 0.95rem;
+  }
+
+  .hubText small {
+    font-size: 0.78rem;
+    color: var(--erp-text-muted);
+  }
+
+  .hubChev {
+    color: var(--erp-text-muted);
+    flex-shrink: 0;
+  }
+
+  /* Collect Payment: the main job, so it stands out */
+  .hubPrimary {
+    background: var(--erp-primary-50);
+  }
+
+  .hubPrimary .hubIcon {
+    background: var(--erp-primary-600);
+    color: #fff;
+  }
+
+  .hubPrimary .hubText strong {
+    color: var(--erp-primary-700);
+  }
+}

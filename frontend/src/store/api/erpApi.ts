@@ -32,6 +32,11 @@ export const erpApi = createApi({
     "Leave",
     "Profile",
     "Remarks",
+    "Certificate",
+    "Notification",
+    "Account",
+    "Calendar",
+    "DocumentSetting",
   ],
   endpoints: () => ({}),
 });

@@ -31,6 +31,12 @@ const paths: Record<string, string> = {
   externalLink: "M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5",
   chevronRight: "M9 6l6 6-6 6",
   hardHat: "M3 18h18M5 18v-2a7 7 0 0 1 14 0v2M10 9.5V6h4v3.5M9 6h6",
+  x: "M6 6l12 12M18 6L6 18",
+  settings: "M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6",
+  printer: "M7 9V3h10v6M7 17H5a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-2M7 14h10v7H7v-7z",
+  wallet: "M4 7a2 2 0 0 1 2-2h11a1 1 0 0 1 1 1v2M4 7v11a2 2 0 0 0 2 2h13a1 1 0 0 0 1-1v-3M4 7a2 2 0 0 0 2 2h13a1 1 0 0 1 1 1v3M20 13h-4a1.5 1.5 0 0 0 0 3h4v-3z",
+  // 3×3 "apps" dots — the bottom dock's Menu button
+  grid: "M4 5a1 1 0 1 0 2 0a1 1 0 1 0-2 0M11 5a1 1 0 1 0 2 0a1 1 0 1 0-2 0M18 5a1 1 0 1 0 2 0a1 1 0 1 0-2 0M4 12a1 1 0 1 0 2 0a1 1 0 1 0-2 0M11 12a1 1 0 1 0 2 0a1 1 0 1 0-2 0M18 12a1 1 0 1 0 2 0a1 1 0 1 0-2 0M4 19a1 1 0 1 0 2 0a1 1 0 1 0-2 0M11 19a1 1 0 1 0 2 0a1 1 0 1 0-2 0M18 19a1 1 0 1 0 2 0a1 1 0 1 0-2 0",
 };
 
 interface IconProps extends SVGProps<SVGSVGElement> {

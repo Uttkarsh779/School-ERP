@@ -3,6 +3,8 @@ import { toast } from "react-toastify";
 import { EmptyState, PageHeader, Spinner } from "../../../../components/ui";
 import { useGetStudentAttendanceSummaryQuery } from "../../../../store/api/attendance.api";
 import { useGetMyStudentProfileQuery } from "../../../../store/api/students.api";
+import { useGetCalendarQuery } from "../../../../store/api/calendar.api";
+import { dayOffReason, fmtRange } from "../../../../components/shared/SchoolCalendar/calendarUtils";
 import styles from "./StudentAttendancePage.module.css";
 
 const STATUS: Record<AttendanceStatus, { short: string; label: string; cls: string }> = {
@@ -53,6 +55,10 @@ const StudentAttendancePage = () => {
 
   const monthKeys = useMemo(() => [...months.keys()].sort(), [months]);
   const active = month && months.has(month) ? month : monthKeys[monthKeys.length - 1];
+  // Holidays and weekly offs for the month shown.
+  const monthEnd = active ? `${active}-${pad(new Date(Number(active.slice(0, 4)), Number(active.slice(5, 7)), 0).getDate())}` : "";
+  const { data: calendar } = useGetCalendarQuery({ from: `${active}-01`, to: monthEnd }, { skip: !active });
+  const monthHolidays = (calendar?.events ?? []).filter((e) => e.kind === "HOLIDAY" && e.audience !== "STAFF");
 
   if (profileLoading || (profile && isLoading)) {
     return (
@@ -92,11 +98,12 @@ const StudentAttendancePage = () => {
   const days = new Date(year, mon + 1, 0).getDate();
   const today = new Date();
   const todayKey = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
-  const cells: Array<{ day: number; key: string; status?: AttendanceStatus; weekday: number } | null> = [
+  const cells: Array<{ day: number; key: string; status?: AttendanceStatus; weekday: number; off: string | null } | null> = [
     ...Array.from({ length: lead }, () => null),
     ...Array.from({ length: days }, (_, i) => {
       const key = `${year}-${pad(mon + 1)}-${pad(i + 1)}`;
-      return { day: i + 1, key, status: byDate.get(key), weekday: (lead + i) % 7 };
+      const off = calendar ? dayOffReason(calendar.events, calendar.settings, key, "STUDENTS") : (lead + i) % 7 === 6 ? "Sunday" : null;
+      return { day: i + 1, key, status: byDate.get(key), weekday: (lead + i) % 7, off };
     }),
   ];
 
@@ -157,8 +164,8 @@ const StudentAttendancePage = () => {
               <div
                 key={c.key}
                 role="gridcell"
-                className={`${styles.day} ${c.status ? styles[STATUS[c.status].cls] : c.weekday === 6 ? styles.holiday : ""} ${c.key === todayKey ? styles.today : ""}`}
-                title={c.status ? `${c.day} ${MONTHS[mon]}: ${STATUS[c.status].label}` : undefined}
+                className={`${styles.day} ${c.status ? styles[STATUS[c.status].cls] : c.off ? styles.holiday : ""} ${c.key === todayKey ? styles.today : ""}`}
+                title={c.status ? `${c.day} ${MONTHS[mon]}: ${STATUS[c.status].label}` : c.off ? `${c.day} ${MONTHS[mon]}: ${c.off}` : undefined}
               >
                 <span className={styles.dayNum}>{c.day}</span>
                 {c.status && <span className={styles.dayMark}>{STATUS[c.status].short}</span>}
@@ -176,9 +183,17 @@ const StudentAttendancePage = () => {
             </span>
           ))}
           <span>
-            <i className={styles.blank} /> Not marked / holiday
+            <i className={styles.blank} /> Not marked
+          </span>
+          <span className={styles.holiday}>
+            <i className={styles.blank} /> <span className={styles.dayNum}>Holiday / weekly off</span>
           </span>
         </div>
+        {monthHolidays.length > 0 && (
+          <p className={styles.holidayNote}>
+            Holidays: {monthHolidays.map((h) => `${h.title} (${fmtRange(h)})`).join(" · ")}
+          </p>
+        )}
       </section>
 
       {/* Month-wise summary */}

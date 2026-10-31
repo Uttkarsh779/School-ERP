@@ -8,14 +8,14 @@ const FALLBACK_SETTINGS: IWebsiteSetting = {
   tagline: "Empowering Minds, Inspiring Excellence",
   boardName: "CBSE",
   affiliationNo: "",
-  establishedYear: 1998,
+  establishedYear: 2020,
   heroTitle: "Where Curious Minds Grow Into Confident Leaders",
-  heroSubtitle: "A caring, future-ready school offering strong academics, sports, arts and values from Nursery to Class XII.",
+  heroSubtitle: "A caring, future-ready school offering strong academics, sports, arts and values from Nursery to Class X.",
   heroCtaText: "Apply for Admission",
   heroCtaLink: "/admissions",
   admissionsOpen: true,
   aboutText: "",
-  principalName: "",
+  principalName: "VP Anand",
   principalTitle: "Principal",
   principalMessage: "",
   phone: "",
@@ -52,7 +52,7 @@ export const useSite = () => {
     const years = Math.max(1, new Date().getFullYear() - (s.establishedYear || new Date().getFullYear()));
     const defaultStats: IWebsiteStat[] = [
       { value: `${years}+`, label: "Years of excellence" },
-      { value: "Nur–XII", label: "Classes offered" },
+      { value: "Nur–X", label: "Classes offered" },
       { value: s.boardName || "CBSE", label: "Affiliated board" },
       { value: "100%", label: "Safe, CCTV campus" },
     ];

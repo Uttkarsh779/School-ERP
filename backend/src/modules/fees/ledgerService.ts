@@ -10,7 +10,7 @@ export const getStudentLedger = async (studentId: number) => {
 
   // Fetch all charges (Debit), with late fees from the configured rule (lateFeeService)
   const charges = await prisma.feeCharge.findMany({
-    where: { studentId },
+    where: { studentId, status: { notIn: [ChargeStatus.CANCELLED, ChargeStatus.VOID] } },
     include: { feeHead: true },
     orderBy: { createdAt: "asc" },
   });
@@ -27,7 +27,7 @@ export const getStudentLedger = async (studentId: number) => {
 
   // Fetch all adjustments / discounts (Credit)
   const adjustments = await prisma.feeAdjustment.findMany({
-    where: { studentId },
+    where: { studentId, reversedAt: null },
     orderBy: { createdAt: "asc" },
   });
 

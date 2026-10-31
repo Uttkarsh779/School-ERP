@@ -21,6 +21,11 @@ export interface MyProfile {
     contact: string | null;
     qualifications: string | null;
     address: string | null;
+    employeeCode: string | null;
+    joiningDate: string | null;
+    dob: string | null;
+    bloodGroup: string | null;
+    emergencyContact: string | null;
     classTeacherOf: string[];
     teaches: string[];
   } | null;

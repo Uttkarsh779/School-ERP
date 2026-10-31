@@ -26,6 +26,11 @@ import constructionRouter from "./modules/construction/routes";
 import profileRouter from "./modules/profile/routes";
 import teachingRouter from "./modules/teaching/routes";
 import leavesRouter from "./modules/leaves/routes";
+import certificatesRouter from "./modules/certificates/routes";
+import notificationsRouter from "./modules/notifications/routes";
+import accountsRouter from "./modules/accounts/routes";
+import calendarRouter from "./modules/calendar/routes";
+import settingsRouter from "./modules/settings/routes";
 
 const app: Application = express();
 
@@ -67,6 +72,11 @@ app.use("/api/construction", constructionRouter); // SUPER_ADMIN only
 app.use("/api/profile", profileRouter); // the caller's own account
 app.use("/api/teaching", teachingRouter); // TEACHER only
 app.use("/api/leaves", leavesRouter);
+app.use("/api/certificates", certificatesRouter); // ADMIN / SUPER_ADMIN
+app.use("/api/notifications", notificationsRouter); // the caller's own
+app.use("/api/accounts", accountsRouter); // ADMIN / SUPER_ADMIN
+app.use("/api/calendar", calendarRouter); // view: everyone · manage: admins
+app.use("/api/settings", settingsRouter); // signature/seal for printouts · change: Super Admin
 
 import { runFullResetAndSeed } from "./config/seed";
 

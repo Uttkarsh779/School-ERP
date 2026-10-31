@@ -121,8 +121,20 @@ export interface StudentHistory {
       status: string;
       transactionRef: string | null;
       date: string;
+      cancelledAt: string | null;
+      cancelReason: string | null;
     }>;
-    adjustments: Array<{ id: number; type: string; amount: number; reason: string; appliedBy: string | null; date: string }>;
+    adjustments: Array<{
+      id: number;
+      type: string;
+      amount: number;
+      reason: string;
+      appliedBy: string | null;
+      date: string;
+      reversible: boolean;
+      reversedAt: string | null;
+      reverseReason: string | null;
+    }>;
     concessions: Array<{
       id: number;
       name: string | null;
@@ -188,6 +200,12 @@ export const studentsApi = erpApi.injectEndpoints({
       transformResponse: (res: ApiEnvelope<IStudent>) => res.data,
       invalidatesTags: ["Student"],
     }),
+    // Passport-style photo set by the office (report cards, ID cards); null removes it.
+    setStudentPhoto: builder.mutation<{ id: number; photoUrl: string | null }, { id: number; photoUrl: string | null }>({
+      query: ({ id, photoUrl }) => ({ url: `students/${id}/photo`, method: "PATCH", body: { photoUrl } }),
+      transformResponse: (res: ApiEnvelope<{ id: number; photoUrl: string | null }>) => res.data,
+      invalidatesTags: ["Student"],
+    }),
     setStudentCredentials: builder.mutation<{ email: string }, { id: number; email?: string; password: string }>({
       query: ({ id, ...body }) => ({ url: `students/${id}/credentials`, method: "POST", body }),
       transformResponse: (res: ApiEnvelope<{ email: string }>) => res.data,
@@ -205,6 +223,7 @@ export const studentsApi = erpApi.injectEndpoints({
 });
 
 export const {
+  useSetStudentPhotoMutation,
   useGetStudentsQuery,
   useGetStudentByIdQuery,
   useGetStudentHistoryQuery,

@@ -4,13 +4,6 @@ import { CtaBand, PageBanner, Reveal, SectionHead, cx } from "./parts";
 import { usePageTitle, useSite } from "./useSite";
 import s from "./site.module.css";
 
-const STREAMS = [
-  { name: "Science (PCM)", subjects: "Physics, Chemistry, Mathematics, English + one elective (Computer Science / Physical Education)" },
-  { name: "Science (PCB)", subjects: "Physics, Chemistry, Biology, English + one elective (Mathematics / Physical Education)" },
-  { name: "Commerce", subjects: "Accountancy, Business Studies, Economics, English + Mathematics / Informatics Practices" },
-  { name: "Humanities", subjects: "History, Political Science, Geography / Economics, English + one elective" },
-];
-
 const AcademicsPage = () => {
   const { settings, session } = useSite();
   usePageTitle("Academics", settings.schoolName);
@@ -26,7 +19,7 @@ const AcademicsPage = () => {
 
       <section className={s.section}>
         <div className={s.container}>
-          <SectionHead eyebrow="Learning stages" title="From Nursery to Class XII" lead="Each stage builds on the last, so children move ahead with confidence." />
+          <SectionHead eyebrow="Learning stages" title="From Nursery to Class X" lead="Each stage builds on the last, so children move ahead with confidence." />
           <div style={{ display: "grid", gap: 22 }}>
             {ACADEMIC_STAGES.map((st, i) => (
               <Reveal key={st.key} delay={60}>
@@ -56,25 +49,6 @@ const AcademicsPage = () => {
               </Reveal>
             ))}
           </div>
-        </div>
-      </section>
-
-      <section className={cx(s.section, s.sectionMist)} id="streams">
-        <div className={s.container}>
-          <SectionHead eyebrow="Classes XI – XII" title="Streams offered" lead="Students choose their stream after Class X based on interest, aptitude and results, with guidance from our counsellors." />
-          <div className={s.grid2}>
-            {STREAMS.map((st, i) => (
-              <Reveal key={st.name} delay={(i % 2) * 90}>
-                <article className={cx(s.card, s.cardHover)} style={{ height: "100%" }}>
-                  <h3 className={s.cardTitle}>{st.name}</h3>
-                  <p className={s.cardText}>{st.subjects}</p>
-                </article>
-              </Reveal>
-            ))}
-          </div>
-          <p className={s.formNote} style={{ textAlign: "center", marginTop: 20 }}>
-            Subject combinations depend on the number of students opting and may change each year.
-          </p>
         </div>
       </section>
 

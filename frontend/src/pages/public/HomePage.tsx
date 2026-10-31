@@ -67,7 +67,7 @@ const HomePage = () => {
                 <SiteIcon name="calendar" size={17} /> Since {settings.establishedYear}
               </span>
               <span>
-                <SiteIcon name="users" size={17} /> Nursery to Class XII
+                <SiteIcon name="users" size={17} /> Nursery to Class X
               </span>
             </div>
           </div>
@@ -176,7 +176,7 @@ const HomePage = () => {
           </div>
           <div className={s.sectionFoot}>
             <Link to="/academics" className={s.textLink}>
-              Explore all stages, Classes IX – XII and streams <SiteIcon name="arrowRight" size={17} />
+              Explore all stages, Primary to Class X <SiteIcon name="arrowRight" size={17} />
             </Link>
           </div>
         </div>
@@ -250,7 +250,7 @@ const HomePage = () => {
               <p>{settings.admissionNotice || "Contact the admissions office for seat availability and the admission schedule."}</p>
               <ul className={s.checkList} style={{ color: "rgba(255,255,255,0.86)" }}>
                 <li>
-                  <SiteIcon name="check" size={18} strokeWidth={2.4} /> Nursery to Class XI
+                  <SiteIcon name="check" size={18} strokeWidth={2.4} /> Nursery to Class IX
                 </li>
                 <li>
                   <SiteIcon name="check" size={18} strokeWidth={2.4} /> Simple, transparent process

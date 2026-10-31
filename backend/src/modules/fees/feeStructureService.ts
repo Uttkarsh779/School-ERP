@@ -349,7 +349,7 @@ export const simulateStudentFees = async (data: {
   if (studentId) {
     const student = await prisma.student.findUnique({
       where: { id: studentId },
-      include: { feeAdjustments: true },
+      include: { feeAdjustments: { where: { reversedAt: null } } },
     });
     if (student) {
       studentDiscount = student.feeAdjustments.reduce((sum: number, a: any) => sum + Number(a.amount), 0);

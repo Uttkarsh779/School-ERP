@@ -22,16 +22,23 @@ export interface CloudinaryUploadResult {
   bytes: number;
 }
 
+// Photos are stored at most 1600 px on the longest side with automatic quality — a phone
+// photo of 3–8 MB becomes roughly 150–400 KB, which keeps the free plan's storage and
+// bandwidth in check. The original full-size file is not kept.
+const SHRINK_ON_UPLOAD = [{ width: 1600, height: 1600, crop: "limit", quality: "auto:good" }];
+
 export const uploadBufferToCloudinary = (
   buffer: Buffer,
   folder = "school_erp",
-  resourceType: "auto" | "image" | "raw" = "auto"
+  resourceType: "auto" | "image" | "raw" = "auto",
+  shrink = false
 ): Promise<CloudinaryUploadResult> => {
   return new Promise((resolve, reject) => {
     const uploadStream = cloudinary.uploader.upload_stream(
       {
         folder,
         resource_type: resourceType,
+        ...(shrink ? { transformation: SHRINK_ON_UPLOAD } : {}),
       },
       (error, result) => {
         if (error || !result) {

@@ -20,6 +20,9 @@ const humanize = (v: string) => v.toLowerCase().split("_").map((w) => w[0].toUpp
 
 // "My profile" for staff (teachers, admins): photo (upload + crop to Cloudinary), basic
 // details and change password. Used at /teacher/profile and /admin/profile (students use StudentProfilePage).
+const istDate = (d: string | null) =>
+  d ? new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Kolkata" }) : null;
+
 const MyProfilePage = () => {
   const { data: profile, isLoading, isError, refetch } = useGetMyProfileQuery();
   const [updateProfile, { isLoading: saving }] = useUpdateMyProfileMutation();
@@ -175,6 +178,23 @@ const MyProfilePage = () => {
 
         <div className={styles.side}>
           <ChangePasswordCard />
+          {profile.staff && (
+            <Card title="Staff record" subtitle="Kept by the school office. Ask them to correct anything here.">
+              {(
+                [
+                  ["Employee code", profile.staff.employeeCode],
+                  ["Joined on", istDate(profile.staff.joiningDate)],
+                  ["Date of birth", istDate(profile.staff.dob)],
+                  ["Blood group", profile.staff.bloodGroup],
+                  ["Emergency contact", profile.staff.emergencyContact],
+                ] as const
+              ).map(([label, value]) => (
+                <p key={label} className={styles.line}>
+                  <strong>{label}:</strong> {value || "—"}
+                </p>
+              ))}
+            </Card>
+          )}
           {profile.staff && (profile.staff.classTeacherOf.length > 0 || profile.staff.teaches.length > 0) && (
             <Card title="My classes">
               {profile.staff.classTeacherOf.length > 0 && (

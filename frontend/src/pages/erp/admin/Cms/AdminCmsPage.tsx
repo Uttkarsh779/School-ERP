@@ -10,7 +10,7 @@ import styles from "./AdminCmsPage.module.css";
 type Tab = SettingsSection | CmsCollectionName | "inquiries";
 
 const TABS: { key: Tab; label: string }[] = [
-  { key: "profile", label: "School profile" },
+  { key: "profile", label: "Contact & social" },
   { key: "home", label: "Home page" },
   { key: "about", label: "About & principal" },
   { key: "notices", label: "Notices" },

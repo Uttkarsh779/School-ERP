@@ -2,6 +2,18 @@ import { Router } from "express";
 import { authenticateToken, authorizeRoles } from "../../middleware/auth";
 import { asyncHandler } from "../../utils/asyncHandler";
 import * as controller from "./controller";
+import { httpError } from "../../utils/httpError";
+import type { CustomRequest } from "../../middleware/auth";
+import type { Response } from "express";
+import { getBillingSettings, updateBillingSettings } from "./billingSettingsService";
+import {
+  cancelInvoice,
+  cancelInvoicesForPeriod,
+  cancelPayment,
+  recalculateInvoice,
+  recalculateInvoicesForPeriod,
+  reverseAdjustment,
+} from "./reversalService";
 
 const router = Router();
 
@@ -144,5 +156,71 @@ router.get("/fees/audit-logs", authorizeRoles(["SUPER_ADMIN"]), asyncHandler(con
 router.get("/fees/collection-period/overview", authorizeRoles(["SUPER_ADMIN", "ADMIN"]), asyncHandler(controller.getCollectionPeriodOverview));
 router.post("/fees/collection-period/preview", authorizeRoles(["SUPER_ADMIN", "ADMIN"]), asyncHandler(controller.postPreviewCollectionPeriod));
 router.post("/fees/collection-period/generate", authorizeRoles(["SUPER_ADMIN", "ADMIN"]), asyncHandler(controller.postGenerateCollectionPeriodBills));
+
+// Monthly billing settings (automatic generation day, transport due day)
+router.get(
+  "/fees/billing-settings",
+  authorizeRoles(["SUPER_ADMIN", "ADMIN"]),
+  asyncHandler(async (_req: CustomRequest, res: Response) => {
+    res.json({ success: true, data: await getBillingSettings() });
+  })
+);
+router.put(
+  "/fees/billing-settings",
+  authorizeRoles(["SUPER_ADMIN", "ADMIN"]),
+  asyncHandler(async (req: CustomRequest, res: Response) => {
+    res.json({ success: true, message: "Billing settings saved", data: await updateBillingSettings(req.user!, req.body ?? {}) });
+  })
+);
+
+// Corrections (reversalService). Cancelling a receipt or a bill lowers what is owed, so
+// only the Super Admin can do it; recalculating and reversing a waiver are open to admins.
+const idParam = (req: CustomRequest) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) throw httpError(400, "Invalid id");
+  return id;
+};
+router.post(
+  "/payments/:id/cancel",
+  authorizeRoles(["SUPER_ADMIN"]),
+  asyncHandler(async (req: CustomRequest, res: Response) => {
+    res.json({ success: true, message: "Receipt cancelled", data: await cancelPayment(req.user!, idParam(req), req.body?.reason) });
+  })
+);
+router.post(
+  "/fees/invoices/:id/cancel",
+  authorizeRoles(["SUPER_ADMIN"]),
+  asyncHandler(async (req: CustomRequest, res: Response) => {
+    res.json({ success: true, message: "Bill cancelled", data: await cancelInvoice(req.user!, idParam(req), req.body?.reason) });
+  })
+);
+router.post(
+  "/fees/invoices/:id/recalculate",
+  authorizeRoles(["SUPER_ADMIN", "ADMIN"]),
+  asyncHandler(async (req: CustomRequest, res: Response) => {
+    res.json({ success: true, message: "Bill recalculated", data: await recalculateInvoice(req.user!, idParam(req)) });
+  })
+);
+router.post(
+  "/fees/invoices/bulk-cancel",
+  authorizeRoles(["SUPER_ADMIN"]),
+  asyncHandler(async (req: CustomRequest, res: Response) => {
+    res.json({ success: true, data: await cancelInvoicesForPeriod(req.user!, req.body ?? {}) });
+  })
+);
+router.post(
+  "/fees/invoices/bulk-recalculate",
+  authorizeRoles(["SUPER_ADMIN", "ADMIN"]),
+  asyncHandler(async (req: CustomRequest, res: Response) => {
+    res.json({ success: true, data: await recalculateInvoicesForPeriod(req.user!, req.body ?? {}) });
+  })
+);
+router.post(
+  "/fees/adjustments/:id/reverse",
+  authorizeRoles(["SUPER_ADMIN", "ADMIN"]),
+  asyncHandler(async (req: CustomRequest, res: Response) => {
+    res.json({ success: true, message: "Waiver reversed", data: await reverseAdjustment(req.user!, idParam(req), req.body?.reason) });
+  })
+);
 
 export default router;

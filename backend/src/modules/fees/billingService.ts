@@ -55,6 +55,7 @@ export interface BillingContext {
   transportAssignments: any[];
   transportHead: { id: number; name: string; code: string };
   concessions: ConcessionContext;
+  transportDueDay?: number; // Fees → Settings → Monthly bills (default 10th)
 }
 
 const getOrCreateTransportHead = async (db: any) =>
@@ -92,13 +93,14 @@ export const loadBillingContext = async (db: any, studentId: number, sessionId: 
   });
   // A promoted student is billed for an older session by the class they were in that year.
   const sessionClass = await classSectionForSession(db, student, sessionId);
-  const [feeStructure, transportAssignments, transportHead, concessions] = await Promise.all([
+  const [feeStructure, transportAssignments, transportHead, concessions, settings] = await Promise.all([
     findStructureForClass(db, sessionId, sessionClass),
     loadTransportContext(db, studentId),
     getOrCreateTransportHead(db),
     loadConcessionContext(db, studentId),
+    db.feeBillingSetting.findUnique({ where: { id: 1 }, select: { transportDueDay: true } }),
   ]);
-  return { sessionId, student, feeStructure, transportAssignments, transportHead, concessions };
+  return { sessionId, student, feeStructure, transportAssignments, transportHead, concessions, transportDueDay: settings?.transportDueDay ?? 10 };
 };
 
 const dayStart = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
@@ -151,7 +153,7 @@ export const computeMonthBill = (ctx: BillingContext, month: number, year: numbe
       headName: ctx.transportHead.name,
       code: ctx.transportHead.code,
       amount: transport,
-      dueDate: new Date(year, month - 1, 10),
+      dueDate: new Date(year, month - 1, Math.min(ctx.transportDueDay ?? 10, daysInMonth)),
     });
   }
 

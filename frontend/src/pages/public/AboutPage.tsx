@@ -19,7 +19,7 @@ const AboutPage = () => {
     { label: "Affiliation No.", value: settings.affiliationNo },
     { label: "School Code", value: settings.schoolCode },
     { label: "Established", value: String(settings.establishedYear) },
-    { label: "Classes", value: "Nursery – XII" },
+    { label: "Classes", value: "Nursery – X" },
     { label: "Current session", value: session },
   ].filter((f) => f.value);
 

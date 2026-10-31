@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "react-toastify";
-import { Card, EmptyState, PageHeader, Select, Spinner, StatCard, Table } from "../../../../components/ui";
-import type { SelectOption, TableColumn } from "../../../../components/ui";
+import { Button, Card, EmptyState, Icon, PageHeader, Spinner, StatCard, Table } from "../../../../components/ui";
+import type { TableColumn } from "../../../../components/ui";
 import { useGetExamsQuery, useGetReportCardQuery } from "../../../../store/api/exams.api";
 import { useGetMyStudentProfileQuery } from "../../../../store/api/students.api";
+import { usePrintReportCards } from "../../../../components/shared/Print/usePrintReportCards";
 import styles from "./StudentReportCardPage.module.css";
 
 const RESULT_LABEL: Record<string, string> = {
@@ -53,7 +54,7 @@ const StudentReportCardPage = () => {
     if (profileError) toast.error("Failed to load your profile.");
   }, [profileError]);
 
-  const examOptions: SelectOption[] = published.map((e) => ({ label: e.name, value: e.id }));
+  const { print, isPrinting } = usePrintReportCards();
 
   const columns: TableColumn<IReportCardSubject>[] = [
     { key: "subjectName", label: "Subject" },
@@ -68,24 +69,44 @@ const StudentReportCardPage = () => {
 
   return (
     <div>
-      <PageHeader title="Report Card" subtitle={profile?.classSection ? `${profile.classSection.className} - ${profile.classSection.section}` : undefined} />
+      <PageHeader
+        title="Report Card"
+        subtitle={profile?.classSection ? `${profile.classSection.className} - ${profile.classSection.section}` : undefined}
+        actions={
+          reportCard && reportCard.subjects.length > 0 && profile ? (
+            <Button icon={<Icon name="printer" size={16} />} isLoading={isPrinting} onClick={() => print({ examId: Number(examId), studentId: profile.id })}>
+              Print / Save PDF
+            </Button>
+          ) : undefined
+        }
+      />
 
-      <Card className={styles.filterRow}>
-        <Select
-          label="Exam"
-          options={examOptions}
-          placeholder={profileLoading || examsLoading ? "Loading…" : published.length ? "Select an exam" : "No results published yet"}
-          value={examId}
-          onChange={(e) => setExamId(e.target.value)}
-        />
-        {unpublishedCount > 0 && (
-          <p className={styles.finalNote} style={{ margin: "0.6rem 0 0" }}>
-            {unpublishedCount} more exam{unpublishedCount === 1 ? "" : "s"} will appear here once the school publishes the results.
-          </p>
-        )}
-      </Card>
+      {/* Exam switcher: one tap per exam */}
+      {published.length > 0 && (
+        <div className={styles.examTabs} role="tablist" aria-label="Exam">
+          {published.map((e) => (
+            <button
+              key={e.id}
+              type="button"
+              role="tab"
+              aria-selected={String(e.id) === examId}
+              className={`${styles.examTab} ${String(e.id) === examId ? styles.examTabActive : ""}`}
+              onClick={() => setExamId(String(e.id))}
+            >
+              {e.name}
+            </button>
+          ))}
+        </div>
+      )}
+      {unpublishedCount > 0 && published.length > 0 && (
+        <p className={styles.finalNote} style={{ margin: "0 0 1.25rem" }}>
+          {unpublishedCount} more exam{unpublishedCount === 1 ? "" : "s"} will appear here once the school publishes the results.
+        </p>
+      )}
 
-      {!examId ? (
+      {profileLoading || examsLoading ? (
+        <Spinner />
+      ) : !examId ? (
         <EmptyState title="No report cards yet" description="Your report card appears here once the school publishes exam results." />
       ) : cardLoading || cardFetching ? (
         <Spinner />

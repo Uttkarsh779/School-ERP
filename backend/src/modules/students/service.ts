@@ -1,4 +1,5 @@
 import { prisma } from "../../config/prisma";
+import { httpError } from "../../utils/httpError";
 import { Role } from "../../generated/prisma/enums";
 import { hashPassword } from "../../utils/password";
 import type { Gender, StudentCategory } from "../../generated/prisma/enums";
@@ -87,6 +88,17 @@ export const updateStudent = async (
   // Class/roll changes are reflected in this session's enrollment history row.
   if (data.classSectionId !== undefined || data.rollNo !== undefined) await syncCurrentEnrollment(prisma, id);
   return student;
+};
+
+// Student photo (passport-style, set by the office). Only images uploaded through the ERP
+// (Cloudinary) are accepted; null removes it.
+export const setStudentPhoto = async (id: number, photoUrl: unknown) => {
+  if (photoUrl !== null && (typeof photoUrl !== "string" || !/^https:\/\/res\.cloudinary\.com\//.test(photoUrl) || photoUrl.length > 500)) {
+    throw httpError(400, "Upload the photo through the ERP first");
+  }
+  const student = await prisma.student.findUnique({ where: { id }, select: { id: true } });
+  if (!student) throw httpError(404, "Student not found");
+  return prisma.student.update({ where: { id }, data: { photoUrl: photoUrl as string | null }, select: { id: true, photoUrl: true } });
 };
 
 export const setStudentActive = (id: number, isActive: boolean) =>

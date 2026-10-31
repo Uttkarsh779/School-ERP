@@ -70,15 +70,6 @@ export const ACADEMIC_STAGES: AcademicStage[] = [
     summary: "Focused board preparation with regular practice tests, doubt-clearing sessions and personal mentoring for every student.",
     points: ["Board-pattern practice tests", "Remedial & enrichment classes", "Career awareness sessions", "Individual mentoring"],
   },
-  {
-    key: "senior-secondary",
-    name: "Senior Secondary",
-    classes: "Classes XI – XII",
-    ages: "Ages 16–18",
-    icon: "graduation",
-    summary: "Streams in Science, Commerce and Humanities, guided by experienced faculty and support for competitive exams and college choices.",
-    points: ["Science (PCM / PCB)", "Commerce with Maths / IP", "Humanities", "Career & college counselling"],
-  },
 ];
 
 export const CORE_VALUES: { icon: SiteIconName; title: string; text: string }[] = [
@@ -135,7 +126,6 @@ export const AGE_CRITERIA: { grade: string; age: string }[] = [
   { grade: "UKG", age: "5+ years" },
   { grade: "Class I", age: "6+ years" },
   { grade: "Classes II – IX", age: "As per previous class & TC" },
-  { grade: "Class XI", age: "After passing Class X" },
 ];
 
 export const GRADES = [
@@ -151,7 +141,4 @@ export const GRADES = [
   "Class VII",
   "Class VIII",
   "Class IX",
-  "Class XI – Science",
-  "Class XI – Commerce",
-  "Class XI – Humanities",
 ];

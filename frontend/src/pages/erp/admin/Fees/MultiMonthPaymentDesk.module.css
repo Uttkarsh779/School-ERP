@@ -348,7 +348,8 @@
 }
 
 @media (max-width: 640px) {
-  .studentSelect {
+  .studentSelect,
+  .hideOnPhone {
     display: none;
   }
 
@@ -369,9 +370,7 @@
     list-style: none;
     margin: 0;
     padding: 0.3rem;
-    max-height: min(46vh, 22rem);
-    overflow-y: auto;
-    overscroll-behavior: contain;
+    /* No inner scroll box: the list scrolls with the page */
     display: flex;
     flex-direction: column;
     gap: 0.3rem;

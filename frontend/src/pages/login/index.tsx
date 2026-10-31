@@ -127,6 +127,14 @@ const Login: React.FC = () => {
 
         <div className={styles.rightSection}>
           <div className={styles.loginCard}>
+            {/* Phones: one compact brand row instead of the big header + headings */}
+            <div className={styles.mobileBrand}>
+              <img src={logo} alt="" className={styles.mobileLogo} />
+              <div>
+                <div className={styles.mobileName}>RRS Intl School</div>
+                <div className={styles.mobileTag}>Student &amp; Staff login</div>
+              </div>
+            </div>
             <div className={styles.topBar}>
               <Link to="/" className={styles.backButton} aria-label="Back to School Website">
                 <span className={styles.backButtonIconWrapper}>
@@ -160,10 +168,10 @@ const Login: React.FC = () => {
                   </button>
                 </div>
 
-                <h1 className={styles.title}>
+                <h1 className={`${styles.title} ${styles.hideOnPhone}`}>
                   {loginMode === "family" ? "Student Sign In" : "Staff & Admin Sign In"}
                 </h1>
-                <p className={styles.subtitle}>
+                <p className={`${styles.subtitle} ${styles.hideOnPhone}`}>
                   {loginMode === "family"
                     ? "Sign in to your account"
                     : "Sign in to manage your school"}
@@ -172,7 +180,7 @@ const Login: React.FC = () => {
                 <form onSubmit={handleSubmit(onSubmit)} className={styles.form}>
                   <Input
                     name="email"
-                    label={loginMode === "family" ? "Email or Admission Number" : "Email"}
+                    label={loginMode === "family" ? "Admission Number or Email" : "Email"}
                     type="text"
                     register={register}
                     errors={errors}
@@ -190,7 +198,7 @@ const Login: React.FC = () => {
                     type="button"
                     onClick={() => setShowForgotPassword(true)}
                     buttonType="link"
-                    title="Forget Password?"
+                    title="Forgot password?"
                   />
 
                   <Button
@@ -200,6 +208,9 @@ const Login: React.FC = () => {
                     title="Sign In"
                   />
                 </form>
+                <Link to="/" className={styles.mobileBack}>
+                  <Icon name="arrowLeft" size={14} /> Back to school website
+                </Link>
               </Div>
             ) : (
               <Div key="forgot-password" direction="bottom" immediate>

@@ -15,10 +15,8 @@ import {
   PageHeader,
   Select,
   Spinner,
-  StatCard,
-  Table,
 } from "../../../../components/ui";
-import type { SelectOption, TableColumn } from "../../../../components/ui";
+import type { SelectOption } from "../../../../components/ui";
 import { useGetClassSectionsQuery } from "../../../../store/api/classSections.api";
 import { useGetSessionsQuery } from "../../../../store/api/sessions.api";
 import { useGetSubjectsQuery } from "../../../../store/api/subjects.api";
@@ -52,6 +50,29 @@ interface MarksCell {
 
 const cellKey = (studentId: number, subjectId: number) => `${studentId}:${subjectId}`;
 
+type StatusFilter = "all" | "open" | "locked" | "published";
+const statusOf = (e: IExam): Exclude<StatusFilter, "all"> => (e.resultsPublished ? "published" : e.isLocked ? "locked" : "open");
+const STATUS_LABEL: Record<Exclude<StatusFilter, "all">, string> = { open: "Marks entry open", locked: "Marks locked", published: "Published" };
+// Class names are stored either as "10" or "Class 10"; show "Class 10 - A" either way
+// (and "Nursery - A", not "Class Nursery - A").
+const classLabelOf = (e: IExam) => {
+  if (!e.classSection) return "Class not set";
+  const name = e.classSection.className.replace(/^class\s*/i, "");
+  return `${/^\d/.test(name) ? `Class ${name}` : name} - ${e.classSection.section}`;
+};
+// Letters and digits only, so "9-A", "9 a", "Class 9A" and "class 9 - a" all match each other.
+const squash = (v: string) => v.toLowerCase().replace(/[^a-z0-9]/g, "");
+const PAGE = 20;
+// School order: Nursery, LKG, UKG, then Class 1, 2 … 12 (not alphabetical "1, 10, 2").
+const PRE_PRIMARY = ["playgroup", "nursery", "lkg", "ukg", "kg"];
+const classRank = (e: IExam) => {
+  const name = squash(e.classSection?.className.replace(/^class\s*/i, "") ?? "");
+  const pre = PRE_PRIMARY.indexOf(name);
+  if (pre >= 0) return pre - PRE_PRIMARY.length;
+  const n = parseInt(name, 10);
+  return Number.isFinite(n) ? n : 100;
+};
+
 const getErrorMessage = (err: unknown, fallback: string) => {
   if (err && typeof err === "object" && "data" in err) {
     const data = (err as { data?: { message?: string } }).data;
@@ -66,6 +87,8 @@ const AdminExamsPage = () => {
 
   const [classSectionId, setClassSectionId] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [shown, setShown] = useState(PAGE);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedExam, setSelectedExam] = useState<IExam | null>(null);
   const [marks, setMarks] = useState<Record<string, MarksCell>>({});
@@ -91,17 +114,13 @@ const AdminExamsPage = () => {
     }
   };
 
-  const csId = classSectionId ? Number(classSectionId) : undefined;
   const examCsId = selectedExam?.classSectionId;
 
-  const { data: classSections, isLoading: isLoadingSections } = useGetClassSectionsQuery();
+  const { data: classSections } = useGetClassSectionsQuery();
   const { data: sessions } = useGetSessionsQuery();
 
-  const {
-    data: exams,
-    isLoading: isLoadingExams,
-    isFetching: isFetchingExams,
-  } = useGetExamsQuery(classSectionId ? { classSectionId: Number(classSectionId) } : undefined);
+  // All exams are loaded once; class, status and search filter them instantly in the browser.
+  const { data: exams, isLoading: isLoadingExams, isError: examsError, refetch: refetchExams } = useGetExamsQuery();
 
   const { data: subjects } = useGetSubjectsQuery({ classSectionId: examCsId ?? 0 }, { skip: !selectedExam });
   const { data: students, isLoading: isLoadingStudents } = useGetStudentsQuery(
@@ -243,75 +262,50 @@ const AdminExamsPage = () => {
     }
   };
 
-  const filteredExams = useMemo(() => {
-    if (!exams) return [];
-    return exams.filter((e) => {
-      const q = searchQuery.toLowerCase().trim();
-      const matchesQuery = !q || e.name.toLowerCase().includes(q) || (e.session && e.session.name.toLowerCase().includes(q));
-      return matchesQuery;
-    });
-  }, [exams, searchQuery]);
+  // Exams grouped by class in school order, then section, then the order they were created.
+  const sortedExams = useMemo(
+    () =>
+      [...(exams ?? [])].sort(
+        (a, b) => classRank(a) - classRank(b) || classLabelOf(a).localeCompare(classLabelOf(b), undefined, { numeric: true }) || a.id - b.id
+      ),
+    [exams]
+  );
+  const classFilterOptions: SelectOption[] = useMemo(() => {
+    const seen = new Map<number, string>();
+    for (const e of sortedExams) if (!seen.has(e.classSectionId)) seen.set(e.classSectionId, classLabelOf(e));
+    return [{ label: "All classes", value: "" }, ...[...seen].map(([id, label]) => ({ label, value: String(id) }))];
+  }, [sortedExams]);
 
-  const examColumns: TableColumn<IExam>[] = [
-    {
-      key: "name",
-      label: "Exam Name",
-      render: (exam) => (
-        <span style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem" }}>
-          {exam.name}
-          {exam.resultsPublished ? <Badge tone="success">Published</Badge> : exam.isLocked && <Badge tone="warning">Locked</Badge>}
-        </span>
-      ),
-    },
-    {
-      key: "classSection",
-      label: "Class & Section",
-      render: (exam) =>
-        exam.classSection ? `${exam.classSection.className} - ${exam.classSection.section}` : "Global Class",
-    },
-    { key: "session", label: "Academic Session", render: (exam) => exam.session?.name ?? "2026-27" },
-    { key: "passPercentage", label: "Pass Mark", render: (exam) => `${exam.passPercentage ?? 33}%` },
-    {
-      key: "actions",
-      label: "Actions",
-      render: (exam) => (
-        <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
-          <Button
-            type="button"
-            size="sm"
-            variant={isTeacher ? "primary" : "outline"}
-            onClick={() => openMarksEntry(exam)}
-          >
-            {isTeacher ? "Enter Marks →" : "View Marks 👁️"}
-          </Button>
-          <Button type="button" size="sm" variant="primary" onClick={() => setResultsExamId(exam.id)}>
-            Results &amp; Ranks
-          </Button>
-          {!isTeacher && (
-            <Button type="button" size="sm" variant="outline" onClick={() => setRemarksExamId(exam.id)}>
-              Remarks
-            </Button>
-          )}
-          {!isTeacher && (
-            <Button type="button" size="sm" variant={exam.resultsPublished ? "outline" : "primary"} onClick={() => setPendingPublish(exam)}>
-              {exam.resultsPublished ? "Unpublish" : "Publish results"}
-            </Button>
-          )}
-          {!isTeacher && !exam.resultsPublished && (
-            <Button
-              type="button"
-              size="sm"
-              variant={exam.isLocked ? "outline" : "ghost"}
-              isLoading={lockingId === exam.id}
-              onClick={() => setPendingLock(exam)}
-            >
-              {exam.isLocked ? "Unlock" : "Lock marks"}
-            </Button>
-          )}
-        </div>
-      ),
-    },
-  ];
+  const inClass = useMemo(() => sortedExams.filter((e) => !classSectionId || e.classSectionId === Number(classSectionId)), [sortedExams, classSectionId]);
+  const matching = useMemo(() => {
+    const phrase = squash(searchQuery);
+    if (!phrase) return inClass;
+    // 1) The whole phrase inside the exam name, class or session ("Unit Test 2", "9-A", "class 9 a").
+    const byPhrase = inClass.filter((e) => [e.name, classLabelOf(e), e.session?.name ?? ""].some((f) => squash(f).includes(phrase)));
+    if (byPhrase.length) return byPhrase;
+    // 2) Otherwise every word on its own ("half 9a" = Half Yearly of Class 9 - A). Words with
+    //    digits must match exactly, so "2" doesn't match "2026-27" or "Class 12".
+    const tokens = searchQuery.split(/\s+/).map(squash).filter(Boolean);
+    return inClass.filter((e) => {
+      const cls = e.classSection ? squash(e.classSection.className.replace(/^class\s*/i, "")) : "";
+      const words = [...`${e.name} ${classLabelOf(e)} ${e.session?.name ?? ""}`.toLowerCase().split(/[^a-z0-9]+/), cls + squash(e.classSection?.section ?? "")].filter(Boolean);
+      return tokens.every((t) => (/^[a-z]+$/.test(t) ? words.some((w) => w.startsWith(t)) : words.includes(t)));
+    });
+  }, [inClass, searchQuery]);
+  const counts = useMemo(() => {
+    const c = { all: matching.length, open: 0, locked: 0, published: 0 };
+    for (const e of matching) c[statusOf(e)] += 1;
+    return c;
+  }, [matching]);
+  const filteredExams = useMemo(() => (statusFilter === "all" ? matching : matching.filter((e) => statusOf(e) === statusFilter)), [matching, statusFilter]);
+  const visibleExams = filteredExams.slice(0, shown);
+  const filtersActive = !!(classSectionId || searchQuery.trim() || statusFilter !== "all");
+  useEffect(() => setShown(PAGE), [classSectionId, searchQuery, statusFilter]);
+  const clearFilters = () => {
+    setClassSectionId("");
+    setSearchQuery("");
+    setStatusFilter("all");
+  };
 
   const studentNameById = useMemo(() => {
     const map = new Map<number, string>();
@@ -328,57 +322,145 @@ const AdminExamsPage = () => {
   return (
     <div>
       <PageHeader
-        title="Exams & Grading Management"
-        subtitle="Create exams, configure schedules, and record student marks across classes"
+        title="Exams"
+        subtitle="Create exams, review marks and publish report cards"
         actions={
           !selectedExam ? (
-            <Button type="button" icon={<Icon name="plus" />} onClick={openModal}>
-              + New Exam
+            <Button type="button" icon={<Icon name="plus" size={16} />} onClick={openModal}>
+              New exam
             </Button>
           ) : undefined
         }
       />
 
       {!selectedExam && (
-        <>
-          {/* Summary Stat Cards */}
-          <div className="erp-two-up-sm" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "1rem", marginBottom: "1.25rem" }}>
-            <StatCard label="Total Exams Scheduled" value={exams?.length || 0} />
-            <StatCard label="Class Sections" value={classSections?.length || 0} />
-            <StatCard label="Active Session" value={sessions?.find((s) => s.isCurrent)?.name || "2026-27"} />
-          </div>
+        <div className={styles.listPage}>
+          {/* How an exam moves along: what each status means */}
+          <p className={styles.flowHint}>
+            <span>Teachers enter marks</span>
+            <Icon name="chevronRight" size={14} />
+            <span>You lock marks</span>
+            <Icon name="chevronRight" size={14} />
+            <span>You publish · students see report cards</span>
+          </p>
 
-          <Card title="School Exams Directory">
-            <div className="erp-stack-sm" style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "1rem", alignItems: "flex-end", marginBottom: "1.25rem" }}>
+          <div className={styles.filterBar}>
+            <div className={styles.searchBox}>
               <Input
-                label="Search Exams"
-                type="text"
+                label="Search"
+                type="search"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search by exam name or session..."
-              />
-
-              <Select
-                label="Filter by Class Section"
-                options={[{ label: "All Class Sections", value: "" }, ...classSectionOptions]}
-                placeholder={isLoadingSections ? "Loading…" : "All Class Sections"}
-                value={classSectionId}
-                onChange={(e) => setClassSectionId(e.target.value)}
+                placeholder="Exam or class, e.g. Half Yearly 9-A"
               />
             </div>
+            <div className={styles.classBox}>
+              <Select label="Class" options={classFilterOptions} value={classSectionId} onChange={(e) => setClassSectionId(e.target.value)} />
+            </div>
+          </div>
 
-            {isLoadingExams || isFetchingExams ? (
-              <Spinner />
-            ) : (
-              <Table
-                columns={examColumns}
-                data={filteredExams}
-                keyField="id"
-                emptyMessage="No exams found matching your criteria."
-              />
-            )}
-          </Card>
-        </>
+          <div className={styles.chips} role="tablist" aria-label="Filter by status">
+            {(["all", "open", "locked", "published"] as const).map((k) => (
+              <button
+                key={k}
+                type="button"
+                role="tab"
+                aria-selected={statusFilter === k}
+                className={`${styles.chip} ${statusFilter === k ? styles.chipOn : ""}`}
+                onClick={() => setStatusFilter(k)}
+              >
+                {k === "all" ? "All" : STATUS_LABEL[k]}
+                <span className={styles.chipCount}>{counts[k]}</span>
+              </button>
+            ))}
+          </div>
+
+          {isLoadingExams ? (
+            <Spinner />
+          ) : examsError ? (
+            <EmptyState
+              title="Couldn't load exams"
+              action={
+                <Button variant="outline" onClick={() => refetchExams()}>
+                  Retry
+                </Button>
+              }
+            />
+          ) : filteredExams.length === 0 ? (
+            <EmptyState
+              title={filtersActive ? "No exams match" : "No exams yet"}
+              description={filtersActive ? "Try another class, status or search." : "Create the first exam for a class with New exam."}
+              action={
+                filtersActive ? (
+                  <Button variant="outline" onClick={clearFilters}>
+                    Clear filters
+                  </Button>
+                ) : undefined
+              }
+            />
+          ) : (
+            <>
+              <p className={styles.resultCount}>
+                {filteredExams.length} exam{filteredExams.length === 1 ? "" : "s"}
+                {filtersActive && (
+                  <button type="button" className={styles.linkBtn} onClick={clearFilters}>
+                    Clear filters
+                  </button>
+                )}
+              </p>
+              <ul className={styles.examList}>
+                {visibleExams.map((exam) => {
+                  const status = statusOf(exam);
+                  return (
+                    <li key={exam.id} className={styles.examRow}>
+                      <div className={styles.examInfo}>
+                        <div className={styles.examTitle}>
+                          <strong>{exam.name}</strong>
+                          <Badge tone={status === "published" ? "success" : status === "locked" ? "warning" : "info"}>{STATUS_LABEL[status]}</Badge>
+                        </div>
+                        <div className={styles.examMeta}>
+                          <span className={styles.classPill}>{classLabelOf(exam)}</span>
+                          {exam.session?.name && <span>{exam.session.name}</span>}
+                          <span>Pass {exam.passPercentage ?? 33}%</span>
+                        </div>
+                      </div>
+                      <div className={styles.examActions}>
+                        <div className={styles.quiet}>
+                          <button type="button" className={styles.quietBtn} onClick={() => openMarksEntry(exam)}>
+                            {isTeacher ? "Enter marks" : "Marks"}
+                          </button>
+                          <button type="button" className={styles.quietBtn} onClick={() => setResultsExamId(exam.id)}>
+                            Results
+                          </button>
+                          {!isTeacher && (
+                            <button type="button" className={styles.quietBtn} onClick={() => setRemarksExamId(exam.id)}>
+                              Remarks
+                            </button>
+                          )}
+                          {!isTeacher && status !== "published" && (
+                            <button type="button" className={styles.quietBtn} disabled={lockingId === exam.id} onClick={() => setPendingLock(exam)}>
+                              {exam.isLocked ? "Unlock" : "Lock"}
+                            </button>
+                          )}
+                        </div>
+                        {!isTeacher && (
+                          <Button type="button" size="sm" variant={status === "published" ? "outline" : "primary"} onClick={() => setPendingPublish(exam)}>
+                            {status === "published" ? "Unpublish" : "Publish"}
+                          </Button>
+                        )}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+              {filteredExams.length > shown && (
+                <Button variant="outline" onClick={() => setShown((n) => n + PAGE)}>
+                  Show more ({filteredExams.length - shown})
+                </Button>
+              )}
+            </>
+          )}
+        </div>
       )}
 
       {selectedExam && (
@@ -387,13 +469,12 @@ const AdminExamsPage = () => {
           subtitle={currentClassSection ? `${currentClassSection.className} - ${currentClassSection.section}` : undefined}
           action={
             <Button type="button" variant="outline" size="sm" onClick={closeMarksEntry}>
-              ← Back to All Exams
+              ← All exams
             </Button>
           }
         >
           {!isTeacher && (
             <div style={{ background: "var(--erp-surface)", border: "1px solid var(--erp-border)", padding: "0.75rem 1rem", borderRadius: "var(--erp-radius-sm)", marginBottom: "1.25rem", color: "var(--erp-text-muted)", fontSize: "0.88rem", display: "flex", flexWrap: "wrap", alignItems: "center", gap: "0.5rem" }}>
-              <span>👁️</span>
               <span>
                 <strong>Read-Only View:</strong> Administrators can review marks and report cards. Only assigned subject teachers can enter or modify marks.
               </span>

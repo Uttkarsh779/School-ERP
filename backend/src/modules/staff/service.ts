@@ -1,6 +1,8 @@
 import { prisma } from "../../config/prisma";
 import { Role } from "../../generated/prisma/enums";
 import type { Prisma } from "../../generated/prisma/client";
+import { httpError } from "../../utils/httpError";
+import type { StaffDetails } from "./details";
 
 const staffWithUser = {
   include: {
@@ -35,14 +37,38 @@ export const isAccountRequiredRole = (role?: string) => {
   return ACCOUNT_REQUIRED_ROLES.includes(role);
 };
 
-export const createStaff = (data: {
+// Employee code, Aadhaar and PAN are unique: say which one clashes instead of a raw DB error.
+const assertUniqueDetails = async (details: StaffDetails, exceptId?: number) => {
+  const checks = [
+    ["employeeCode", "employee code"],
+    ["aadhaarNumber", "Aadhaar number"],
+    ["panNumber", "PAN"],
+  ] as const;
+  for (const [field, label] of checks) {
+    const value = details[field];
+    if (!value) continue;
+    const other = await prisma.staff.findFirst({ where: { [field]: value, ...(exceptId ? { id: { not: exceptId } } : {}) }, include: { user: true } });
+    if (other) throw httpError(409, `Another staff member (${other.user.name}) already has this ${label}`);
+  }
+};
+
+const nextEmployeeCode = async (id: number) => {
+  for (let n = id; ; n++) {
+    const code = `EMP-${String(n).padStart(4, "0")}`;
+    if (!(await prisma.staff.findUnique({ where: { employeeCode: code } }))) return code;
+  }
+};
+
+export const createStaff = async (data: {
   email?: string;
   passwordHash: string;
   name: string;
   qualifications?: string;
   contact?: string;
   staffCategory?: any;
+  details?: StaffDetails;
 }) => {
+  await assertUniqueDetails(data.details ?? {});
   const category = data.staffCategory || "TEACHER";
   const needsAccount = isAccountRequiredRole(category);
   const email =
@@ -50,8 +76,9 @@ export const createStaff = (data: {
       ? data.email.trim()
       : `${category.toLowerCase()}.${Date.now()}@school.internal`;
 
-  return prisma.staff.create({
+  const staff = await prisma.staff.create({
     data: {
+      ...data.details,
       staffCategory: category,
       qualifications: data.qualifications,
       contact: data.contact,
@@ -67,13 +94,20 @@ export const createStaff = (data: {
     },
     ...staffWithUser,
   });
+  // No code given: EMP-0001 style from the record number.
+  if (staff.employeeCode) return staff;
+  return prisma.staff.update({ where: { id: staff.id }, data: { employeeCode: await nextEmployeeCode(staff.id) }, ...staffWithUser });
 };
 
 export const updateStaff = async (
   id: number,
-  data: { name?: string; email?: string; qualifications?: string; contact?: string; staffCategory?: any }
+  data: { name?: string; email?: string; qualifications?: string; contact?: string; staffCategory?: any; details?: StaffDetails }
 ) => {
+  const details = data.details ?? {};
+  await assertUniqueDetails(details, id);
+  if (details.employeeCode === null) throw httpError(400, "Employee code can't be empty");
   const updateData: Prisma.StaffUpdateInput = {
+    ...details,
     qualifications: data.qualifications,
     contact: data.contact,
   };

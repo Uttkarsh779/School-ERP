@@ -1,387 +1,190 @@
-/* Student fee page (standard ERP layout) — on top of the shared fee styles (admin/Fees/Fees.module.css). */
+/* Student fee page — phone first. Sits on top of the shared fee styles (admin/Fees/Fees.module.css).
+   Content is a single readable column, also on desktop. */
 
-/* ---------- Account strip ---------- */
-.account {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 1.5rem;
-  flex-wrap: wrap;
-  background: var(--erp-surface);
-  border: 1px solid var(--erp-border);
-  border-radius: var(--erp-radius-lg);
-  box-shadow: var(--erp-shadow-sm);
-  padding: 1.1rem 1.35rem;
-}
-
-.accountWho {
-  display: flex;
-  align-items: center;
-  gap: 0.9rem;
-  min-width: 0;
-}
-
-.accountAvatar {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  display: grid;
-  place-items: center;
-  background: var(--erp-primary-100);
-  color: var(--erp-primary-700);
-  font-weight: 800;
-  font-size: 1.15rem;
-}
-
-.accountName {
-  font-weight: 700;
-  font-size: 1.05rem;
-}
-
-.accountMeta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem 0.9rem;
-  font-size: 0.84rem;
-  color: var(--erp-text-muted);
-  margin-top: 0.15rem;
-}
-
-.progressBox {
-  width: min(320px, 100%);
-}
-
-.progressHead {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.84rem;
-  color: var(--erp-text-muted);
-  margin-bottom: 0.4rem;
-}
-
-.progressHead strong {
-  color: var(--erp-success);
-  font-size: 0.95rem;
-}
-
-.progress {
-  height: 10px;
-  border-radius: 999px;
-  background: var(--erp-bg);
-  border: 1px solid var(--erp-border);
-  overflow: hidden;
-}
-
-.progress span {
-  display: block;
-  height: 100%;
-  border-radius: 999px;
-  background: linear-gradient(90deg, #2eaf6b, var(--erp-success));
-  transition: width 400ms ease;
-}
-
-.progressFoot {
-  font-size: 0.8rem;
-  color: var(--erp-text-muted);
-  margin-top: 0.35rem;
-  text-align: right;
-}
-
-/* ---------- Summary tiles ---------- */
-.tiles {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 1rem;
-}
-
-.tile {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-  background: var(--erp-surface);
-  border: 1px solid var(--erp-border);
-  border-top: 3px solid var(--erp-border);
-  border-radius: var(--erp-radius-md);
-  padding: 0.95rem 1.1rem;
-}
-
-.tileLabel {
-  font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--erp-text-muted);
-}
-
-.tileValue {
-  font-size: 1.5rem;
-  font-weight: 800;
-  letter-spacing: -0.01em;
-}
-
-.tileHint {
-  font-size: 0.8rem;
-  color: var(--erp-text-muted);
-}
-
-.tilePaid {
-  border-top-color: var(--erp-success);
-}
-
-.tilePaid .tileValue {
-  color: var(--erp-success);
-}
-
-.tileDue {
-  border-top-color: var(--erp-info);
-}
-
-.tileDanger {
-  border-top-color: var(--erp-danger);
-  background: linear-gradient(180deg, var(--erp-danger-bg), var(--erp-surface) 70%);
-}
-
-.tileDanger .tileValue {
-  color: var(--erp-danger);
-}
-
-.alert {
-  border: 1px solid #f5c2bd;
-  background: var(--erp-danger-bg);
-  color: #8f2a20;
-  border-radius: var(--erp-radius-md);
-  padding: 0.8rem 1rem;
-  font-size: 0.9rem;
-}
-
-/* ---------- Schedule + pay panel ---------- */
-.layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 330px;
-  gap: 1.25rem;
-  align-items: start;
-}
-
-.schedule,
-.payPanel,
+.payCard,
 .records {
   background: var(--erp-surface);
   border: 1px solid var(--erp-border);
   border-radius: var(--erp-radius-lg);
   box-shadow: var(--erp-shadow-sm);
-}
-
-.schedule {
-  overflow: hidden;
-}
-
-.panelHead {
-  padding: 1rem 1.25rem 0.75rem;
-  border-bottom: 1px solid var(--erp-border);
-}
-
-.panelTitle {
-  margin: 0;
-  font-size: 1rem;
-  font-weight: 700;
-  color: var(--erp-text);
-}
-
-.panelSub {
-  margin: 0.2rem 0 0;
-  font-size: 0.84rem;
-  color: var(--erp-text-muted);
-}
-
-.tableWrap {
-  overflow-x: auto;
-}
-
-.table {
   width: 100%;
-  border-collapse: collapse;
-  font-size: 0.88rem;
+  max-width: 760px;
 }
 
-.table th {
-  text-align: left;
-  font-size: 0.74rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--erp-text-muted);
-  background: var(--erp-bg);
-  padding: 0.6rem 0.75rem;
-  white-space: nowrap;
-  border-bottom: 1px solid var(--erp-border);
-}
-
-.table td {
-  padding: 0.7rem 0.75rem;
-  border-bottom: 1px solid var(--erp-border);
-  white-space: nowrap;
-  color: var(--erp-text);
-}
-
-.table tfoot td {
-  font-weight: 700;
-  background: var(--erp-bg);
-  border-bottom: none;
-}
-
-.num {
-  text-align: right !important;
-  font-variant-numeric: tabular-nums;
-}
-
-.strong {
-  font-weight: 700;
-}
-
-.dim {
-  color: var(--erp-text-muted);
-  font-size: 0.85rem;
-}
-
-.row {
-  cursor: pointer;
-  transition: background var(--erp-transition-fast);
-}
-
-.row:hover {
-  background: var(--erp-primary-50);
-}
-
-.rowSelected {
-  background: var(--erp-primary-50);
-}
-
-.rowSelected td:first-child {
-  box-shadow: inset 3px 0 0 var(--erp-primary-600);
-}
-
-.rowMuted td {
-  color: var(--erp-text-muted);
-}
-
-.checkCol {
-  width: 44px;
-  text-align: center !important;
-}
-
-.check {
-  width: 18px;
-  height: 18px;
-  cursor: pointer;
-  accent-color: var(--erp-primary-600);
-}
-
-.paidTick {
-  display: inline-grid;
-  place-items: center;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: var(--erp-success-bg);
-  color: var(--erp-success);
-  font-size: 0.72rem;
-  font-weight: 800;
-}
-
-.monthCell {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-.dueLine {
-  display: block;
-  font-size: 0.76rem;
-  color: var(--erp-text-muted);
-  font-weight: 400;
-}
-
-.caret {
-  width: 0.8rem;
-  color: var(--erp-text-muted);
-  font-size: 0.75rem;
-}
-
-.detailRow > td {
-  background: #fcfcfd;
-  padding-top: 0.25rem;
-  padding-bottom: 0.75rem;
-  white-space: normal;
-}
-
-.headTable {
+.tabs,
+.panelNote {
   width: 100%;
-  border-collapse: collapse;
-  font-size: 0.84rem;
+  max-width: 760px;
 }
 
-.headTable td {
-  padding: 0.35rem 0.5rem;
-  border-bottom: 1px dashed var(--erp-border);
+/* ---------- Layout ---------- */
+.layout,
+.side,
+.main {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  min-width: 0;
 }
 
-.headTable tr:last-child td {
-  border-bottom: none;
+/* Desktop: pay card on the left (stays in view while scrolling), records on the right */
+@media (min-width: 1024px) {
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(340px, 400px) minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .side {
+    position: sticky;
+    top: 1.25rem;
+  }
+
+  .payCard,
+  .records,
+  .tabs,
+  .panelNote {
+    max-width: none;
+  }
 }
 
-.note {
-  margin: 0.5rem 0 0;
-  font-size: 0.78rem;
-  color: var(--erp-text-muted);
-}
-
-/* Pay panel */
-.payPanel {
-  position: sticky;
-  top: 1rem;
-  padding: 1.1rem 1.2rem;
+/* ---------- Pay card ---------- */
+.payCard {
+  padding: 1.1rem;
   display: flex;
   flex-direction: column;
   gap: 0.85rem;
 }
 
-.payList {
+.dueHead {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.95rem 1rem;
+  border-radius: var(--erp-radius-md, 12px);
+  background: var(--erp-primary-50);
+}
+
+.dueHeadLate {
+  /* Overdue: a calm amber, not alarm red — the amount stays in normal dark text */
+  background: #fff7ed;
+  box-shadow: inset 3px 0 0 #f59e0b;
+}
+
+.dueLabel {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--erp-primary-700);
+}
+
+.dueHeadLate .dueLabel {
+  color: #b45309;
+}
+
+.dueBig {
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1.15;
+  color: var(--erp-text);
+}
+
+.dueSub {
+  font-size: 0.85rem;
+  color: var(--erp-text-muted);
+}
+
+.pickHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.dueList {
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  max-height: 260px;
-  overflow-y: auto;
 }
 
-.payList li {
+.dueRow {
   display: flex;
-  justify-content: space-between;
+  align-items: center;
   gap: 0.75rem;
-  font-size: 0.9rem;
+  padding: 0.75rem 0.85rem;
+  min-height: 3.4rem;
+  border: 1.5px solid var(--erp-border);
+  border-radius: var(--erp-radius-md, 12px);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.payList small {
-  display: block;
-  font-size: 0.76rem;
+.dueRowOn {
+  border-color: var(--erp-primary-500, #fa8c39);
+  background: var(--erp-primary-50);
 }
 
-.quickPick {
+.dueRowFixed {
+  cursor: default;
+}
+
+.check {
+  width: 1.2rem;
+  height: 1.2rem;
+  flex-shrink: 0;
+  accent-color: var(--erp-primary-600);
+}
+
+.dueWhat {
+  flex: 1;
+  min-width: 0;
   display: flex;
-  justify-content: space-between;
-  gap: 0.5rem;
-  flex-wrap: wrap;
+  flex-direction: column;
+}
+
+.dueWhat strong {
+  font-size: 0.95rem;
+}
+
+.dueWhat small {
+  font-size: 0.78rem;
+  color: var(--erp-text-muted);
+}
+
+.lateText {
+  color: #b45309 !important;
+}
+
+.dueAmt {
+  font-weight: 800;
+  font-size: 1rem;
+  white-space: nowrap;
+}
+
+.hint {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--erp-text-muted);
+}
+
+.custom {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
 }
 
 .linkBtn {
-  background: none;
   border: none;
-  padding: 0;
+  background: none;
+  padding: 0.25rem 0;
   font: inherit;
-  font-size: 0.84rem;
+  font-size: 0.86rem;
   font-weight: 600;
   color: var(--erp-primary-700);
   cursor: pointer;
@@ -391,110 +194,314 @@
   text-decoration: underline;
 }
 
-.custom {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.payTotal {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  padding-top: 0.75rem;
-  border-top: 1px dashed var(--erp-border);
-  font-size: 0.92rem;
-}
-
-.payTotal strong {
-  font-size: 1.45rem;
+.centerLink {
+  align-self: center;
 }
 
 .secure {
-  margin: 0;
-  font-size: 0.78rem;
-  color: var(--erp-text-muted);
+  margin: -0.35rem 0 0;
   text-align: center;
-}
-
-.panelNote {
-  margin: 0;
-  font-size: 0.78rem;
+  font-size: 0.76rem;
   color: var(--erp-text-muted);
-  padding-top: 0.75rem;
-  border-top: 1px solid var(--erp-border);
 }
 
 .allPaid {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 0.3rem;
-  text-align: center;
-  padding: 0.75rem 0;
+  gap: 0.85rem;
+  padding: 0.95rem 1rem;
+  border-radius: var(--erp-radius-md, 12px);
+  background: var(--erp-success-bg);
+}
+
+.allPaid > div {
+  display: flex;
+  flex-direction: column;
 }
 
 .allPaidIcon {
-  width: 48px;
-  height: 48px;
+  width: 2.4rem;
+  height: 2.4rem;
   border-radius: 50%;
-  background: var(--erp-success-bg);
-  color: var(--erp-success);
+  flex-shrink: 0;
   display: grid;
   place-items: center;
+  background: var(--erp-success);
+  color: #fff;
   font-weight: 800;
-  font-size: 1.3rem;
-  margin-bottom: 0.25rem;
+  font-size: 1.1rem;
 }
 
-/* ---------- Records ---------- */
-.records {
-  padding: 1rem 1.2rem;
+/* Year progress */
+.year {
+  border-top: 1px solid var(--erp-border);
+  padding-top: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
 }
 
-.recordsHead {
+.yearHead {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: baseline;
   gap: 0.75rem;
+  font-size: 0.86rem;
+  color: var(--erp-text-muted);
+}
+
+.yearHead strong {
+  color: var(--erp-text);
+}
+
+.yearHead .yearPct {
+  color: var(--erp-success);
+}
+
+.progress {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--erp-bg);
+  overflow: hidden;
+}
+
+.progress span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #2eaf6b, var(--erp-success));
+}
+
+.yearFoot {
+  display: flex;
   flex-wrap: wrap;
-  margin-bottom: 0.75rem;
+  gap: 0.2rem 1rem;
+  font-size: 0.78rem;
+  color: var(--erp-text-muted);
 }
 
-.records .table {
-  border: 1px solid var(--erp-border);
-  border-radius: var(--erp-radius-md);
+/* ---------- Tab panels ---------- */
+.records {
+  padding: 0.5rem 0;
+  overflow: hidden;
 }
 
-.receipts {
+.recordsIntro {
+  margin: 0.5rem 1rem 0.4rem;
+  font-size: 0.82rem;
+  color: var(--erp-text-muted);
+}
+
+.list {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
-  flex-direction: column;
 }
 
+.item {
+  border-top: 1px solid var(--erp-border);
+}
+
+.list > .item:first-child {
+  border-top: none;
+}
+
+.itemMuted .itemMain strong,
+.itemMuted .itemAmt {
+  color: var(--erp-text-muted);
+}
+
+.itemBtn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.8rem 1rem;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button.itemBtn:not(:disabled) {
+  cursor: pointer;
+}
+
+button.itemBtn:not(:disabled):hover {
+  background: var(--erp-bg);
+}
+
+.itemMain {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.itemMain strong {
+  font-size: 0.93rem;
+}
+
+.itemMain small {
+  font-size: 0.78rem;
+  color: var(--erp-text-muted);
+}
+
+.itemEnd {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.2rem;
+  flex-shrink: 0;
+}
+
+.itemAmt {
+  font-weight: 700;
+  font-size: 0.95rem;
+  white-space: nowrap;
+}
+
+.itemEnd small {
+  font-size: 0.74rem;
+}
+
+.balAfter {
+  color: var(--erp-text-muted);
+}
+
+.chev {
+  color: var(--erp-text-muted);
+  font-size: 1.2rem;
+  line-height: 1;
+  transition: transform 0.15s ease;
+}
+
+.chevOpen {
+  transform: rotate(90deg);
+}
+
+/* Status dot on the months list */
+.dot {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--erp-border);
+}
+
+.dotPAID {
+  background: var(--erp-success);
+}
+
+.dotOVERDUE {
+  background: var(--erp-danger);
+}
+
+.dotPARTIALLY_PAID {
+  background: var(--erp-warning);
+}
+
+.dotDUE {
+  background: var(--erp-info);
+}
+
+.breakdown {
+  margin: 0 1rem 0.85rem;
+  padding: 0.6rem 0.85rem;
+  border-radius: var(--erp-radius-md, 12px);
+  background: var(--erp-bg);
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.bdRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.85rem;
+}
+
+.bdTotal {
+  border-top: 1px dashed var(--erp-border);
+  padding-top: 0.4rem;
+  font-weight: 700;
+}
+
+/* Statement */
+.balanceBox {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin: 0.5rem 1rem 0.25rem;
+  padding: 0.85rem 1rem;
+  border-radius: var(--erp-radius-md, 12px);
+  background: var(--erp-primary-50);
+}
+
+.balanceBox > div {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.8rem;
+}
+
+.balanceBig {
+  font-size: 1.45rem;
+  font-weight: 800;
+}
+
+.stIcon {
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  background: var(--erp-primary-50);
+  color: var(--erp-primary-700);
+}
+
+.stIconIn {
+  background: var(--erp-success-bg);
+  color: var(--erp-success);
+  font-weight: 800;
+}
+
+.legend {
+  display: flex;
+  justify-content: center;
+  gap: 1.25rem;
+  margin: 0.35rem 1rem 0.5rem;
+  font-size: 0.76rem;
+  color: var(--erp-text-muted);
+}
+
+/* Receipts */
 .receipt {
   display: flex;
   align-items: center;
-  gap: 0.9rem;
-  padding: 0.8rem 0.25rem;
-  border-bottom: 1px solid var(--erp-border);
+  gap: 0.85rem;
+  padding: 0.85rem 1rem;
+  border-top: 1px solid var(--erp-border);
 }
 
-.receipt:last-child {
-  border-bottom: none;
+.list > .receipt:first-child {
+  border-top: none;
 }
 
 .receiptIcon {
-  width: 40px;
-  height: 40px;
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 50%;
   flex-shrink: 0;
-  border-radius: 10px;
-  background: var(--erp-success-bg);
-  color: var(--erp-success);
   display: grid;
   place-items: center;
+  background: var(--erp-success-bg);
+  color: var(--erp-success);
   font-weight: 800;
 }
 
@@ -506,70 +513,91 @@
   gap: 0.1rem;
 }
 
+.receiptMain .dim {
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+
 .receiptRefunds {
   display: flex;
-  gap: 0.35rem;
   flex-wrap: wrap;
+  gap: 0.3rem;
   margin-top: 0.2rem;
 }
 
-/* ---------- Responsive ---------- */
-@media (max-width: 1100px) {
-  .layout {
-    grid-template-columns: 1fr;
-  }
-
-  .payPanel {
-    position: static;
-  }
-
-  .tiles {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+.receiptActions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.15rem;
+  flex-shrink: 0;
 }
 
-@media (max-width: 640px) {
-  .account {
-    padding: 0.95rem;
+.receiptActions .linkBtn {
+  font-size: 0.78rem;
+}
+
+/* Fee structure */
+.structureTotal {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin: 0.25rem 1rem 0.5rem;
+  padding: 0.85rem 1rem;
+  border-radius: var(--erp-radius-md, 12px);
+  background: var(--erp-bg);
+  font-weight: 700;
+}
+
+.structureTotal span {
+  display: flex;
+  flex-direction: column;
+}
+
+.structureTotal small {
+  font-weight: 500;
+  font-size: 0.76rem;
+  color: var(--erp-text-muted);
+}
+
+.structureTotal strong {
+  font-size: 1.15rem;
+}
+
+.dim {
+  color: var(--erp-text-muted);
+}
+
+.panelNote {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--erp-text-muted);
+}
+
+@media (max-width: 480px) {
+  .payCard {
+    padding: 0.9rem;
   }
 
-  .progressBox {
-    width: 100%;
+  .dueBig {
+    font-size: 1.75rem;
   }
 
-  .tiles {
-    gap: 0.65rem;
-  }
-
-  .tile {
+  .itemBtn {
     padding: 0.75rem 0.85rem;
+    gap: 0.6rem;
   }
 
-  .tileValue {
-    font-size: 1.2rem;
+  /* All four tabs fit on a phone screen */
+  .tabs {
+    gap: 0;
   }
 
-  /* Phones: hide the less important money columns; the breakdown row still shows them. */
-  .hideSm {
-    display: none;
-  }
-
-  .detailRow > td:first-child {
-    display: none;
-  }
-
-  .receipt {
-    flex-wrap: wrap;
-  }
-
-  .receipt > :last-child {
-    width: 100%;
-    padding-left: calc(40px + 0.9rem);
-  }
-
-  .table td,
-  .table th {
-    padding-left: 0.5rem;
-    padding-right: 0.5rem;
+  .tabs > button {
+    flex: 1;
+    padding: 0.65rem 0.3rem;
+    font-size: 0.8rem;
+    white-space: nowrap;
   }
 }

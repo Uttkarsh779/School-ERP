@@ -55,6 +55,24 @@ interface IStaff {
   isActive: boolean; // employment status; user.isActive is login access
   qualifications?: string | null;
   contact?: string | null;
+  photoUrl?: string | null;
+  address?: string | null;
+  employeeCode?: string | null;
+  gender?: Gender | null;
+  dob?: string | null;
+  bloodGroup?: string | null;
+  fatherOrSpouseName?: string | null;
+  emergencyContactName?: string | null;
+  emergencyContactPhone?: string | null;
+  joiningDate?: string | null;
+  leavingDate?: string | null;
+  experienceYears?: number | null;
+  // Super Admin only (left out of the API for everyone else)
+  aadhaarNumber?: string | null;
+  panNumber?: string | null;
+  bankName?: string | null;
+  bankAccountNo?: string | null;
+  bankIfsc?: string | null;
   user: IUser;
 }
 
@@ -443,6 +461,8 @@ interface IInvoice {
   paidAmount: number;
   status: InvoiceStatus;
   notes?: string | null;
+  cancelReason?: string | null;
+  cancelledAt?: string | null;
   items: IInvoiceItem[];
   createdAt: string;
   updatedAt?: string;

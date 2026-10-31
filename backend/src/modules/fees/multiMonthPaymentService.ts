@@ -199,15 +199,37 @@ export const getStudentMonthsChart = async (studentId: number, sessionId?: numbe
     const dueDate = new Date(year, month - 1, 10);
     const quarter = getQuarterName(month);
 
-    // Find charges for this month & year
-    const monthCharges = existingCharges.filter(
-      (c) => c.billingMonth === month && c.billingYear === year
-    );
+    // Find charges for this month & year (cancelled ones are not owed)
+    const allMonthCharges = existingCharges.filter((c) => c.billingMonth === month && c.billingYear === year);
+    const monthCharges = allMonthCharges.filter((c) => c.status !== "CANCELLED" && c.status !== "VOID");
 
     // Find invoice for this month
     const monthInvoice = existingInvoices.find(
       (inv) => inv.collectionPeriodCode === periodCode
     );
+
+    // The whole bill was cancelled: nothing is due, and the month isn't billed again here
+    // (Fees → Bills → Recalculate restores it).
+    if (monthCharges.length === 0 && allMonthCharges.length > 0) {
+      return {
+        month,
+        year,
+        monthName,
+        periodCode,
+        quarter,
+        dueDate,
+        isBilled: true,
+        status: "NOT_APPLICABLE",
+        statusReason: "Bill cancelled",
+        baseAmount: 0,
+        discountAmount: 0,
+        lateFeeAmount: 0,
+        paidAmount: 0,
+        netAmount: 0,
+        balanceDue: 0,
+        heads: [],
+      };
+    }
 
     if (monthCharges.length > 0) {
       let baseTotal = 0;

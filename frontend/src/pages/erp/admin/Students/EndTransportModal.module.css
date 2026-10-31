@@ -1,0 +1,91 @@
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.lead {
+  margin: 0;
+  font-size: 0.92rem;
+  color: var(--erp-text);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.groupLabel {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--erp-text);
+}
+
+.options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 0.5rem;
+}
+
+.option {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.7rem 0.8rem;
+  border: 1.5px solid var(--erp-border);
+  border-radius: var(--erp-radius-md);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.option input {
+  margin-top: 0.2rem;
+  accent-color: var(--erp-primary-600);
+}
+
+.option span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.option strong {
+  font-size: 0.9rem;
+}
+
+.option small {
+  font-size: 0.76rem;
+  color: var(--erp-text-muted);
+}
+
+.optionOn {
+  border-color: var(--erp-primary-600);
+  background: var(--erp-primary-50);
+}
+
+.summary {
+  padding: 0.75rem 0.9rem;
+  border-radius: var(--erp-radius-md);
+  background: var(--erp-bg);
+  font-size: 0.84rem;
+  color: var(--erp-text);
+}
+
+.summary ul {
+  margin: 0.35rem 0 0;
+  padding-left: 1.1rem;
+  color: var(--erp-text-muted);
+}
+
+.summary li + li {
+  margin-top: 0.2rem;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin-top: 1.25rem;
+}

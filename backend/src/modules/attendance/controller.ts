@@ -11,6 +11,7 @@ import {
   getStudentAttendanceRecords,
   upsertAttendanceEntry,
 } from "./service";
+import { onAttendanceMarked } from "../notifications/events";
 
 // SUPER_ADMIN/ADMIN can manage any class; a TEACHER only the class section they're
 // the assigned class teacher for.
@@ -79,6 +80,7 @@ export const postMarkAttendance = async (req: CustomRequest, res: Response): Pro
 
   const parsedDate = new Date(date);
   const results: Array<{ studentId: number; success: boolean; message: string }> = [];
+  const absentIds: number[] = [];
 
   for (const entry of entries as Array<{ studentId: number; status: string }>) {
     try {
@@ -94,10 +96,13 @@ export const postMarkAttendance = async (req: CustomRequest, res: Response): Pro
         req.user!.id
       );
       results.push({ studentId: entry.studentId, success: true, message: "Marked" });
+      if (entry.status === AttendanceStatus.ABSENT) absentIds.push(Number(entry.studentId));
     } catch (error) {
       results.push({ studentId: entry.studentId, success: false, message: "Could not mark this student" });
     }
   }
+
+  onAttendanceMarked(parsedDate, absentIds);
 
   const successCount = results.filter((r) => r.success).length;
   res.status(200).json({

@@ -96,7 +96,7 @@ export const loadLateFeeWaivers = async (db: any, chargeIds: number[]) => {
   if (chargeIds.length === 0) return map;
   const rows = await db.feeAdjustment.groupBy({
     by: ["feeChargeId"],
-    where: { feeChargeId: { in: chargeIds }, type: "LATE_FEE_WAIVER" },
+    where: { feeChargeId: { in: chargeIds }, type: "LATE_FEE_WAIVER", reversedAt: null },
     _sum: { amount: true },
   });
   for (const r of rows) if (r.feeChargeId) map.set(r.feeChargeId, num(r._sum.amount));

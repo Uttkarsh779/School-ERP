@@ -15,6 +15,7 @@ import * as transportVillageService from "../transport/transportVillageService";
 import { prisma } from "../../config/prisma";
 import { FeeMode, LateFeeType, PaymentStatus } from "../../generated/prisma/enums";
 import { parseSlabs, receiptNumberFor } from "./lateFeeService";
+import { onPaymentReceived } from "../notifications/events";
 
 // For STUDENT/PARENT callers, the student ids they may see financial data for (null =
 // staff, unrestricted). Used to scope list endpoints that are otherwise "all students".
@@ -395,6 +396,7 @@ export const postManualPayment = async (req: CustomRequest, res: Response) => {
     userId: req.user!.id,
     newValues: payment,
   });
+  onPaymentReceived(payment.id);
 
   res.status(201).json({ success: true, data: payment });
 };
@@ -842,6 +844,7 @@ export const getStudentMonthsChart = async (req: CustomRequest, res: Response) =
 export const postMultiMonthPayment = async (req: CustomRequest, res: Response) => {
   try {
     const result = await multiMonthPaymentService.recordMultiMonthPayment(req.body, req.user!.id);
+    onPaymentReceived(result.paymentId);
     res.status(201).json({ success: true, data: result });
   } catch (error: any) {
     res.status(400).json({ success: false, message: error.message || "Failed to record payment" });

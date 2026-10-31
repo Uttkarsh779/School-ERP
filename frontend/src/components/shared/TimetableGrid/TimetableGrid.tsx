@@ -40,7 +40,7 @@ const TimetableGrid = ({ slots, periodCount = 8, editable = false, onCellClick, 
             {slot.classSection.className} - {slot.classSection.section}
           </span>
         )}
-        {slot.room && <span className={styles.room}>Room {slot.room}</span>}
+        {slot.room && <span className={styles.room}>Room {slot.room.replace(/^room\s*/i, "")}</span>}
       </>
     ) : (
       <span className={styles.emptyText}>{editable ? "+ Add Slot" : "Free period"}</span>

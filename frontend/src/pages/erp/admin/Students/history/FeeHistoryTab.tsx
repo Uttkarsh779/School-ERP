@@ -1,6 +1,10 @@
-import { Badge, Card, EmptyState, Table } from "../../../../../components/ui";
+import { useState } from "react";
+import { toast } from "react-toastify";
+import { Badge, Button, Card, EmptyState, Input, Modal, Table } from "../../../../../components/ui";
 import type { TableColumn } from "../../../../../components/ui";
 import type { StudentHistory } from "../../../../../store/api/students.api";
+import { useCancelPaymentMutation, useReverseAdjustmentMutation } from "../../../../../store/api/fees.api";
+import { useAppSelector } from "../../../../../store/store";
 import { MONTHS, fmtDate, humanize, inr } from "./historyFormat";
 import styles from "./StudentHistory.module.css";
 
@@ -11,10 +15,38 @@ const chargeTone = (status: string) =>
 const paymentTone = (status: string) =>
   status === "SUCCESS" ? "success" : status === "PENDING" ? "warning" : status === "FAILED" ? "danger" : "neutral";
 
+type Correction = { kind: "payment"; id: number; label: string; amount: number } | { kind: "waiver"; id: number; label: string; amount: number };
+
 // The student's complete fee record: every charge raised, every payment (incl. failed /
-// pending), discounts, concessions, refunds and pre-ledger payments.
+// pending), discounts, concessions, refunds and pre-ledger payments. Corrections live here:
+// cancel an office receipt entered by mistake (Super Admin) and reverse a wrong waiver.
 const FeeHistoryTab = ({ history }: { history: StudentHistory }) => {
+  const isSuperAdmin = useAppSelector((s) => s.auth.user?.role) === "SUPER_ADMIN";
+  const [correcting, setCorrecting] = useState<Correction | null>(null);
+  const [reason, setReason] = useState("");
+  const [cancelPayment, { isLoading: cancellingPayment }] = useCancelPaymentMutation();
+  const [reverseAdjustment, { isLoading: reversing }] = useReverseAdjustmentMutation();
   const fees: Fees = history.fees;
+
+  const openCorrection = (c: Correction) => {
+    setCorrecting(c);
+    setReason("");
+  };
+  const submitCorrection = async () => {
+    if (!correcting) return;
+    try {
+      if (correcting.kind === "payment") {
+        const r = await cancelPayment({ paymentId: correcting.id, reason }).unwrap();
+        toast.success(`Receipt cancelled — ${r.billsReopened} bill(s) are due again`);
+      } else {
+        await reverseAdjustment({ adjustmentId: correcting.id, reason }).unwrap();
+        toast.success("Waiver reversed — the amount is due again");
+      }
+      setCorrecting(null);
+    } catch (err: any) {
+      toast.error(err?.data?.message ?? "Couldn't make the correction");
+    }
+  };
   const s = fees.summary;
   const isEmpty =
     fees.charges.length + fees.payments.length + fees.adjustments.length + fees.concessions.length + fees.refunds.length + fees.legacyPayments.length === 0;
@@ -45,7 +77,30 @@ const FeeHistoryTab = ({ history }: { history: StudentHistory }) => {
     { key: "amount", label: "Amount", render: (p) => <strong>{inr(p.amount)}</strong> },
     { key: "mode", label: "Mode", render: (p) => humanize(p.mode) },
     { key: "transactionRef", label: "Transaction", render: (p) => p.transactionRef ?? "—" },
-    { key: "status", label: "Status", render: (p) => <Badge tone={paymentTone(p.status)}>{humanize(p.status)}</Badge> },
+    {
+      key: "status",
+      label: "Status",
+      render: (p) => (
+        <div>
+          <Badge tone={paymentTone(p.status)}>{humanize(p.status)}</Badge>
+          {p.cancelReason && <div className={styles.muted}>{p.cancelReason}</div>}
+        </div>
+      ),
+    },
+    {
+      key: "actions",
+      label: "",
+      render: (p) =>
+        isSuperAdmin && p.status === "SUCCESS" && p.mode !== "GATEWAY" ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => openCorrection({ kind: "payment", id: p.id, label: p.receiptNumber ?? p.paymentNumber, amount: p.amount })}
+          >
+            Cancel receipt
+          </Button>
+        ) : null,
+    },
   ];
 
   return (
@@ -103,9 +158,19 @@ const FeeHistoryTab = ({ history }: { history: StudentHistory }) => {
                       <div className={styles.muted}>
                         {a.reason} · {fmtDate(a.date)}
                         {a.appliedBy && ` · by ${a.appliedBy}`}
+                        {a.reversedAt && ` · reversed: ${a.reverseReason ?? ""}`}
                       </div>
                     </div>
-                    <strong>{inr(a.amount)}</strong>
+                    <strong style={a.reversedAt ? { textDecoration: "line-through", opacity: 0.6 } : undefined}>{inr(a.amount)}</strong>
+                    {a.reversedAt ? (
+                      <Badge tone="neutral">Reversed</Badge>
+                    ) : (
+                      a.reversible && (
+                        <Button size="sm" variant="ghost" onClick={() => openCorrection({ kind: "waiver", id: a.id, label: humanize(a.type), amount: a.amount })}>
+                          Reverse
+                        </Button>
+                      )
+                    )}
                   </li>
                 ))}
               </ul>
@@ -174,6 +239,25 @@ const FeeHistoryTab = ({ history }: { history: StudentHistory }) => {
             ))}
           </ul>
         </Card>
+      )}
+
+      {correcting && (
+        <Modal title={correcting.kind === "payment" ? `Cancel receipt ${correcting.label}?` : `Reverse ${correcting.label}?`} onClose={() => setCorrecting(null)}>
+          <p className={styles.muted}>
+            {correcting.kind === "payment"
+              ? `${inr(correcting.amount)} is taken back off the bills it paid, which become due again. The receipt stays on record marked cancelled. Waivers given with this payment are not undone — reverse them separately below.`
+              : `The ${inr(correcting.amount)} waived becomes due again on the same bill. The waiver stays on record marked reversed.`}
+          </p>
+          <Input label="Reason" required value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Entered twice by mistake" />
+          <div className={styles.modalActions}>
+            <Button variant="outline" onClick={() => setCorrecting(null)}>
+              Keep it
+            </Button>
+            <Button variant="danger" onClick={submitCorrection} isLoading={cancellingPayment || reversing} disabled={reason.trim().length < 3}>
+              {correcting.kind === "payment" ? "Cancel receipt" : "Reverse waiver"}
+            </Button>
+          </div>
+        </Modal>
       )}
     </div>
   );

@@ -48,7 +48,7 @@ export const getFeeOverview = async () => {
       prisma.payment.findMany({
         where: { status: "SUCCESS" },
         orderBy: { paidAt: "desc" },
-        take: 8,
+        take: 5, // "Recent payments" shows the latest five only
         include: {
           student: { select: { id: true, name: true, admissionNo: true, classSection: { select: { className: true, section: true } } } },
         },

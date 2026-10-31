@@ -12,6 +12,8 @@ import {
 } from "../../../../store/api/attendance.api";
 import { useGetMyClassSectionsQuery } from "../../../../store/api/classSections.api";
 import { useGetStudentsQuery } from "../../../../store/api/students.api";
+import { useGetCalendarQuery } from "../../../../store/api/calendar.api";
+import { dayOffReason } from "../../../../components/shared/SchoolCalendar/calendarUtils";
 import styles from "./TeacherAttendancePage.module.css";
 
 const STATUS_OPTIONS: { value: AttendanceStatus; label: string }[] = [
@@ -39,6 +41,8 @@ const todayIso = () => {
 const TeacherAttendancePage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [date, setDate] = useState(todayIso());
+  const { data: calendar } = useGetCalendarQuery({ from: date, to: date });
+  const dayOff = calendar ? dayOffReason(calendar.events, calendar.settings, date, "STUDENTS") : null;
   const [statuses, setStatuses] = useState<Record<number, AttendanceStatus>>({});
   const [lastResults, setLastResults] = useState<MarkAttendanceResult[] | null>(null);
   const [tab, setTab] = useState<"mark" | "register">(searchParams.get("tab") === "register" ? "register" : "mark");
@@ -287,6 +291,13 @@ const TeacherAttendancePage = () => {
           </Button>
         </div>
       </Card>
+
+      {dayOff && (
+        <div className={styles.holidayBanner} role="status">
+          <strong>{dayOff}</strong> — this is a holiday on the school calendar. Attendance usually isn't taken today; you can still mark it for an
+          extra class.
+        </div>
+      )}
 
       {failures.length > 0 && (
         <Card title="Some rows could not be saved" className={styles.failureCard}>

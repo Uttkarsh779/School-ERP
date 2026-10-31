@@ -125,6 +125,49 @@ export interface ExamProgress {
   subjects: Array<{ subjectId: number; name: string; teachers: string[]; isMine: boolean; entered: number }>;
 }
 
+export interface PrintableReportCard {
+  student: {
+    id: number;
+    name: string;
+    admissionNo: string;
+    rollNo: string;
+    dob: string | null;
+    gender: string | null;
+    fatherName: string | null;
+    motherName: string | null;
+    photoUrl: string | null;
+  };
+  subjects: Array<{
+    subjectName: string;
+    entered: boolean;
+    isAbsent: boolean;
+    marksObtained: number | null;
+    maxMarks: number | null;
+    percentage: number | null;
+    passed: boolean | null;
+  }>;
+  total: number;
+  maxTotal: number;
+  percentage: number | null;
+  status: ExamResultStatus;
+  failedSubjects: string[];
+  rank: number | null;
+  remark: string | null;
+  coScholastic: { workEducation: string | null; artEducation: string | null; healthPhysical: string | null; discipline: string | null };
+  attendance: { present: number; workingDays: number } | null;
+}
+
+// Report cards ready to print — one student, or the whole class (admins/class teacher).
+export interface PrintableReportCards {
+  exam: { id: number; name: string; passPercentage: number; isFinal: boolean; resultsPublished: boolean };
+  sessionName: string | null;
+  classSection: { className: string; section: string };
+  classTeacher: string | null;
+  rankedCount: number | null;
+  classAverage: number | null;
+  cards: PrintableReportCard[];
+}
+
 export const examsApi = erpApi.injectEndpoints({
   endpoints: (builder) => ({
     getExams: builder.query<IExam[], { classSectionId?: number } | void>({
@@ -188,6 +231,11 @@ export const examsApi = erpApi.injectEndpoints({
       transformResponse: (res: ApiEnvelope<IReportCard>) => res.data,
       providesTags: ["Exam"],
     }),
+    getPrintableReportCards: builder.query<PrintableReportCards, { examId: number; studentId?: number }>({
+      query: ({ examId, studentId }) => ({ url: `exams/${examId}/report-cards/print`, params: studentId ? { studentId } : undefined }),
+      transformResponse: (res: ApiEnvelope<PrintableReportCards>) => res.data,
+      providesTags: ["Exam", "Remarks"],
+    }),
   }),
 });
 
@@ -198,6 +246,7 @@ export const {
   useGetExamResultsQuery,
   useGetExamProgressQuery,
   useGetReportCardQuery,
+  useLazyGetPrintableReportCardsQuery,
   useGetExamAnalysisQuery,
   useGetExamAuditQuery,
   useSetExamLockMutation,

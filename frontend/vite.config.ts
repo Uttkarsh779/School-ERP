@@ -23,7 +23,11 @@ export default defineConfig({
         name: "Ram Raj Singh International School — ERP",
         short_name: "RRS Intl School",
         description: "RRS Intl School management system",
-        start_url: "/",
+        // Installed app opens on the ERP login (already signed-in users are sent on to
+        // their dashboard); the school website stays reachable from the login link.
+        // `id` stays "/" so existing installs keep the same app identity.
+        id: "/",
+        start_url: "/admin/login",
         display: "standalone",
         background_color: "#ffffff",
         theme_color: "#0f2a47",
@@ -55,6 +59,8 @@ export default defineConfig({
         ],
         // Drop app-shell files from older builds (the old "api-get-cache" is removed by the app, store.ts).
         cleanupOutdatedCaches: true,
+        // Push notification handlers (public/push-sw.js).
+        importScripts: ["push-sw.js"],
       },
     }),
   ],

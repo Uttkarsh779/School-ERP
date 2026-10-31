@@ -165,7 +165,7 @@ export const getStudentHistory = async (studentId: number) => {
     summary: {
       totalBilled: liveCharges.reduce((s, c) => s + num(c.netAmount), 0),
       totalPaid: successfulPayments.reduce((s, p) => s + num(p.amount), 0),
-      totalDiscounts: (adjustments as any[]).reduce((s, a) => s + num(a.amount), 0),
+      totalDiscounts: (adjustments as any[]).filter((a) => !a.reversedAt).reduce((s, a) => s + num(a.amount), 0),
       totalRefunded: (refunds as any[]).filter((r) => r.status === "REFUND_PROCESSED").reduce((s, r) => s + num(r.amount), 0),
       totalOutstanding: outstanding?.totalOutstanding ?? null,
       advanceAvailable: outstanding?.totalAdvanceAvailable ?? null,
@@ -194,6 +194,8 @@ export const getStudentHistory = async (studentId: number) => {
       status: p.status,
       transactionRef: p.transactionRef ?? p.razorpayPaymentId ?? null,
       date: p.paidAt ?? p.createdAt,
+      cancelledAt: p.cancelledAt ?? null,
+      cancelReason: p.cancelReason ?? null,
     })),
     adjustments: (adjustments as any[]).map((a) => ({
       id: a.id,
@@ -202,6 +204,9 @@ export const getStudentHistory = async (studentId: number) => {
       reason: a.reason,
       appliedBy: a.appliedByUser?.name ?? null,
       date: a.createdAt,
+      reversible: ["LATE_FEE_WAIVER", "SMALL_BALANCE_WAIVER", "FEE_WAIVER", "OTHER"].includes(a.type) && !a.reversedAt,
+      reversedAt: a.reversedAt ?? null,
+      reverseReason: a.reverseReason ?? null,
     })),
     concessions: (concessions as any[]).map((c) => ({
       id: c.id,

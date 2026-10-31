@@ -13,6 +13,8 @@ export interface CreateStaffInput {
   qualifications?: string;
   contact?: string;
   staffCategory?: string;
+  // HR details (see StaffDetailsFields): strings, null clears a field.
+  [detail: string]: string | null | undefined;
 }
 
 export const staffApi = erpApi.injectEndpoints({
@@ -32,8 +34,8 @@ export const staffApi = erpApi.injectEndpoints({
       transformResponse: (res: ApiEnvelope<IStaff>) => res.data,
       invalidatesTags: ["Staff"],
     }),
-    updateStaff: builder.mutation<IStaff, { id: number; name?: string; email?: string; qualifications?: string; contact?: string; staffCategory?: string }>({
-      query: ({ id, ...body }) => ({ url: `staff/${id}`, method: "PATCH", body }),
+    updateStaff: builder.mutation<IStaff, { id: number; details: Partial<CreateStaffInput> }>({
+      query: ({ id, details }) => ({ url: `staff/${id}`, method: "PATCH", body: details }),
       transformResponse: (res: ApiEnvelope<IStaff>) => res.data,
       invalidatesTags: ["Staff"],
     }),

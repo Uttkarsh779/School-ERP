@@ -7,6 +7,7 @@ import {
   patchAssignStudent,
   patchTransportRoute,
   patchVehicle,
+  postEndStudentTransport,
   postTransportRoute,
   postVehicle,
 } from "./controller";
@@ -27,5 +28,6 @@ router.post("/vehicles", authorizeRoles(["SUPER_ADMIN", "ADMIN"]), asyncHandler(
 router.patch("/vehicles/:id", authorizeRoles(["SUPER_ADMIN", "ADMIN"]), asyncHandler(patchVehicle));
 
 router.patch("/assign-student", authorizeRoles(["SUPER_ADMIN", "ADMIN"]), asyncHandler(patchAssignStudent));
+router.post("/students/:studentId/end", authorizeRoles(["SUPER_ADMIN", "ADMIN"]), asyncHandler(postEndStudentTransport));
 
 export default router;

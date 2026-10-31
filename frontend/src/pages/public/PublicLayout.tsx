@@ -39,7 +39,7 @@ export const Brand = ({ footer }: { footer?: boolean }) => {
         <span className={s.brandName}>{settings.schoolName}</span>
         <span className={s.brandSub}>
           {settings.boardName}
-          {settings.affiliationNo ? ` Affiliated · No. ${settings.affiliationNo}` : footer ? "" : " · Nursery to XII"}
+          {settings.affiliationNo ? ` Affiliated · No. ${settings.affiliationNo}` : footer ? "" : " · Nursery to X"}
         </span>
       </span>
     </Link>

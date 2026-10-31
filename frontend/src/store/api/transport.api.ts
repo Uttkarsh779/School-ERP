@@ -57,6 +57,16 @@ export interface AssignStudentVillageInput {
   policy?: "FULL_MONTH" | "PRORATED" | "NEXT_PERIOD";
 }
 
+// Result of ending a student's transport: unpaid transport bills after the end are waived;
+// alreadyPaid is money already paid for those months (refund or keep as credit).
+export interface EndTransportResult {
+  lastDay: string;
+  endedAssignments: number;
+  waivedTotal: number;
+  waived: Array<{ month: number; year: number; amount: number }>;
+  alreadyPaid: number;
+}
+
 // Tag name "Transport" is referenced here as a plain string — the integration
 // pass wires it into erpApi's tagTypes list. Until then, "Transport" isn't yet
 // part of erpApi's declared TagTypes union, so the tag arrays below are cast
@@ -112,6 +122,12 @@ export const transportApi = erpApi.injectEndpoints({
       transformResponse: (res: ApiEnvelope<any>) => res.data,
       invalidatesTags: ["Transport", "Student"],
     }),
+    // The student stops using transport; billing stops after the last day.
+    endStudentTransport: builder.mutation<EndTransportResult, { studentId: number; lastDay: string; policy: "FULL_MONTH" | "PRORATED"; reason?: string }>({
+      query: ({ studentId, ...body }) => ({ url: `transport/students/${studentId}/end`, method: "POST", body }),
+      transformResponse: (res: ApiEnvelope<EndTransportResult>) => res.data,
+      invalidatesTags: ["Transport", "Student", "Fee"],
+    }),
   }),
 });
 
@@ -125,4 +141,5 @@ export const {
   useAssignStudentTransportMutation,
   useGetVillagesQuery,
   useAssignStudentVillageMutation,
+  useEndStudentTransportMutation,
 } = transportApi;

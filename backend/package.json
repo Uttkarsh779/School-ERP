@@ -23,6 +23,7 @@
     "test:billing-rules": "node --no-experimental-strip-types -r ts-node/register --test src/tests/billing_rules.test.ts",
     "test:notices": "node --no-experimental-strip-types -r ts-node/register src/tests/notices.test.ts",
     "test:exam-scope": "node --no-experimental-strip-types -r ts-node/register src/tests/exam_teacher_scope.test.ts",
+    "test:end-transport": "node --no-experimental-strip-types -r ts-node/register src/tests/end_transport.test.ts",
     "test:rollover": "node --no-experimental-strip-types -r ts-node/register src/tests/session_rollover.test.ts",
     "seed": "npx ts-node prisma/seed.ts",
     "seed:concessions": "npx ts-node src/utils/seedConcessions.ts"
@@ -44,6 +45,7 @@
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.2.0",
     "pg": "^8.22.0",
+    "web-push": "^3.6.7",
     "ws": "^8.22.0"
   },
   "devDependencies": {
@@ -54,6 +56,7 @@
     "@types/multer": "^2.2.0",
     "@types/node": "^20.19.43",
     "@types/pg": "^8.20.0",
+    "@types/web-push": "^3.6.4",
     "@types/ws": "^8.18.2",
     "nodemon": "^3.1.0",
     "prisma": "^7.9.0",

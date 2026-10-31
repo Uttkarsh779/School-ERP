@@ -236,7 +236,7 @@ export const previewInvoiceForStudent = async (data: {
     where: { id: studentId },
     include: {
       classSection: true,
-      feeAdjustments: true,
+      feeAdjustments: { where: { reversedAt: null } },
       feeCharges: {
         where: {
           status: { in: [ChargeStatus.UNPAID, ChargeStatus.PARTIALLY_PAID] },

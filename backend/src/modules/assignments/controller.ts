@@ -2,6 +2,7 @@ import type { Response } from "express";
 import type { CustomRequest } from "../../middleware/auth";
 import { httpError } from "../../utils/httpError";
 import * as assignmentService from "./service";
+import { onHomeworkCreated } from "../notifications/events";
 
 const idOf = (v: unknown, field = "id") => {
   const n = Number(v);
@@ -18,7 +19,9 @@ export const getAssignments = async (req: CustomRequest, res: Response): Promise
 };
 
 export const postAssignment = async (req: CustomRequest, res: Response): Promise<void> => {
-  res.status(201).json({ success: true, data: await assignmentService.createAssignment(req.user!, req.body ?? {}) });
+  const assignment = await assignmentService.createAssignment(req.user!, req.body ?? {});
+  onHomeworkCreated(assignment.id);
+  res.status(201).json({ success: true, data: assignment });
 };
 
 export const putAssignment = async (req: CustomRequest, res: Response): Promise<void> => {

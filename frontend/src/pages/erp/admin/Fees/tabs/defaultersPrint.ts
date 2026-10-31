@@ -2,6 +2,8 @@
 // table grouped by class with subtotals, a grand total and signature lines. Printed from a
 // hidden iframe with its own styles, so nothing from the app screen ends up on paper.
 
+import { esc, printHtml, type PrintSchool } from "../../../../../components/shared/Print/printDocument";
+
 export interface PrintDefaulter {
   studentName: string;
   fatherName?: string | null;
@@ -16,19 +18,8 @@ export interface PrintDefaulter {
   daysOverdue: number;
 }
 
-export interface PrintSchool {
-  schoolName?: string | null;
-  tagline?: string | null;
-  address?: string | null;
-  phone?: string | null;
-  email?: string | null;
-  logoUrl?: string | null;
-  boardName?: string | null;
-  affiliationNo?: string | null;
-}
+export type { PrintSchool };
 
-const esc = (v: unknown) =>
-  String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string);
 const money = (n: number) => `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 const date = (d: string | Date | null) =>
   d ? new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—";
@@ -191,28 +182,5 @@ export const printDefaultersReport = (
   </div>
 </body></html>`;
 
-  const frame = document.createElement("iframe");
-  frame.setAttribute("aria-hidden", "true");
-  frame.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden";
-  document.body.appendChild(frame);
-  const doc = frame.contentDocument;
-  const win = frame.contentWindow;
-  if (!doc || !win) return frame.remove();
-  doc.open();
-  doc.write(html);
-  doc.close();
-  const go = () => {
-    win.focus();
-    win.print();
-    setTimeout(() => frame.remove(), 1000);
-  };
-  // Wait for the logo before printing.
-  const imgs = [...doc.images].filter((i) => !i.complete);
-  let pending = imgs.length;
-  if (!pending) return setTimeout(go, 100);
-  const done = () => --pending <= 0 && setTimeout(go, 100);
-  imgs.forEach((i) => {
-    i.addEventListener("load", done);
-    i.addEventListener("error", done);
-  });
+  printHtml(html);
 };

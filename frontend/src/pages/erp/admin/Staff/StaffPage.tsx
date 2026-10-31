@@ -23,6 +23,9 @@ import {
   useSetStaffActiveMutation,
   useUpdateStaffMutation,
 } from "../../../../store/api/staff.api";
+import { useIdCards } from "../../../../components/shared/Print/useIdCards";
+import { useAppSelector } from "../../../../store/store";
+import StaffDetailsFields, { detailsFromStaff, detailsPayload, emptyStaffDetails, type StaffDetailsForm } from "./StaffDetailsFields";
 import styles from "./StaffPage.module.css";
 
 interface StaffFormInputs {
@@ -93,6 +96,10 @@ const StaffPage = () => {
   const [createStaff, { isLoading: isCreating }] = useCreateStaffMutation();
   const [updateStaff, { isLoading: isUpdating }] = useUpdateStaffMutation();
   const [setStaffActive] = useSetStaffActiveMutation();
+  const { printStaff } = useIdCards();
+  const isSuperAdmin = useAppSelector((s) => s.auth.user?.role) === "SUPER_ADMIN";
+  const [newDetails, setNewDetails] = useState<StaffDetailsForm>(emptyStaffDetails);
+  const [editDetails, setEditDetails] = useState<StaffDetailsForm>(emptyStaffDetails);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [togglingId, setTogglingId] = useState<number | null>(null);
@@ -134,10 +141,12 @@ const StaffPage = () => {
   const closeModal = () => {
     setIsModalOpen(false);
     reset();
+    setNewDetails(emptyStaffDetails);
   };
 
   const openProfile = (staff: IStaff) => {
     setProfileStaff(staff);
+    setEditDetails(detailsFromStaff(staff));
     const details = getRoleDetails(staff.staffCategory);
     setEditForm({
       name: staff.user.name || "",
@@ -159,11 +168,14 @@ const StaffPage = () => {
     try {
       await updateStaff({
         id: profileStaff.id,
-        name: editForm.name,
-        email: editForm.email,
-        contact: editForm.contact,
-        qualifications: editForm.qualifications,
-        staffCategory: editForm.staffCategory,
+        details: {
+          name: editForm.name,
+          email: editForm.email,
+          contact: editForm.contact,
+          qualifications: editForm.qualifications,
+          staffCategory: editForm.staffCategory,
+          ...detailsPayload(editDetails, { includeSensitive: isSuperAdmin, onlyFilled: false }),
+        },
       }).unwrap();
       toast.success("Staff profile updated successfully");
       closeProfile();
@@ -187,6 +199,7 @@ const StaffPage = () => {
         qualifications: values.qualifications || undefined,
         contact: values.contact || undefined,
         staffCategory: values.staffCategory,
+        ...detailsPayload(newDetails, { includeSensitive: isSuperAdmin, onlyFilled: true }),
       }).unwrap();
       toast.success(needsAccount ? "Staff member created with portal login access" : "Support staff record created (No Portal Access)");
       closeModal();
@@ -229,7 +242,7 @@ const StaffPage = () => {
         const q = searchQuery.toLowerCase();
         const nameMatch = staff.user.name?.toLowerCase().includes(q);
         const emailMatch = staff.user.email?.toLowerCase().includes(q);
-        const contactMatch = staff.contact?.toLowerCase().includes(q);
+        const contactMatch = staff.contact?.toLowerCase().includes(q) || staff.employeeCode?.toLowerCase().includes(q);
         const roleMatch = details.label.toLowerCase().includes(q) || details.group.toLowerCase().includes(q);
         if (!nameMatch && !emailMatch && !contactMatch && !roleMatch) return false;
       }
@@ -272,6 +285,7 @@ const StaffPage = () => {
               {row.user.name ?? "—"}
             </strong>
             <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>
+              {row.employeeCode ? `${row.employeeCode} · ` : ""}
               {isInternal ? "No Login Email (Record Only)" : row.user.email}
             </span>
           </div>
@@ -332,9 +346,22 @@ const StaffPage = () => {
         title="Staff Directory"
         subtitle="Manage teaching staff (Teachers, Principals, Coordinators) and non-teaching staff (Guard, Driver, Cleaning, etc.)"
         actions={
-          <Button variant="primary" onClick={() => setIsModalOpen(true)}>
-            + New Staff
-          </Button>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.6rem" }}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                // Cards for the staff in the list as filtered, currently employed only.
+                const list = filteredStaff.filter((s) => s.isActive);
+                if (list.length === 0) return void toast.info("No active staff in the list to print.");
+                printStaff(list);
+              }}
+            >
+              Print ID cards
+            </Button>
+            <Button variant="primary" onClick={() => setIsModalOpen(true)}>
+              + New Staff
+            </Button>
+          </div>
         }
       />
 
@@ -546,6 +573,7 @@ const StaffPage = () => {
                 })()}
               </FormGrid>
             </FormSection>
+            <StaffDetailsFields value={newDetails} onChange={setNewDetails} showSensitive={isSuperAdmin} isNew />
             <div className={styles.formActions}>
               <Button type="button" variant="ghost" onClick={closeModal}>
                 Cancel
@@ -571,7 +599,7 @@ const StaffPage = () => {
                   <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "0.5rem" }}>
                     <span className={styles.profileName}>{editForm.name || "Staff Member"}</span>
                     <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", fontWeight: 500 }}>
-                      (STF-{profileStaff.id})
+                      ({profileStaff.employeeCode ?? `STF-${profileStaff.id}`})
                     </span>
                   </div>
                   <div className={styles.profileEmail}>{editForm.email}</div>
@@ -642,6 +670,8 @@ const StaffPage = () => {
                 </FormGrid>
               </FormSection>
 
+              <StaffDetailsFields value={editDetails} onChange={setEditDetails} showSensitive={isSuperAdmin} />
+
               <div className={styles.formActions} style={{ justifyContent: "space-between", alignItems: "center" }}>
                 <Button
                   type="button"
@@ -653,6 +683,9 @@ const StaffPage = () => {
                   {profileStaff.isActive ? "Deactivate" : "Activate"}
                 </Button>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
+                  <Button type="button" variant="outline" onClick={() => printStaff([profileStaff])}>
+                    Print ID card
+                  </Button>
                   <Button type="button" variant="ghost" onClick={closeProfile}>
                     Cancel
                   </Button>

@@ -28,6 +28,8 @@ import AdminTransportPage from "./pages/erp/admin/Transport/AdminTransportPage";
 import AdminCmsPage from "./pages/erp/admin/Cms/AdminCmsPage";
 import AdmissionReportPage from "./pages/erp/admin/AdmissionReport/AdmissionReportPage";
 import ConstructionExpensePage from "./pages/erp/admin/Construction/ConstructionExpensePage";
+import AccountsPage from "./pages/erp/admin/Accounts/AccountsPage";
+import SchoolCalendar from "./components/shared/SchoolCalendar/SchoolCalendar";
 import PublicLayout from "./pages/public/PublicLayout";
 import HomePage from "./pages/public/HomePage";
 import AboutPage from "./pages/public/AboutPage";
@@ -55,6 +57,7 @@ import MyProfilePage from "./components/shared/Account/MyProfilePage";
 import StudentAttendancePage from "./pages/erp/student/Attendance/StudentAttendancePage";
 import StudentTimetablePage from "./pages/erp/student/Timetable/StudentTimetablePage";
 import StudentReportCardPage from "./pages/erp/student/ReportCard/StudentReportCardPage";
+import SettingsPage from "./pages/erp/admin/Settings/SettingsPage";
 import StudentFeesPage from "./pages/erp/student/Fees/StudentFeesPage";
 import StudentNoticesPage from "./pages/erp/student/Notices/StudentNoticesPage";
 import StudentAssignmentsPage from "./pages/erp/student/Assignments/StudentAssignmentsPage";
@@ -117,6 +120,9 @@ function App() {
           <Route path="/admin/assignments" element={<TeacherAssignmentsPage />} />
           <Route path="/admin/cms" element={<AdminCmsPage />} />
           <Route path="/admin/leaves" element={<AdminLeavesPage />} />
+          <Route path="/admin/accounts" element={<AccountsPage />} />
+          <Route path="/admin/calendar" element={<SchoolCalendar canManage who="ALL" />} />
+          <Route path="/admin/settings" element={<SettingsPage />} />
           <Route path="/admin/profile" element={<MyProfilePage />} />
           <Route path="/admin/account" element={<Navigate to="/admin/profile" replace />} />
 
@@ -155,6 +161,7 @@ function App() {
           <Route path="/teacher/notices" element={<TeacherNoticesPage />} />
           <Route path="/teacher/students" element={<MyStudentsPage />} />
           <Route path="/teacher/leave" element={<TeacherLeavePage />} />
+          <Route path="/teacher/calendar" element={<SchoolCalendar canManage={false} who="STAFF" />} />
           <Route path="/teacher/profile" element={<MyProfilePage />} />
         </Route>
 
@@ -176,6 +183,7 @@ function App() {
           <Route path="/student/fees" element={<StudentFeesPage />} />
           <Route path="/student/notices" element={<StudentNoticesPage />} />
           <Route path="/student/leave" element={<StudentLeavePage />} />
+          <Route path="/student/calendar" element={<SchoolCalendar canManage={false} who="STUDENTS" />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/admin/login" replace />} />

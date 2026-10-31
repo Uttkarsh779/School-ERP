@@ -3,6 +3,7 @@ import { Badge, Button, Card, EmptyState, Icon, Input, Modal, Select, Spinner, S
 import type { TableColumn } from "../../../../components/ui";
 import { useGetExamAnalysisQuery, useGetExamAuditQuery } from "../../../../store/api/exams.api";
 import type { ExamAnalysisStudent, ExamAuditEntry, ExamResultStatus, ExamSubjectStats } from "../../../../store/api/exams.api";
+import { usePrintReportCards } from "../../../../components/shared/Print/usePrintReportCards";
 import styles from "./ExamResultsView.module.css";
 
 const STATUS_META: Record<ExamResultStatus, { label: string; tone: "success" | "danger" | "warning" | "neutral" | "info" }> = {
@@ -77,6 +78,7 @@ const ExamResultsView = ({ examId, onBack }: { examId: number; onBack: () => voi
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [viewing, setViewing] = useState<ExamAnalysisStudent | null>(null);
+  const { print, isPrinting } = usePrintReportCards();
 
   const subjectName = useMemo(() => new Map((data?.subjects ?? []).map((s) => [s.id, s.name])), [data?.subjects]);
 
@@ -110,6 +112,11 @@ const ExamResultsView = ({ examId, onBack }: { examId: number; onBack: () => voi
           </p>
         )}
       </div>
+      {data?.scope === "FULL" && (
+        <Button type="button" variant="outline" icon={<Icon name="printer" size={16} />} isLoading={isPrinting} onClick={() => print({ examId })}>
+          Print report cards
+        </Button>
+      )}
     </div>
   );
 
@@ -376,6 +383,11 @@ const ExamResultsView = ({ examId, onBack }: { examId: number; onBack: () => voi
             <p className={styles.failNote}>Failed / absent in: {viewing.failedSubjects.join(", ")}</p>
           )}
           <div className={styles.modalActions}>
+            {data?.scope === "FULL" && (
+              <Button type="button" variant="outline" icon={<Icon name="printer" size={16} />} isLoading={isPrinting} onClick={() => print({ examId, studentId: viewing.studentId })}>
+                Print report card
+              </Button>
+            )}
             <Button type="button" variant="outline" onClick={() => setViewing(null)}>
               Close
             </Button>

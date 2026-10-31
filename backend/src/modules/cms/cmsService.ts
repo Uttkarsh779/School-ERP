@@ -13,19 +13,19 @@ const DEFAULT_SETTINGS = {
   schoolName: "RRS International School",
   tagline: "Empowering Minds, Inspiring Excellence",
   heroTitle: "Where Curious Minds Grow Into Confident Leaders",
-  heroSubtitle: "A caring, future-ready school offering strong academics, sports, arts and values from Nursery to Class XII.",
+  heroSubtitle: "A caring, future-ready school offering strong academics, sports, arts and values from Nursery to Class X.",
   aboutText:
     "Our school is committed to academic excellence, character development and the joy of learning. Every child is known, valued and encouraged to discover their strengths in a safe, modern campus.",
-  principalName: "Dr. S. K. Sharma",
+  principalName: "VP Anand",
   principalMessage:
     "Education is not just about marks; it is about curiosity, empathy and resilience. We help every student dream boldly, think critically and lead with compassion. We warmly invite you to be a part of our school family.",
   affiliationNo: "2130892",
-  establishedYear: 1998,
+  establishedYear: 2020,
   phone: "+91 98765 43210",
   email: "info@school.edu.in",
   address: "Sector 14, Knowledge Park, New Delhi - 110001",
   admissionsOpen: true,
-  admissionNotice: "Admissions open for Nursery to Class XI. Visit the admissions office or send an online enquiry.",
+  admissionNotice: "Admissions open for Nursery to Class IX. Visit the admissions office or send an online enquiry.",
   heroCtaText: "Apply for Admission",
   heroCtaLink: "/admissions",
 };

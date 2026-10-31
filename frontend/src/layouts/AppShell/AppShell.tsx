@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, Fragment } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { useDispatch } from "react-redux";
 import styles from "./AppShell.module.css";
@@ -8,6 +8,8 @@ import { resetTokens } from "../../store/reducers/authReducer";
 import { navByRole, getMobilePrimaryNav, profilePathByRole } from "./navConfig";
 import { useGetMyProfileQuery } from "../../store/api/profile.api";
 import PWAInstallPrompt from "../../components/PWAInstallPrompt/PWAInstallPrompt";
+import NotificationBell from "../../components/Notifications/NotificationBell";
+import EnableNotificationsBanner from "../../components/Notifications/EnableNotificationsBanner";
 
 const roleLabel: Record<string, string> = {
   SUPER_ADMIN: "Super Admin",
@@ -42,11 +44,11 @@ const AppShell = () => {
   const initials = (displayName ?? "?").charAt(0).toUpperCase();
   const avatar = me?.photoUrl ? <img src={me.photoUrl} alt="" className={styles.avatarImg} /> : initials;
   const profilePath = profilePathByRole[user?.role ?? ""];
+  // The school name/logo takes you back to your own dashboard (the first nav item).
+  const homePath = items[0]?.path ?? "/";
 
   // Determine active section title for mobile header
-  const activeItem = items.find((item) =>
-    item.end ? location.pathname === item.path : location.pathname.startsWith(item.path)
-  );
+  const activeItem = items.find((item) => (item.end ? location.pathname === item.path : location.pathname.startsWith(item.path)));
   const activeTitle = activeItem?.label ?? "RRS Intl School";
 
   return (
@@ -56,26 +58,28 @@ const AppShell = () => {
 
       {/* Left Slide-In Side Navigation (Desktop & Mobile Drawer) */}
       <aside className={`${styles.sidebar} ${mobileOpen ? styles.sidebarOpen : ""}`}>
-        <div className={styles.brand}>
+        <Link to={homePath} className={styles.brand} title="Go to dashboard" onClick={() => setMobileOpen(false)}>
           <div className={styles.crest}>RRS</div>
           <div>
             <div className={styles.brandText}>RRS Intl School</div>
             <div className={styles.brandSub}>School ERP</div>
           </div>
-        </div>
+        </Link>
 
         <nav className={styles.nav}>
-          {items.map((item) => (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              end={item.end}
-              className={({ isActive }) => `${styles.navLink} ${isActive ? styles.navLinkActive : ""}`}
-              onClick={() => setMobileOpen(false)}
-            >
-              <Icon name={item.icon} size={18} />
-              {item.label}
-            </NavLink>
+          {items.map((item, i) => (
+            <Fragment key={item.path}>
+              {item.group && item.group !== items[i - 1]?.group && <div className={styles.navGroup}>{item.group}</div>}
+              <NavLink
+                to={item.path}
+                end={item.end}
+                className={({ isActive }) => `${styles.navLink} ${isActive ? styles.navLinkActive : ""}`}
+                onClick={() => setMobileOpen(false)}
+              >
+                <Icon name={item.icon} size={18} />
+                {item.label}
+              </NavLink>
+            </Fragment>
           ))}
         </nav>
 
@@ -108,38 +112,35 @@ const AppShell = () => {
       </aside>
 
       {/* Backdrop Overlay when Mobile Side Nav is open */}
-      {mobileOpen && (
-        <div className={styles.overlayVisible} onClick={() => setMobileOpen(false)} />
-      )}
+      {mobileOpen && <div className={styles.overlayVisible} onClick={() => setMobileOpen(false)} />}
 
       {/* Main Content Area & Mobile Top Header */}
       <div className={styles.main}>
         {/* Mobile Top App Bar with Left Slide-In Hamburger Trigger */}
         <header className={styles.mobileHeader}>
-          <button
-            type="button"
-            className={styles.menuButton}
-            onClick={() => setMobileOpen(true)}
-            aria-label="Open side menu"
-          >
+          <button type="button" className={styles.menuButton} onClick={() => setMobileOpen(true)} aria-label="Open side menu">
             <Icon name="menu" size={22} />
           </button>
-          <div className={styles.mobileBrand}>
+          <Link to={homePath} className={styles.mobileBrand} aria-label="Go to dashboard">
             <div className={styles.mobileCrest}>RRS</div>
             <div className={styles.mobileBrandText}>{activeTitle}</div>
+          </Link>
+          <div className={styles.mobileHeaderEnd}>
+            <NotificationBell />
+            <button type="button" className={styles.mobileAvatarBtn} onClick={() => setMobileOpen(true)} aria-label="Open User Menu">
+              <div className={styles.avatar}>{avatar}</div>
+            </button>
           </div>
-          <button
-            type="button"
-            className={styles.mobileAvatarBtn}
-            onClick={() => setMobileOpen(true)}
-            aria-label="Open User Menu"
-          >
-            <div className={styles.avatar}>{avatar}</div>
-          </button>
         </header>
+
+        {/* Desktop top bar: notifications */}
+        <div className={styles.desktopBar}>
+          <NotificationBell />
+        </div>
 
         {/* Content View Outlet */}
         <main className={styles.content}>
+          <EnableNotificationsBanner />
           <Outlet />
         </main>
       </div>
@@ -147,9 +148,7 @@ const AppShell = () => {
       {/* Mobile Bottom Navigation Dock */}
       <nav className={styles.bottomDock} aria-label="Mobile Navigation">
         {primaryMobileItems.map((item) => {
-          const isActive = item.end
-            ? location.pathname === item.path
-            : location.pathname.startsWith(item.path);
+          const isActive = item.end ? location.pathname === item.path : location.pathname.startsWith(item.path);
 
           return (
             <NavLink

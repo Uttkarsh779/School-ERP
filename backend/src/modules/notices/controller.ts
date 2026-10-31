@@ -1,6 +1,7 @@
 import type { Response } from "express";
 import type { CustomRequest } from "../../middleware/auth";
 import { createNoticesForActor, deleteNoticeForActor, listNoticesForUser, listSentNotices, listTeacherNoticeClasses } from "./service";
+import { onNoticesPosted } from "../notifications/events";
 
 export const getNotices = async (req: CustomRequest, res: Response): Promise<void> => {
   const notices = await listNoticesForUser(req.user!.id, req.user!.role);
@@ -19,6 +20,7 @@ export const getNoticeClasses = async (req: CustomRequest, res: Response): Promi
 
 export const postNotice = async (req: CustomRequest, res: Response): Promise<void> => {
   const created = await createNoticesForActor({ id: req.user!.id, role: req.user!.role }, req.body ?? {});
+  onNoticesPosted(created.map((n: any) => n.id));
   res.status(201).json({
     success: true,
     message: created.length > 1 ? `Notice sent to ${created.length} classes` : "Notice posted",

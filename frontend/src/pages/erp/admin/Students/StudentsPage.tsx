@@ -23,10 +23,14 @@ import type { CreateStudentInput } from "../../../../store/api/students.api";
 import StudentFormFields from "./StudentFormFields";
 import { emptyStudentFormValues, type StudentFormValues } from "./studentForm";
 import BulkImportPanel from "./BulkImportPanel";
+import BulkPhotoUploadModal from "./photos/BulkPhotoUploadModal";
+import { useIdCards } from "../../../../components/shared/Print/useIdCards";
 import styles from "./StudentsPage.module.css";
 
 const StudentsPage = () => {
   const navigate = useNavigate();
+  const [isPhotoUploadOpen, setIsPhotoUploadOpen] = useState(false);
+  const { printStudents } = useIdCards();
   const [classSectionId, setClassSectionId] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<"ALL" | "ACTIVE" | "INACTIVE">("ALL");
@@ -214,15 +218,31 @@ const StudentsPage = () => {
     },
   ];
 
+  // ID cards for the students in the list as filtered (a class, a search), active ones only.
+  const printIdCards = () => {
+    const list = filteredStudents.filter((s) => s.isActive);
+    if (list.length === 0) return void toast.info("No active students in the list to print.");
+    if (!classSectionId && list.length > 60) return void toast.info("Pick a class first. Printing cards for the whole school at once is a lot of paper.");
+    printStudents(list);
+  };
+
   return (
     <div className={styles.section} style={{ marginTop: 0 }}>
       <PageHeader
         title="Student Directory & Roster"
         subtitle="View, search, and manage all student profiles across RRS Intl School"
         actions={
-          <Button type="button" icon={<Icon name="plus" />} onClick={openModal}>
-            New Student
-          </Button>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.6rem" }}>
+            <Button type="button" variant="outline" onClick={() => setIsPhotoUploadOpen(true)}>
+              Upload photos
+            </Button>
+            <Button type="button" variant="outline" icon={<Icon name="printer" />} onClick={printIdCards}>
+              Print ID cards
+            </Button>
+            <Button type="button" icon={<Icon name="plus" />} onClick={openModal}>
+              New Student
+            </Button>
+          </div>
         }
       />
 
@@ -275,6 +295,8 @@ const StudentsPage = () => {
           />
         )}
       </Card>
+
+      {isPhotoUploadOpen && <BulkPhotoUploadModal onClose={() => setIsPhotoUploadOpen(false)} />}
 
       <div className={styles.section}>
         <BulkImportPanel />

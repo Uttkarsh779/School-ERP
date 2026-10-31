@@ -1,6 +1,7 @@
 import type { Response } from "express";
 import type { CustomRequest } from "../../middleware/auth";
 import { hashPassword } from "../../utils/password";
+import { parseStaffDetails, SENSITIVE_STAFF_FIELDS } from "./details";
 import {
   createStaff,
   findUserByEmail,
@@ -11,16 +12,21 @@ import {
   updateStaff,
 } from "./service";
 
-// Strip passwordHash before a staff record (with its nested user) leaves the API.
-const sanitize = <T extends { user?: { passwordHash?: string } | null }>(staff: T) => {
-  if (!staff.user) return staff;
-  const { passwordHash: _passwordHash, ...user } = staff.user;
-  return { ...staff, user };
+// Strip passwordHash before a staff record (with its nested user) leaves the API. Aadhaar,
+// PAN and bank details are left out for everyone but the Super Admin.
+const sanitize = <T extends { user?: { passwordHash?: string } | null }>(staff: T, req: CustomRequest) => {
+  const out: Record<string, unknown> = { ...staff };
+  if (req.user?.role !== "SUPER_ADMIN") for (const f of SENSITIVE_STAFF_FIELDS) delete out[f];
+  if (staff.user) {
+    const { passwordHash: _passwordHash, ...user } = staff.user;
+    out.user = user;
+  }
+  return out;
 };
 
-export const getStaffList = async (_req: CustomRequest, res: Response): Promise<void> => {
+export const getStaffList = async (req: CustomRequest, res: Response): Promise<void> => {
   const staff = await listStaff();
-  res.status(200).json({ success: true, data: staff.map(sanitize) });
+  res.status(200).json({ success: true, data: staff.map((s) => sanitize(s, req)) });
 };
 
 export const getStaff = async (req: CustomRequest, res: Response): Promise<void> => {
@@ -29,7 +35,7 @@ export const getStaff = async (req: CustomRequest, res: Response): Promise<void>
     res.status(404).json({ success: false, message: "Staff not found" });
     return;
   }
-  res.status(200).json({ success: true, data: sanitize(staff) });
+  res.status(200).json({ success: true, data: sanitize(staff, req) });
 };
 
 export const postStaff = async (req: CustomRequest, res: Response): Promise<void> => {
@@ -57,14 +63,16 @@ export const postStaff = async (req: CustomRequest, res: Response): Promise<void
 
   const pwd = password || "Staff@12345";
   const passwordHash = await hashPassword(pwd);
-  const staff = await createStaff({ email, passwordHash, name, qualifications, contact, staffCategory: category });
-  res.status(201).json({ success: true, data: sanitize(staff) });
+  const details = parseStaffDetails(req.body);
+  const staff = await createStaff({ email, passwordHash, name, qualifications, contact, staffCategory: category, details });
+  res.status(201).json({ success: true, data: sanitize(staff, req) });
 };
 
 export const patchStaff = async (req: CustomRequest, res: Response): Promise<void> => {
   const { name, email, qualifications, contact, staffCategory } = req.body;
-  const staff = await updateStaff(Number(req.params.id), { name, email, qualifications, contact, staffCategory });
-  res.status(200).json({ success: true, data: sanitize(staff) });
+  const details = parseStaffDetails(req.body);
+  const staff = await updateStaff(Number(req.params.id), { name, email, qualifications, contact, staffCategory, details });
+  res.status(200).json({ success: true, data: sanitize(staff, req) });
 };
 
 export const patchStaffActive = async (req: CustomRequest, res: Response): Promise<void> => {

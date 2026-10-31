@@ -11,6 +11,7 @@ import {
   useUpdateFeeHeadMutation,
 } from "../../../../../store/api/fees.api";
 import { fmtDate, getErrorMessage, inr } from "../feeUtils";
+import BillingSettingsCard from "./BillingSettingsCard";
 import styles from "../Fees.module.css";
 
 type Slab = { uptoDays: string; amount: string };
@@ -29,7 +30,7 @@ const describeRule = (r: { feeType: string; amount: unknown; gracePeriodDays: nu
   }
 };
 
-// Fee heads (what can be charged) and the late-fee rule per session — the rule used by
+// Monthly billing, fee heads (what can be charged) and the late-fee rule per session — the rule used by
 // every dues screen and payment (see backend lateFeeService).
 const FeeSettingsTab = ({ isSuperAdmin }: { isSuperAdmin: boolean }) => {
   const { data: heads = [], isLoading: headsLoading } = useGetFeeHeadsQuery();
@@ -92,6 +93,8 @@ const FeeSettingsTab = ({ isSuperAdmin }: { isSuperAdmin: boolean }) => {
 
   return (
     <div className={styles.twoCol}>
+      <BillingSettingsCard />
+
       <Card title="Late-fee rule" subtitle="Applied automatically to every overdue fee; shown on all dues screens and receipts">
         <div className={styles.formStack}>
           <Select

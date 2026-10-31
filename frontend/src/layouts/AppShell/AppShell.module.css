@@ -28,6 +28,33 @@
   border-bottom: 1px solid var(--erp-border, #e2e8f0);
 }
 
+/* The brand block links to the dashboard */
+.brand,
+.mobileBrand {
+  text-decoration: none;
+  color: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.brand {
+  transition: background 0.15s ease;
+}
+
+.brand:hover {
+  background: var(--erp-surface-muted, #f8fafc);
+}
+
+.brand:focus-visible,
+.mobileBrand:focus-visible {
+  outline: 2px solid var(--erp-primary-500, #f97316);
+  outline-offset: -2px;
+}
+
+.brand:active,
+.mobileBrand:active {
+  opacity: 0.75;
+}
+
 .crest {
   width: 2.2rem;
   height: 2.2rem;
@@ -62,6 +89,17 @@
   flex-direction: column;
   gap: 0.15rem;
   overflow-y: auto;
+}
+
+/* Small heading above a group of menu items (People, Academics, Finance...). */
+.navGroup {
+  margin: 0.9rem 0.75rem 0.3rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--erp-text-muted, #64748b);
+  opacity: 0.8;
 }
 
 .navLink {
@@ -278,9 +316,31 @@
   border-radius: 50%;
 }
 
+.mobileHeaderEnd {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+/* Desktop: slim bar holding the notification bell, above the page. */
+.desktopBar {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  padding: 0.6rem 1.75rem 0;
+  position: relative;
+  z-index: 20;
+}
+
 .content {
   flex: 1;
   padding: 1.75rem;
+}
+
+@media (min-width: 901px) {
+  .desktopBar + .content {
+    padding-top: 0.5rem;
+  }
 }
 
 /* Mobile Bottom Navigation Bar (Dock) */
@@ -311,6 +371,7 @@
   color: #64748b;
   text-decoration: none;
   border-radius: 0.65rem;
+  font-family: inherit; /* the Menu <button> must match the links' font */
   font-size: 0.64rem;
   font-weight: 600;
   border: none;
@@ -356,6 +417,10 @@
 }
 
 @media (max-width: 900px) {
+  .desktopBar {
+    display: none;
+  }
+
   .sidebar {
     position: fixed;
     top: 0;

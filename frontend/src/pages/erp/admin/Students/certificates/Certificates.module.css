@@ -1,0 +1,97 @@
+.typeGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.75rem;
+}
+
+.typeCard {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  text-align: left;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--erp-border);
+  border-radius: var(--erp-radius-md);
+  background: var(--erp-surface);
+  color: var(--erp-text);
+  font: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.typeCard:hover,
+.typeCard:focus-visible {
+  border-color: var(--erp-primary-500, var(--erp-primary-700));
+  box-shadow: var(--erp-shadow-sm);
+}
+
+.typeCard strong {
+  font-size: 0.95rem;
+}
+
+.typeCard span {
+  font-size: 0.8rem;
+  color: var(--erp-text-muted);
+}
+
+.fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.25rem 0.9rem;
+}
+
+.wide {
+  grid-column: 1 / -1;
+}
+
+.check {
+  display: flex;
+  gap: 0.55rem;
+  align-items: flex-start;
+  margin-top: 0.75rem;
+  padding: 0.7rem 0.85rem;
+  border-radius: var(--erp-radius-md);
+  background: var(--erp-bg);
+  border: 1px solid var(--erp-border);
+  font-size: 0.86rem;
+  cursor: pointer;
+}
+
+.check input {
+  margin-top: 0.15rem;
+}
+
+.note {
+  margin: 0 0 0.9rem;
+  font-size: 0.84rem;
+  color: var(--erp-text-muted);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin-top: 1.25rem;
+}
+
+.rowActions {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.cancelled {
+  opacity: 0.65;
+}
+
+@media (max-width: 640px) {
+  .fields {
+    grid-template-columns: 1fr;
+  }
+
+  .listRow {
+    flex-wrap: wrap;
+  }
+}

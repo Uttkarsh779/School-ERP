@@ -1,10 +1,12 @@
 import { prisma } from "../../config/prisma";
 import type { Role } from "../../generated/prisma/enums";
 import { httpError } from "../../utils/httpError";
+import { offDays } from "../calendar/service";
 
 // Leave requests.
 // - Student leave: applied from the student portal; decided by the student's class teacher
-//   (or an admin). On approval, each day in the range (except Sundays) is marked LEAVE in
+//   (or an admin). On approval, each day in the range (except days off: Sundays, weekly-off
+//   Saturdays and holidays from the school calendar) is marked LEAVE in
 //   attendance — a day already marked PRESENT/LATE is left alone (the student came in).
 // - Staff leave: applied by a staff member for themselves; decided by an admin (never by
 //   the same person).
@@ -154,6 +156,9 @@ export const decideLeave = async (actor: Actor, id: number, approved: boolean, n
 
   const cleanNote = typeof note === "string" && note.trim() ? note.trim().slice(0, 300) : null;
 
+  // Sundays, weekly-off Saturdays and holidays are not leave days.
+  const daysOff = approved && leave.student ? await offDays(leave.fromDate, leave.toDate, "STUDENTS") : new Map<string, string>();
+
   return prisma.$transaction(async (tx: any) => {
     // Guard in the write itself against two people deciding at once.
     const { count } = await tx.leaveRequest.updateMany({
@@ -166,7 +171,7 @@ export const decideLeave = async (actor: Actor, id: number, approved: boolean, n
     if (approved && leave.student) {
       for (let t = leave.fromDate.getTime(); t <= leave.toDate.getTime(); t += DAY) {
         const date = new Date(t);
-        if (date.getUTCDay() === 0) continue; // Sunday
+        if (daysOff.has(date.toISOString().slice(0, 10))) continue;
         const existing = await tx.attendance.findUnique({ where: { studentId_date: { studentId: leave.student.id, date } } });
         if (existing && (existing.status === "PRESENT" || existing.status === "LATE")) continue;
         await tx.attendance.upsert({

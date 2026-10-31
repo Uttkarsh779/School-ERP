@@ -317,6 +317,43 @@ export const feesApi = erpApi.injectEndpoints({
       transformResponse: (res: ApiEnvelope<any>) => res.data,
       invalidatesTags: feeTags,
     }),
+    // Monthly billing settings (automatic generation) and corrections (reversalService).
+    getBillingSettings: builder.query<BillingSettings, void>({
+      query: () => "fees/billing-settings",
+      transformResponse: (res: ApiEnvelope<BillingSettings>) => res.data,
+      providesTags: feeTags,
+    }),
+    updateBillingSettings: builder.mutation<BillingSettings, Partial<Pick<BillingSettings, "autoGenerate" | "generateDay" | "transportDueDay">>>({
+      query: (body) => ({ url: "fees/billing-settings", method: "PUT", body }),
+      transformResponse: (res: ApiEnvelope<BillingSettings>) => res.data,
+      invalidatesTags: feeTags,
+    }),
+    cancelPayment: builder.mutation<{ receiptNumber: string | null; billsReopened: number }, { paymentId: number; reason: string }>({
+      query: ({ paymentId, reason }) => ({ url: `payments/${paymentId}/cancel`, method: "POST", body: { reason } }),
+      transformResponse: (res: ApiEnvelope<{ receiptNumber: string | null; billsReopened: number }>) => res.data,
+      invalidatesTags: feeTags,
+    }),
+    cancelInvoice: builder.mutation<any, { invoiceId: number; reason: string }>({
+      query: ({ invoiceId, reason }) => ({ url: `fees/invoices/${invoiceId}/cancel`, method: "POST", body: { reason } }),
+      invalidatesTags: feeTags,
+    }),
+    recalculateInvoice: builder.mutation<{ status: string; totalAmount: number; oldTotal: number }, number>({
+      query: (invoiceId) => ({ url: `fees/invoices/${invoiceId}/recalculate`, method: "POST" }),
+      transformResponse: (res: ApiEnvelope<{ status: string; totalAmount: number; oldTotal: number }>) => res.data,
+      invalidatesTags: feeTags,
+    }),
+    bulkInvoiceAction: builder.mutation<
+      BulkBillResult,
+      { action: "cancel" | "recalculate"; sessionId: number; billingMonth: number; billingYear: number; classSectionId?: number; reason?: string }
+    >({
+      query: ({ action, ...body }) => ({ url: `fees/invoices/bulk-${action}`, method: "POST", body }),
+      transformResponse: (res: ApiEnvelope<BulkBillResult>) => res.data,
+      invalidatesTags: feeTags,
+    }),
+    reverseAdjustment: builder.mutation<any, { adjustmentId: number; reason: string }>({
+      query: ({ adjustmentId, reason }) => ({ url: `fees/adjustments/${adjustmentId}/reverse`, method: "POST", body: { reason } }),
+      invalidatesTags: feeTags,
+    }),
     getStudentMonthsChart: builder.query<any, { studentId: number; sessionId?: number }>({
       query: ({ studentId, sessionId }) => ({
         url: `fees/student/${studentId}/months-chart`,
@@ -333,7 +370,28 @@ export const feesApi = erpApi.injectEndpoints({
   }),
 });
 
+export interface BillingSettings {
+  autoGenerate: boolean;
+  generateDay: number;
+  transportDueDay: number;
+  lastAutoRunPeriod: string | null;
+  lastAutoRunAt: string | null;
+  lastAutoRunSummary: string | null;
+}
+
+export interface BulkBillResult {
+  done: number;
+  skipped: Array<{ invoiceNumber: string; student: string; reason: string }>;
+}
+
 export const {
+  useGetBillingSettingsQuery,
+  useUpdateBillingSettingsMutation,
+  useCancelPaymentMutation,
+  useCancelInvoiceMutation,
+  useRecalculateInvoiceMutation,
+  useBulkInvoiceActionMutation,
+  useReverseAdjustmentMutation,
   useGetFeeHeadsQuery,
   useCreateFeeHeadMutation,
   useUpdateFeeHeadMutation,

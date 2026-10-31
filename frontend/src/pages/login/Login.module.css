@@ -345,3 +345,81 @@
     min-height: 2.9rem;
   }
 }
+
+/* Compact phone layout: brand row + toggle + form; headings and the big header are hidden.
+   (These elements are hidden on larger screens.) */
+.mobileBrand,
+.mobileBack {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .leftSection,
+  .topBar,
+  .hideOnPhone {
+    display: none;
+  }
+
+  /* Fill the screen and sit the card in the middle instead of at the top */
+  .loginPage {
+    height: auto;
+  }
+
+  .rightSection {
+    min-height: 100dvh;
+    padding-top: calc(1.5rem + env(safe-area-inset-top));
+    background: linear-gradient(180deg, #fff3e8 0%, #ffffff 42%);
+  }
+
+  .loginCard {
+    margin: auto;
+  }
+
+  .mobileBrand {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 0.6rem;
+    margin-bottom: 1.75rem;
+  }
+
+  .mobileLogo {
+    width: 4.5rem;
+    height: 4.5rem;
+    object-fit: contain;
+    border-radius: 18px;
+    background: #ffffff;
+    box-shadow: 0 6px 18px rgba(234, 88, 12, 0.15);
+    padding: 0.4rem;
+    flex-shrink: 0;
+  }
+
+  .mobileName {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: #1b2430;
+    line-height: 1.2;
+  }
+
+  .mobileTag {
+    font-size: 0.8rem;
+    color: #64748b;
+  }
+
+  .modeToggle {
+    margin-bottom: 1.25rem;
+  }
+
+  .mobileBack {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0.35rem;
+    margin-top: 1.5rem;
+    color: #64748b;
+    font-size: 0.88rem;
+    font-weight: 600;
+    text-decoration: none;
+  }
+}

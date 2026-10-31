@@ -5,13 +5,15 @@ import { useGetCmsSettingsQuery, useUpdateCmsSettingsMutation, type IWebsiteSett
 import { FieldInput, errorOf, type FieldDef } from "./fields";
 import styles from "./AdminCmsPage.module.css";
 
-export type SettingsSection = "profile" | "home" | "about";
+// "school" is the official school profile (on the Settings page; printed on documents and
+// shown on the website); the others are website-only sections of the Website CMS.
+export type SettingsSection = "school" | "profile" | "home" | "about";
 
 const GROUPS: Record<SettingsSection, { title: string; subtitle?: string; fields: FieldDef[] }[]> = {
-  profile: [
+  school: [
     {
       title: "School identity",
-      subtitle: "Shown in the website header, footer and browser tab",
+      subtitle: "Printed on report cards, certificates, fee receipts and ID cards, and shown on the website",
       fields: [
         { key: "schoolName", label: "School name", type: "text", required: true, maxLength: 120 },
         { key: "tagline", label: "Tagline / motto", type: "text", required: true, maxLength: 160 },
@@ -19,7 +21,6 @@ const GROUPS: Record<SettingsSection, { title: string; subtitle?: string; fields
         { key: "affiliationNo", label: "Affiliation number", type: "text", required: true, maxLength: 60 },
         { key: "schoolCode", label: "School code", type: "text", maxLength: 60 },
         { key: "establishedYear", label: "Established year", type: "number" },
-        { key: "academicSession", label: "Admission session", type: "text", maxLength: 20, placeholder: "e.g. 2027-28", hint: "Leave empty to calculate automatically (from October the next session is shown)." },
         { key: "logoUrl", label: "School logo", type: "image", hint: "Square PNG with transparent background works best. Without a logo, the initials crest is shown." },
       ],
     },
@@ -27,10 +28,27 @@ const GROUPS: Record<SettingsSection, { title: string; subtitle?: string; fields
       title: "Contact details",
       fields: [
         { key: "phone", label: "Phone", type: "tel", required: true, maxLength: 40 },
-        { key: "whatsapp", label: "WhatsApp number", type: "tel", maxLength: 20, hint: "Shows a floating WhatsApp chat button. 10-digit numbers get +91." },
         { key: "email", label: "Email", type: "email", required: true, maxLength: 120 },
-        { key: "officeHours", label: "Office hours", type: "text", maxLength: 120, placeholder: "Mon – Sat, 8:00 AM – 2:00 PM" },
         { key: "address", label: "Address", type: "textarea", required: true, rows: 2, maxLength: 300 },
+      ],
+    },
+    {
+      title: "Principal",
+      subtitle: "The name printed under the principal's signature",
+      fields: [
+        { key: "principalName", label: "Name", type: "text", required: true, maxLength: 80 },
+        { key: "principalTitle", label: "Designation", type: "text", required: true, maxLength: 80, suggestions: ["Principal", "Director", "Chairman", "Headmistress"] },
+      ],
+    },
+  ],
+  profile: [
+    {
+      title: "Admissions & contact",
+      subtitle: "School name, address, phone and logo are edited in Settings → School profile",
+      fields: [
+        { key: "academicSession", label: "Admission session", type: "text", maxLength: 20, placeholder: "e.g. 2027-28", hint: "Leave empty to calculate automatically (from October the next session is shown)." },
+        { key: "whatsapp", label: "WhatsApp number", type: "tel", maxLength: 20, hint: "Shows a floating WhatsApp chat button. 10-digit numbers get +91." },
+        { key: "officeHours", label: "Office hours", type: "text", maxLength: 120, placeholder: "Mon – Sat, 8:00 AM – 2:00 PM" },
         {
           key: "mapEmbedUrl",
           label: "Google Map",
@@ -84,9 +102,8 @@ const GROUPS: Record<SettingsSection, { title: string; subtitle?: string; fields
     },
     {
       title: "Principal's message",
+      subtitle: "The principal's name and designation are edited in Settings → School profile",
       fields: [
-        { key: "principalName", label: "Name", type: "text", required: true, maxLength: 80 },
-        { key: "principalTitle", label: "Designation", type: "text", required: true, maxLength: 80, suggestions: ["Principal", "Director", "Chairman", "Headmistress"] },
         { key: "principalMessage", label: "Message", type: "textarea", required: true, rows: 6, maxLength: 3000 },
         { key: "principalPhotoUrl", label: "Photo", type: "image", full: true, hint: "Portrait photo (4:5) looks best." },
       ],
@@ -152,7 +169,7 @@ const SettingsEditor = ({ section }: { section: SettingsSection }) => {
     if (payload.establishedYear === "") delete payload.establishedYear;
     try {
       await save(payload as Partial<IWebsiteSetting>).unwrap();
-      toast.success("Website updated");
+      toast.success(section === "school" ? "School profile saved" : "Website updated");
     } catch (e) {
       toast.error(errorOf(e, "Couldn't save the settings"));
     }

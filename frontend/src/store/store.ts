@@ -18,6 +18,7 @@ import { apiSocial } from "./services/social.api";
 import { apiPortal } from "./services/portal.api";
 import { erpApi } from "./api/erpApi";
 import { profileApi, type MyProfile } from "./api/profile.api";
+import { removeDevicePushSubscription } from "../components/Notifications/pushDevice";
 
 // Cached ERP data belongs to the logged-in account: drop it on logout, and when a login
 // switches to a different account (a token refresh for the same user keeps it).
@@ -27,8 +28,10 @@ sessionListener.startListening({
     resetTokens.match(action) ||
     (setTokens.match(action) &&
       (current as RootState).auth.user?.id !== (previous as RootState).auth.user?.id),
-  effect: (_action, api) => {
+  effect: (action, api) => {
     api.dispatch(erpApi.util.resetApiState());
+    // Signed out: this phone must not keep receiving the previous account's notifications.
+    if (resetTokens.match(action)) removeDevicePushSubscription().catch(() => undefined);
     // Also drop any API responses the service worker saved (older app versions cached
     // signed-in data), so nothing from the previous account can be shown.
     if (typeof caches !== "undefined") {

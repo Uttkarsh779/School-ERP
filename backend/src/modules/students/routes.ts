@@ -13,6 +13,7 @@ import {
   postStudentsBulkImport,
 } from "./controller";
 import { getStudentHistory } from "./historyService";
+import { setStudentPhoto } from "./service";
 import type { CustomRequest } from "../../middleware/auth";
 import type { Response } from "express";
 
@@ -57,5 +58,13 @@ router.post(
 router.post("/:id/credentials", authorizeRoles(["SUPER_ADMIN", "ADMIN"]), asyncHandler(postSetStudentCredentials));
 router.patch("/:id", authorizeRoles(["SUPER_ADMIN", "ADMIN"]), asyncHandler(patchStudent));
 router.patch("/:id/active", authorizeRoles(["SUPER_ADMIN", "ADMIN"]), asyncHandler(patchStudentActive));
+// Photo for report cards / ID cards — set by the office, not by students.
+router.patch(
+  "/:id/photo",
+  authorizeRoles(["SUPER_ADMIN", "ADMIN"]),
+  asyncHandler(async (req: CustomRequest, res: Response) => {
+    res.status(200).json({ success: true, message: req.body?.photoUrl ? "Photo saved" : "Photo removed", data: await setStudentPhoto(Number(req.params.id), req.body?.photoUrl ?? null) });
+  })
+);
 
 export default router;

@@ -11,10 +11,8 @@ import {
   Icon,
   Input,
   Modal,
-  PageHeader,
   Select,
   Spinner,
-  StatCard,
   type SelectOption,
 } from "../../../../components/ui";
 import StudentProfileView from "../../../../components/shared/StudentProfileView/StudentProfileView";
@@ -32,12 +30,17 @@ import {
   useGetVillagesQuery,
 } from "../../../../store/api/transport.api";
 import StudentFormFields from "./StudentFormFields";
+import EndTransportModal from "./EndTransportModal";
 import AttendanceHistoryTab from "./history/AttendanceHistoryTab";
 import ExamHistoryTab from "./history/ExamHistoryTab";
 import FeeHistoryTab from "./history/FeeHistoryTab";
 import TransportHistoryTab from "./history/TransportHistoryTab";
+import CertificatesTab from "./certificates/CertificatesTab";
+import StudentPhotoModal from "./photos/StudentPhotoModal";
+import { useIdCards } from "../../../../components/shared/Print/useIdCards";
 import { inr } from "./history/historyFormat";
 import historyStyles from "./history/StudentHistory.module.css";
+import styles from "./StudentDetailPage.module.css";
 
 // Year-end result recorded by the new-session promotion.
 const OUTCOME_BADGE = {
@@ -74,7 +77,7 @@ const StudentDetailPage = () => {
     isError: isHistoryError,
     refetch: refetchHistory,
   } = useGetStudentHistoryQuery(studentId, { skip: !studentId });
-  const [tab, setTab] = useState<"overview" | "attendance" | "exams" | "fees" | "transport">("overview");
+  const [tab, setTab] = useState<"overview" | "attendance" | "exams" | "fees" | "transport" | "certificates">("overview");
   const { data: classSections } = useGetClassSectionsQuery();
   const { data: transportRoutes } = useGetTransportRoutesQuery();
   const { data: villages } = useGetVillagesQuery();
@@ -87,6 +90,9 @@ const StudentDetailPage = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isTransportModalOpen, setIsTransportModalOpen] = useState(false);
+  const [isEndTransportOpen, setIsEndTransportOpen] = useState(false);
+  const [isPhotoOpen, setIsPhotoOpen] = useState(false);
+  const { printStudents } = useIdCards();
 
   const [selectedRouteId, setSelectedRouteId] = useState<string>("");
   const [locationSearchQuery, setLocationSearchQuery] = useState<string>("");
@@ -258,38 +264,18 @@ const StudentDetailPage = () => {
 
   return (
     <div>
-      <PageHeader
-        title="Student Profile"
-        subtitle={student ? `${student.name}'s full record` : undefined}
-        actions={
-          <>
-            <Button variant="outline" onClick={() => navigate(-1)}>
-              Back
-            </Button>
-            {student && (
-              <>
-                <Button icon={<Icon name="bus" />} variant="outline" onClick={openTransportModal}>
-                  Manage Transport
-                </Button>
-                <Button icon={<Icon name="edit" />} variant="outline" onClick={openEditModal}>
-                  Edit Profile
-                </Button>
-              </>
-            )}
-            <Button icon={<Icon name="plus" />} onClick={() => setIsModalOpen(true)}>
-              Set Login
-            </Button>
-          </>
-        }
-      />
+      <button type="button" className={styles.back} onClick={() => navigate(-1)}>
+        <Icon name="arrowLeft" size={16} /> Back
+      </button>
 
       {loginEmail && (
-        <FormSection title="Login Credentials Saved">
-          <p style={{ margin: 0, fontSize: "0.88rem" }}>
-            This student can now sign in with <strong>{loginEmail}</strong> (or their admission number{" "}
-            <strong>{student?.admissionNo}</strong>) and the password you just set.
-          </p>
-        </FormSection>
+        <div className={styles.loginSaved}>
+          <Icon name="check" size={16} />
+          <span>
+            Login saved. This student can sign in with <strong>{loginEmail}</strong> (or admission number <strong>{student?.admissionNo}</strong>) and the
+            password you just set.
+          </span>
+        </div>
       )}
 
       {isLoading ? (
@@ -298,34 +284,100 @@ const StudentDetailPage = () => {
         <EmptyState title="Student not found" description="This student record may have been removed." />
       ) : (
         <>
-          {/* At-a-glance summary across every area */}
-          <div className={historyStyles.statsGrid}>
-            <StatCard
-              label="Current class"
-              value={student.classSection ? `${student.classSection.className} - ${student.classSection.section}` : "—"}
-              icon={<Icon name="layers" />}
-            />
-            <StatCard
-              label="Overall attendance"
-              value={history ? formatPct(history.attendance.overall.percentage) : "—"}
-              icon={<Icon name="clipboardCheck" />}
-            />
-            <StatCard
-              label={history?.exams[0] ? `Latest exam · ${history.exams[0].examName}` : "Latest exam"}
-              value={history?.exams[0]?.percentage != null ? `${history.exams[0].percentage}%` : "—"}
-              icon={<Icon name="graduationCap" />}
-            />
-            <StatCard
-              label="Fees outstanding"
-              value={history ? inr(history.fees.summary.totalOutstanding) : "—"}
-              icon={<Icon name="building" />}
-            />
-            <StatCard
-              label="Transport"
-              value={history?.transport.find((t) => t.status === "ACTIVE")?.villageName ?? (student.transportRoute ? student.transportRoute.routeName : "Not using")}
-              icon={<Icon name="bus" />}
-            />
-          </div>
+          {/* Profile header: who, which class, quick actions, and the record at a glance */}
+          <section className={styles.hero}>
+            <div className={styles.heroTop}>
+              <button type="button" className={styles.avatarButton} onClick={() => setIsPhotoOpen(true)} title={student.photoUrl ? "Change photo" : "Add photo"}>
+                {student.photoUrl ? (
+                  <img src={student.photoUrl} alt="" className={styles.avatar} />
+                ) : (
+                  <span className={styles.avatar}>{student.name.charAt(0).toUpperCase()}</span>
+                )}
+                <span className={styles.avatarBadge}>{student.photoUrl ? "Change" : "Add photo"}</span>
+              </button>
+              <div className={styles.heroMain}>
+                <h1 className={styles.name}>{student.name}</h1>
+                <div className={styles.chips}>
+                  {student.classSection && (
+                    <span className={`${styles.chip} ${styles.chipStrong}`}>
+                      {student.classSection.className} - {student.classSection.section}
+                    </span>
+                  )}
+                  {student.rollNo && <span className={styles.chip}>Roll {student.rollNo}</span>}
+                  <span className={styles.chip}>Adm {student.admissionNo}</span>
+                  <Badge tone={student.isActive ? "success" : "neutral"}>{student.isActive ? "Active" : "Inactive"}</Badge>
+                </div>
+              </div>
+            </div>
+
+            <div className={styles.actions}>
+              <Button size="sm" variant="outline" icon={<Icon name="edit" size={15} />} onClick={openEditModal}>
+                Edit profile
+              </Button>
+              <Button size="sm" variant="outline" icon={<Icon name="bus" size={15} />} onClick={openTransportModal}>
+                Transport
+              </Button>
+              <Button size="sm" variant="outline" icon={<Icon name="badge" size={15} />} onClick={() => setIsModalOpen(true)}>
+                Set login
+              </Button>
+              <Button size="sm" variant="outline" icon={<Icon name="fileText" size={15} />} onClick={() => setTab("certificates")}>
+                Certificates
+              </Button>
+              <Button size="sm" variant="outline" icon={<Icon name="printer" size={15} />} onClick={() => printStudents([student])}>
+                ID card
+              </Button>
+              {(history?.transport.some((t) => t.status === "ACTIVE") || student.transportRoute) && (
+                <Button size="sm" variant="ghost" icon={<Icon name="close" size={15} />} onClick={() => setIsEndTransportOpen(true)}>
+                  End transport
+                </Button>
+              )}
+              {student.fatherContact && (
+                <a className={styles.callLink} href={`tel:${student.fatherContact}`}>
+                  <Icon name="phone" size={15} /> Call father
+                </a>
+              )}
+            </div>
+
+            {/* Tap a figure to open its tab */}
+            <div className={styles.stats}>
+              {(() => {
+                const pct = history?.attendance.overall.percentage ?? null;
+                const latest = history?.exams[0];
+                const due = history ? Number(history.fees.summary.totalOutstanding) : null;
+                const transport =
+                  history?.transport.find((t) => t.status === "ACTIVE")?.villageName ?? (student.transportRoute ? student.transportRoute.routeName : null);
+                const items: Array<{ key: typeof tab; label: string; value: string; sub?: string; tone?: "good" | "warn" | "bad" }> = [
+                  {
+                    key: "attendance",
+                    label: "Attendance",
+                    value: history ? formatPct(pct) : "…",
+                    sub: "overall",
+                    tone: pct == null ? undefined : pct >= 85 ? "good" : pct >= 75 ? "warn" : "bad",
+                  },
+                  {
+                    key: "exams",
+                    label: "Latest exam",
+                    value: latest?.percentage != null ? `${latest.percentage}%` : history ? "No marks" : "…",
+                    sub: latest?.examName,
+                  },
+                  {
+                    key: "fees",
+                    label: "Fees due",
+                    value: due == null ? "…" : due > 0 ? inr(due) : "No dues",
+                    tone: due == null ? undefined : due > 0 ? "bad" : "good",
+                  },
+                  { key: "transport", label: "Transport", value: transport ?? "Not using", sub: transport ? "active" : undefined },
+                ];
+                return items.map((it) => (
+                  <button key={it.key} type="button" className={styles.stat} onClick={() => setTab(it.key)}>
+                    <span className={styles.statLabel}>{it.label}</span>
+                    <span className={`${styles.statValue} ${it.tone ? styles[`tone_${it.tone}`] : ""}`}>{it.value}</span>
+                    {it.sub && <span className={styles.statSub}>{it.sub}</span>}
+                  </button>
+                ));
+              })()}
+            </div>
+          </section>
 
           <div className={historyStyles.tabs} role="tablist">
             {(
@@ -335,6 +387,7 @@ const StudentDetailPage = () => {
                 ["exams", "Exams & Marks"],
                 ["fees", "Fees"],
                 ["transport", "Transport"],
+                ["certificates", "Certificates"],
               ] as const
             ).map(([key, label]) => (
               <button
@@ -353,7 +406,13 @@ const StudentDetailPage = () => {
           {tab === "overview" ? (
             <div className={historyStyles.tab}>
               {history && history.academicHistory.length > 0 && (
-                <FormSection title="Academic History">
+                <section className={styles.historyCard}>
+                  <header className={styles.historyHead}>
+                    <span className={styles.historyIcon}>
+                      <Icon name="graduationCap" size={16} />
+                    </span>
+                    <h3>Academic history</h3>
+                  </header>
                   <ul className={historyStyles.academicList}>
                     {history.academicHistory.map((a) => (
                       <li key={a.sessionId} className={historyStyles.listItem}>
@@ -369,10 +428,12 @@ const StudentDetailPage = () => {
                       </li>
                     ))}
                   </ul>
-                </FormSection>
+                </section>
               )}
               <StudentProfileView student={student} />
             </div>
+          ) : tab === "certificates" ? (
+            <CertificatesTab studentId={student.id} />
           ) : isHistoryLoading ? (
             <Spinner />
           ) : isHistoryError || !history ? (
@@ -388,9 +449,27 @@ const StudentDetailPage = () => {
           ) : tab === "fees" ? (
             <FeeHistoryTab history={history} />
           ) : (
-            <TransportHistoryTab student={student} history={history} onManageTransport={openTransportModal} />
+            <TransportHistoryTab
+              student={student}
+              history={history}
+              onManageTransport={openTransportModal}
+              onEndTransport={() => setIsEndTransportOpen(true)}
+            />
           )}
         </>
+      )}
+
+      {isPhotoOpen && student && <StudentPhotoModal student={student} onClose={() => setIsPhotoOpen(false)} />}
+
+      {isEndTransportOpen && student && (
+        <EndTransportModal
+          studentId={student.id}
+          studentName={student.name}
+          currentLabel={
+            [student.transportRoute?.routeName, history?.transport.find((t) => t.status === "ACTIVE")?.villageName].filter(Boolean).join(" · ") || null
+          }
+          onClose={() => setIsEndTransportOpen(false)}
+        />
       )}
 
       {/* Edit Student Profile Modal */}

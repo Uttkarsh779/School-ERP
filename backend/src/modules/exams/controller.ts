@@ -18,7 +18,9 @@ import {
   setExamLock,
 } from "./service";
 import { getExamAnalysis } from "./analysisService";
+import { getPrintableReportCards } from "./printService";
 import { getRemarksSheet, getStudentRemark, saveRemarks, setResultsPublished } from "./remarksService";
+import { onResultsPublished } from "../notifications/events";
 
 // What part of a class's marks the caller may SEE:
 //   FULL    - admins, and the class teacher (all subjects of their class)
@@ -433,6 +435,41 @@ export const getReportCard = async (req: CustomRequest, res: Response): Promise<
   });
 };
 
+// Printable report cards. With ?studentId= the same viewers as the on-screen report card;
+// without it, the whole class — admins and the class teacher only.
+export const getReportCardsPrint = async (req: CustomRequest, res: Response): Promise<void> => {
+  const examId = Number(req.params.id);
+  const studentId = req.query.studentId ? Number(req.query.studentId) : undefined;
+
+  const exam = await getExamById(examId);
+  if (!exam) {
+    res.status(404).json({ success: false, message: "Exam not found" });
+    return;
+  }
+
+  if (studentId) {
+    if (!(await canViewStudentExamResult(req, studentId))) {
+      res.status(403).json({ success: false, message: "Forbidden" });
+      return;
+    }
+    const role = req.user!.role;
+    if ((role === "STUDENT" || role === "PARENT") && !exam.resultsPublished) {
+      res.status(403).json({ success: false, message: "Results for this exam haven't been published yet." });
+      return;
+    }
+  } else if ((await getExamScope(req, exam.classSectionId))?.mode !== "FULL") {
+    res.status(403).json({ success: false, message: "Only admins and the class teacher can print the whole class's report cards." });
+    return;
+  }
+
+  const data = await getPrintableReportCards(examId, studentId);
+  if (!data) {
+    res.status(404).json({ success: false, message: "Exam not found" });
+    return;
+  }
+  res.status(200).json({ success: true, data });
+};
+
 // Merit list, ranks, toppers and subject-wise statistics for one exam. Staff only — same
 // rule as the class results grid (a student must not see classmates' marks).
 export const getExamAnalysisHandler = async (req: CustomRequest, res: Response): Promise<void> => {
@@ -501,5 +538,6 @@ export const patchExamPublish = async (req: CustomRequest, res: Response): Promi
     return;
   }
   const exam = await setResultsPublished(req.user!, Number(req.params.id), req.body.published);
+  if (req.body.published) onResultsPublished(exam.id);
   res.json({ success: true, message: req.body.published ? "Results published" : "Results unpublished", data: exam });
 };

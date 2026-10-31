@@ -104,6 +104,13 @@ model User {
   constructionExpensesUpdated ConstructionExpense[]   @relation("ConstructionExpenseUpdatedBy")
   constructionExpensesVoided  ConstructionExpense[]   @relation("ConstructionExpenseVoidedBy")
   constructionAuditLogs       ConstructionAuditLog[]
+  certificatesIssued          StudentCertificate[]    @relation("CertificateIssuedBy")
+  accountEntriesCreated       AccountEntry[]          @relation("AccountEntryCreatedBy")
+  accountEntriesUpdated       AccountEntry[]          @relation("AccountEntryUpdatedBy")
+  accountEntriesVoided        AccountEntry[]          @relation("AccountEntryVoidedBy")
+  calendarEventsCreated       CalendarEvent[]         @relation("CalendarEventCreatedBy")
+  notifications               Notification[]
+  pushSubscriptions           PushSubscription[]
 }
 
 model AcademicSession {
@@ -187,6 +194,24 @@ model Staff {
   photoUrl String? // profile photo (Cloudinary), set by the staff member
   address  String?
 
+  // HR details, kept by the office (prisma/staff_details.sql). employeeCode is printed on
+  // ID cards; ID numbers and bank details are only shown to the Super Admin.
+  employeeCode          String?   @unique
+  gender                Gender?
+  dob                   DateTime?
+  bloodGroup            String?
+  fatherOrSpouseName    String?
+  emergencyContactName  String?
+  emergencyContactPhone String?
+  joiningDate           DateTime?
+  leavingDate           DateTime?
+  experienceYears       Int? // teaching / work experience before joining
+  aadhaarNumber         String?   @unique
+  panNumber             String?   @unique
+  bankName              String?
+  bankAccountNo         String?
+  bankIfsc              String?
+
   classesAsClassTeacher ClassSection[]
   subjects              TeacherSubject[]
   timetableSlots        TimetableSlot[]
@@ -263,6 +288,7 @@ model Student {
   homeworkSubmissions  HomeworkSubmission[]
   examRemarks          ExamStudentRemark[]
   leaveRequests        LeaveRequest[]
+  certificates         StudentCertificate[]
   enrollments          StudentEnrollment[]
 
   @@unique([classSectionId, rollNo])
@@ -587,6 +613,11 @@ model Invoice {
   createdAt           DateTime        @default(now())
   updatedAt           DateTime        @updatedAt
 
+  // Bill cancelled (wrong student/month) — its charges are CANCELLED too.
+  cancelledAt         DateTime?
+  cancelledByUserId   Int?
+  cancelReason        String?
+
   items       InvoiceItem[]
   dueDateLogs DueDateAuditLog[]
 
@@ -673,6 +704,11 @@ model FeeAdjustment {
   appliedByUserId     Int
   appliedByUser       User            @relation(fields: [appliedByUserId], references: [id])
   createdAt           DateTime        @default(now())
+
+  // A waiver given by mistake is reversed, not deleted.
+  reversedAt          DateTime?
+  reversedByUserId    Int?
+  reverseReason       String?
 }
 
 model PaymentBatch {
@@ -711,6 +747,11 @@ model Payment {
   recordedByUserId  Int?
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
+
+  // Office receipt cancelled by mistake (money un-allocated from the bills; see reversalService).
+  cancelledAt       DateTime?
+  cancelledByUserId Int?
+  cancelReason      String?
 
   allocations PaymentAllocation[]
   advances    AdvancePayment[]
@@ -1226,4 +1267,170 @@ model LeaveRequest {
   @@index([studentId])
   @@index([staffId])
   @@index([status])
+}
+
+// Certificates issued to a student (Transfer, Bonafide, Character, Fee). `data` is a snapshot
+// of every printed field as issued, so a reprint matches the original even after the
+// student's record changes. Serial numbers run per type and session (e.g. TC/2026-27/001).
+// A wrong certificate is cancelled, never deleted, so the register has no gaps.
+model StudentCertificate {
+  id                Int       @id @default(autoincrement())
+  serialNo          String    @unique
+  type              String // TRANSFER | BONAFIDE | CHARACTER | FEE
+  studentId         Int
+  student           Student   @relation(fields: [studentId], references: [id])
+  issueDate         DateTime  @db.Date
+  data              Json
+  issuedByUserId    Int
+  issuedByUser      User      @relation("CertificateIssuedBy", fields: [issuedByUserId], references: [id])
+  cancelledAt       DateTime?
+  cancelledByUserId Int?
+  cancelReason      String?
+  createdAt         DateTime  @default(now())
+
+  @@index([studentId])
+  @@index([type])
+}
+
+// In-app notifications (the bell) — one row per recipient. dedupeKey stops the same alert
+// being sent twice to a user (attendance re-saved, results re-published, hourly fee job).
+model Notification {
+  id        Int       @id @default(autoincrement())
+  userId    Int
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String // ABSENT | FEE_DUE | FEE_OVERDUE | PAYMENT | RESULTS | HOMEWORK | NOTICE | LEAVE
+  title     String
+  body      String
+  link      String?
+  dedupeKey String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@unique([userId, dedupeKey])
+  @@index([userId, createdAt])
+}
+
+// A browser/phone that allowed push notifications (Web Push). The endpoint is per device;
+// it moves to whoever signs in on that device next.
+model PushSubscription {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// School-wide monthly billing settings (one row, id 1). With autoGenerate on, the bills for
+// a month are generated automatically on generateDay (or the first run after it).
+model FeeBillingSetting {
+  id                 Int       @id @default(1)
+  autoGenerate       Boolean   @default(false)
+  generateDay        Int       @default(1) // 1-28
+  transportDueDay    Int       @default(10) // 1-28; fee items have their own due day
+  lastAutoRunPeriod  String? // e.g. "OCT_2026"
+  lastAutoRunAt      DateTime?
+  lastAutoRunSummary String?
+  updatedByUserId    Int?
+  updatedAt          DateTime  @default(now()) @updatedAt
+}
+
+// Accounts: the school's income & expense book (everything except fee collection, which
+// is counted from fee payments). Categories are managed by the school.
+model AccountCategory {
+  id        Int      @id @default(autoincrement())
+  name      String
+  type      String // EXPENSE | INCOME
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  entries AccountEntry[]
+
+  @@unique([type, name])
+}
+
+// One voucher. Wrong entries are voided with a reason (never deleted); edits are logged in
+// FeeAuditLog with entityType "AccountEntry".
+model AccountEntry {
+  id            Int             @id @default(autoincrement())
+  voucherNo     String          @unique // EXP/2026-27/0001, INC/2026-27/0001
+  type          String // EXPENSE | INCOME
+  categoryId    Int
+  category      AccountCategory @relation(fields: [categoryId], references: [id])
+  entryDate     DateTime        @db.Date
+  amount        Decimal         @db.Decimal(12, 2)
+  party         String? // paid to / received from
+  paymentMode   String // CASH | BANK_TRANSFER | UPI | CHEQUE | OTHER
+  referenceNo   String? // cheque no. / UTR
+  billNumber    String?
+  description   String
+  attachmentUrl String?
+
+  isVoid         Boolean   @default(false)
+  voidReason     String?
+  voidedAt       DateTime?
+  voidedByUserId Int?
+  voidedByUser   User?     @relation("AccountEntryVoidedBy", fields: [voidedByUserId], references: [id])
+
+  // Client-generated per form-open: a double-clicked submit can't create two vouchers.
+  idempotencyKey String? @unique
+
+  createdByUserId Int
+  createdByUser   User     @relation("AccountEntryCreatedBy", fields: [createdByUserId], references: [id])
+  updatedByUserId Int?
+  updatedByUser   User?    @relation("AccountEntryUpdatedBy", fields: [updatedByUserId], references: [id])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([entryDate])
+  @@index([categoryId])
+  @@index([type])
+}
+
+// School calendar: holidays and events, managed by admins and visible to everyone.
+// audience lets a day be off for students only (e.g. staff training day) or staff only.
+model CalendarEvent {
+  id              Int      @id @default(autoincrement())
+  title           String
+  kind            String // HOLIDAY | EVENT
+  audience        String   @default("ALL") // ALL | STUDENTS | STAFF
+  startDate       DateTime @db.Date
+  endDate         DateTime @db.Date
+  description     String?
+  // New/changed holiday not yet announced: announced together in one summary once the
+  // admin stops editing (calendar job), so adding 15 holidays sends one notification.
+  announcePending Boolean  @default(false)
+  createdByUserId Int
+  createdByUser   User     @relation("CalendarEventCreatedBy", fields: [createdByUserId], references: [id])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([startDate])
+  @@index([endDate])
+}
+
+// Weekly offs (one row, id 1): Sunday, and which Saturdays of the month (e.g. [2, 4]).
+model CalendarSetting {
+  id           Int      @id @default(1)
+  sundayOff    Boolean  @default(true)
+  offSaturdays Int[]    @default([])
+  updatedAt    DateTime @default(now()) @updatedAt
+}
+
+// Principal's signature and school seal for printed documents, and which documents print
+// them (prisma/document_settings.sql). One row, id = 1. Kept apart from WebsiteSetting so the
+// signature is never part of the public website data.
+model DocumentSetting {
+  id                    Int      @id @default(1)
+  principalSignatureUrl String?
+  schoolSealUrl         String?
+  signIdCards           Boolean  @default(true)
+  signReportCards       Boolean  @default(true)
+  signCertificates      Boolean  @default(false) // Bonafide, Character, Fee certificates
+  signTc                Boolean  @default(false)
+  updatedAt             DateTime @default(now()) @updatedAt
 }

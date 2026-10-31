@@ -1,5 +1,6 @@
 import type { Response } from "express";
 import type { CustomRequest } from "../../middleware/auth";
+import { endStudentTransport } from "./endTransportService";
 import {
   assignStudentTransport,
   createTransportRoute,
@@ -79,4 +80,21 @@ export const patchAssignStudent = async (req: CustomRequest, res: Response): Pro
     transportRouteId === undefined || transportRouteId === null ? null : Number(transportRouteId)
   );
   res.status(200).json({ success: true, data: student });
+};
+
+// The student stops using school transport (last day on the bus + how to bill that month).
+export const postEndStudentTransport = async (req: CustomRequest, res: Response): Promise<void> => {
+  const { lastDay, policy, reason } = req.body ?? {};
+  if (!lastDay) {
+    res.status(400).json({ success: false, message: "Choose the last day of transport" });
+    return;
+  }
+  const result = await endStudentTransport({
+    studentId: Number(req.params.studentId),
+    lastDay: new Date(lastDay),
+    policy: policy === "PRORATED" ? "PRORATED" : "FULL_MONTH",
+    reason: typeof reason === "string" ? reason : undefined,
+    appliedByUserId: req.user!.id,
+  });
+  res.status(200).json({ success: true, data: result });
 };

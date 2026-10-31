@@ -1,0 +1,186 @@
+.tabs {
+  display: flex;
+  gap: 0.35rem;
+  overflow-x: auto;
+  margin-bottom: 1.25rem;
+  padding-bottom: 0.25rem;
+  border-bottom: 1px solid var(--erp-border);
+  scrollbar-width: thin;
+}
+
+.tab {
+  flex: none;
+  padding: 0.65rem 0.95rem;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--erp-text-muted);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.tab:hover {
+  color: var(--erp-text);
+}
+
+.tabActive {
+  color: var(--erp-primary-700);
+  border-bottom-color: var(--erp-primary-600);
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.images {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
+  gap: 1.25rem;
+}
+
+.imageBox {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.label {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.preview {
+  max-width: 220px;
+  max-height: 110px;
+  object-fit: contain;
+  padding: 0.5rem;
+  border: 1px solid var(--erp-border);
+  border-radius: var(--erp-radius-md);
+  background: #fff;
+}
+
+.linkButton {
+  align-self: flex-start;
+  padding: 0.3rem 0.75rem;
+  border: 1px solid var(--erp-border);
+  border-radius: 999px;
+  background: var(--erp-surface);
+  color: var(--erp-danger);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.places {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  cursor: pointer;
+}
+
+.toggle input {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-top: 0.1rem;
+  accent-color: var(--erp-primary-600);
+}
+
+.toggle span {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.92rem;
+}
+
+.toggle small,
+.muted {
+  font-size: 0.82rem;
+  color: var(--erp-text-muted);
+}
+
+.saveBar {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 0.85rem 1.1rem;
+  background: var(--erp-surface);
+  border: 1px solid var(--erp-border);
+  border-radius: var(--erp-radius-md);
+  box-shadow: var(--erp-shadow-sm);
+}
+
+.actions {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.shortcuts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
+  gap: 0.9rem;
+}
+
+.shortcut {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--erp-border);
+  border-radius: var(--erp-radius-lg);
+  background: var(--erp-surface);
+  color: var(--erp-text);
+  text-decoration: none;
+  transition: border-color var(--erp-transition-fast);
+}
+
+.shortcut:hover {
+  border-color: var(--erp-primary-500);
+}
+
+.shortcut > span:nth-child(2) {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.shortcut small {
+  font-size: 0.82rem;
+  color: var(--erp-text-muted);
+}
+
+.shortcutIcon {
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--erp-radius-md);
+  background: var(--erp-primary-50);
+  color: var(--erp-primary-700);
+  flex: none;
+}
+
+.chevron {
+  color: var(--erp-text-muted);
+}

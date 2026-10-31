@@ -4,6 +4,7 @@ import { FeeMode, PaymentStatus } from "../../generated/prisma/enums";
 import { allocatePaymentToChargesTransactionally } from "./paymentAllocationService";
 import { receiptNumberFor, withLateFees } from "./lateFeeService";
 import { httpError } from "../../utils/httpError";
+import { onPaymentReceived } from "../notifications/events";
 
 // Online fee payments via Razorpay.
 //
@@ -170,6 +171,7 @@ export const verifyAndConfirmRazorpayPayment = async (data: {
   }
 
   const result = await confirmPendingPayment(razorpayOrderId, razorpayPaymentId, razorpaySignature ?? null);
+  if (!result.alreadyProcessed) onPaymentReceived(result.payment.id);
   return {
     success: true,
     message: result.alreadyProcessed ? "Payment already verified." : "Payment verified and recorded.",
@@ -190,7 +192,8 @@ export const processRazorpayWebhook = async (rawBody: string, signature: string)
       const exists = await prisma.payment.findUnique({ where: { razorpayOrderId: entity.order_id } });
       if (exists) {
         // The webhook signature (checked above) authenticates this event.
-        await confirmPendingPayment(entity.order_id, entity.id, null);
+        const result = await confirmPendingPayment(entity.order_id, entity.id, null);
+        if (!result.alreadyProcessed) onPaymentReceived(result.payment.id);
       }
     }
   }

@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { Badge, Button, Card, EmptyState, Modal, Table } from "../../../../../components/ui";
+import { Badge, Button, Card, EmptyState, Icon, Modal, Table } from "../../../../../components/ui";
 import type { TableColumn } from "../../../../../components/ui";
 import type { StudentHistory } from "../../../../../store/api/students.api";
+import { usePrintReportCards } from "../../../../../components/shared/Print/usePrintReportCards";
 import { RESULT_META, fmtNum } from "./historyFormat";
 import styles from "./StudentHistory.module.css";
 
@@ -10,6 +11,7 @@ type Exam = StudentHistory["exams"][number];
 // Every exam the student has marks in, across all sessions, with rank and class average.
 const ExamHistoryTab = ({ history }: { history: StudentHistory }) => {
   const [viewing, setViewing] = useState<Exam | null>(null);
+  const { print, isPrinting } = usePrintReportCards();
   const exams = history.exams;
 
   if (exams.length === 0) {
@@ -57,9 +59,22 @@ const ExamHistoryTab = ({ history }: { history: StudentHistory }) => {
       key: "actions",
       label: "",
       render: (e) => (
-        <Button type="button" size="sm" variant="outline" onClick={() => setViewing(e)}>
-          Subjects
-        </Button>
+        <div style={{ display: "flex", gap: "0.4rem", justifyContent: "flex-end" }}>
+          <Button type="button" size="sm" variant="outline" onClick={() => setViewing(e)}>
+            Subjects
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            icon={<Icon name="printer" size={15} />}
+            disabled={isPrinting}
+            title="Print report card"
+            onClick={() => print({ examId: e.examId, studentId: history.studentId })}
+          >
+            Print
+          </Button>
+        </div>
       ),
     },
   ];

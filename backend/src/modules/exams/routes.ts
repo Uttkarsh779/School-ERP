@@ -11,6 +11,7 @@ import {
   getExamResults,
   getExams,
   getReportCard,
+  getReportCardsPrint,
   postExam,
   postExamResults,
   getExamProgress,
@@ -43,6 +44,11 @@ router.get(
   "/:id/report-card/:studentId",
   authorizeRoles(["SUPER_ADMIN", "ADMIN", "TEACHER", "STUDENT", "PARENT"]),
   asyncHandler(getReportCard)
+);
+router.get(
+  "/:id/report-cards/print",
+  authorizeRoles(["SUPER_ADMIN", "ADMIN", "TEACHER", "STUDENT", "PARENT"]),
+  asyncHandler(getReportCardsPrint)
 );
 
 export default router;

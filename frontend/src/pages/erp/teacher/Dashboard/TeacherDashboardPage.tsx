@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router-dom";
+import UpcomingHolidays from "../../../../components/shared/SchoolCalendar/UpcomingHolidays";
 import {
   Badge,
   Button,
@@ -148,7 +149,7 @@ const TeacherDashboardPage = () => {
                     <div className={styles.itemTitle}>{p.subjectName ?? "Period"}</div>
                     <div className={styles.muted}>
                       {p.className ?? "—"}
-                      {p.room && ` · Room ${p.room}`}
+                      {p.room && ` · Room ${p.room.replace(/^room\s*/i, "")}`}
                     </div>
                   </div>
                 </li>
@@ -344,6 +345,10 @@ const TeacherDashboardPage = () => {
             </ul>
           )}
         </Card>
+      </div>
+
+      <div className={styles.twoCol}>
+        <UpcomingHolidays who="STAFF" calendarPath="/teacher/calendar" />
       </div>
     </div>
   );

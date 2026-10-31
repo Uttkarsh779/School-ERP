@@ -265,6 +265,8 @@ const MultiMonthPaymentDesk = ({ initialStudentId, onPaymentSuccess }: MultiMont
                       onClick={() => {
                         setSelectedStudentId(s.id);
                         setPickerOpen(false);
+                        // The list collapses to the chosen student; bring their fees into view.
+                        window.scrollTo({ top: 0, behavior: "smooth" });
                       }}
                     >
                       <span className={styles.pickMain}>
@@ -289,7 +291,7 @@ const MultiMonthPaymentDesk = ({ initialStudentId, onPaymentSuccess }: MultiMont
       </Card>
 
       {!student ? (
-        <Card>
+        <Card className={styles.hideOnPhone}>
           <EmptyState title="No student selected" description="Choose a student to see their 12-month fee calendar and collect a payment." />
         </Card>
       ) : chartLoading && !chart ? (
