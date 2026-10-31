@@ -17,14 +17,6 @@ const RESULT_LABEL: Record<string, string> = {
   NOT_ENTERED: "Not entered",
 };
 
-const CO_SCHOLASTIC: Array<{ key: "workEducation" | "artEducation" | "healthPhysical" | "discipline"; label: string }> = [
-  { key: "workEducation", label: "Work Education" },
-  { key: "artEducation", label: "Art Education" },
-  { key: "healthPhysical", label: "Health & Physical Education" },
-  { key: "discipline", label: "Discipline" },
-];
-const GRADE_MEANING: Record<string, string> = { A: "Outstanding", B: "Very good", C: "Fair" };
-
 const percentageTone = (percentage: number) => {
   if (percentage >= 75) return "good";
   if (percentage >= 50) return "warn";
@@ -34,6 +26,7 @@ const percentageTone = (percentage: number) => {
 // Student report card. On top: published term and final report cards (periodic assessment +
 // exam, grades, co-scholastic, remark). Below: marks of each exam once published, and class
 // tests as soon as the teacher saves them (progress only, they don't count in the result).
+// Remarks and co-scholastic grades are given per term, so they appear only on the term card.
 const StudentReportCardPage = () => {
   const [examId, setExamId] = useState<string>("");
   const { data: myResults } = useGetMyResultsQuery();
@@ -78,13 +71,6 @@ const StudentReportCardPage = () => {
       <PageHeader
         title="Report Card"
         subtitle={profile?.classSection ? `${profile.classSection.className} - ${profile.classSection.section}` : undefined}
-        actions={
-          reportCard && reportCard.subjects.length > 0 && profile ? (
-            <Button icon={<Icon name="printer" size={16} />} isLoading={isPrinting} onClick={() => print({ examId: Number(examId), studentId: profile.id })}>
-              Print / Save PDF
-            </Button>
-          ) : undefined
-        }
       />
 
       {/* Published term / final report cards */}
@@ -157,42 +143,22 @@ const StudentReportCardPage = () => {
           {reportCard.failedSubjects && reportCard.failedSubjects.length > 0 && (
             <p className={styles.finalNote}>Needs attention in: {reportCard.failedSubjects.join(", ")}.</p>
           )}
-          <Card title="Scholastic areas" padded={false} className={styles.tableCard}>
+          <Card
+            title="Marks"
+            subtitle={published.find((e) => String(e.id) === examId)?.name}
+            padded={false}
+            className={styles.tableCard}
+            action={
+              profile ? (
+                <Button size="sm" variant="outline" icon={<Icon name="printer" size={15} />} isLoading={isPrinting} onClick={() => print({ examId: Number(examId), studentId: profile.id })}>
+                  Print / Save PDF
+                </Button>
+              ) : undefined
+            }
+          >
             <Table columns={columns} data={reportCard.subjects} keyField="subjectId" showPagination={false} />
           </Card>
 
-          <div className={styles.remarksGrid}>
-            <Card title="Co-scholastic areas" subtitle="Graded A (Outstanding), B (Very good), C (Fair)">
-              {reportCard.remarks && CO_SCHOLASTIC.some((a) => reportCard.remarks?.coScholastic[a.key]) ? (
-                <ul className={styles.coList}>
-                  {CO_SCHOLASTIC.map((a) => {
-                    const g = reportCard.remarks?.coScholastic[a.key];
-                    return (
-                      <li key={a.key}>
-                        <span>{a.label}</span>
-                        <span className={styles.grade}>
-                          {g ?? "—"}
-                          {g && <small> {GRADE_MEANING[g]}</small>}
-                        </span>
-                      </li>
-                    );
-                  })}
-                </ul>
-              ) : (
-                <p className={styles.finalNote}>Not graded for this exam.</p>
-              )}
-            </Card>
-            <Card title="Class teacher's remark">
-              {reportCard.remarks?.remark ? (
-                <blockquote className={styles.remark}>
-                  “{reportCard.remarks.remark}”
-                  {reportCard.remarks.classTeacher && <footer>— {reportCard.remarks.classTeacher}</footer>}
-                </blockquote>
-              ) : (
-                <p className={styles.finalNote}>No remark for this exam.</p>
-              )}
-            </Card>
-          </div>
         </>
       )}
     </div>

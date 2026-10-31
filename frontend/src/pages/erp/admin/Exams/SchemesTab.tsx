@@ -66,7 +66,7 @@ const SchemeEditor = ({ scheme, allClasses, onClose }: { scheme: Partial<Scheme>
   };
 
   return (
-    <Modal title={s.id ? `Edit ${scheme.name}` : "New assessment scheme"} onClose={onClose}>
+    <Modal title={s.id ? `Edit ${scheme.name}` : "New assessment scheme"} onClose={onClose} size="lg">
       <div className={styles.admitForm}>
         <Input label="Scheme name" value={s.name ?? ""} onChange={(e) => set({ name: e.target.value })} placeholder="e.g. Middle (Class 6–8)" />
         <div>
@@ -229,8 +229,8 @@ const SchemesTab = () => {
         </p>
       </Card>
 
-      <div className={styles.planClassesHead}>
-        <span>Assessment schemes</span>
+      <div className={styles.sectionHead}>
+        <h2>Assessment schemes</h2>
         {coordinator && (
           <Button size="sm" onClick={() => setEditing(structuredClone(blank))}>
             New scheme
@@ -252,11 +252,11 @@ const SchemesTab = () => {
               subtitle={s.classNames.join(", ") || "No classes"}
               action={
                 coordinator ? (
-                  <div className={styles.resultActions}>
+                  <div className={styles.cardActions}>
                     <Button size="sm" variant="outline" onClick={() => setEditing(s)}>
                       Edit
                     </Button>
-                    <Button size="sm" variant="ghost" onClick={() => setDeleting(s)}>
+                    <Button size="sm" variant="outline" onClick={() => setDeleting(s)}>
                       Delete
                     </Button>
                   </div>

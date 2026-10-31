@@ -38,7 +38,7 @@ const TermRemarksEditor = ({ classSectionId, term, onClose }: { classSectionId: 
   };
 
   return (
-    <Modal title={data ? `Remarks & co-scholastic — ${data.classSection.className} - ${data.classSection.section}, ${term === 1 ? "Term 1" : "Term 2"}` : "Remarks"} onClose={onClose}>
+    <Modal title={data ? `Remarks & co-scholastic — ${data.classSection.className} - ${data.classSection.section}, ${term === 1 ? "Term 1" : "Term 2"}` : "Remarks"} onClose={onClose} size="xl">
       {isLoading ? (
         <Spinner />
       ) : isError || !data ? (

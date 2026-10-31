@@ -229,7 +229,7 @@ thead .stickyCol2 {
 
 .filterBar {
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 2fr) repeat(2, minmax(0, 1fr));
   gap: 0.75rem;
   align-items: end;
 }
@@ -298,6 +298,7 @@ thead .stickyCol2 {
 }
 
 .linkBtn {
+  align-self: flex-start;
   border: none;
   background: none;
   padding: 0;
@@ -457,9 +458,11 @@ thead .stickyCol2 {
 }
 
 .admitTable th {
-  background: var(--erp-bg);
-  font-size: 0.78rem;
+  background: var(--erp-primary-50);
+  font-size: 0.74rem;
   font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
   color: var(--erp-text-muted);
 }
 
@@ -467,7 +470,8 @@ thead .stickyCol2 {
   border-bottom: none;
 }
 
-.admitTable input {
+.admitTable input,
+.admitTable select {
   padding: 0.35rem 0.45rem;
   border: 1px solid var(--erp-border);
   border-radius: var(--erp-radius-sm);
@@ -616,12 +620,15 @@ thead .stickyCol2 {
   margin-bottom: 0.9rem;
 }
 
+/* Same warning box as the teacher pages (.notice). */
 .resultWarn {
   margin: 0 0 0.85rem;
-  padding: 0.55rem 0.8rem;
-  border-radius: var(--erp-radius-sm);
-  background: color-mix(in srgb, var(--erp-warning) 12%, transparent);
-  font-size: 0.86rem;
+  padding: 0.7rem 0.9rem;
+  border-radius: var(--erp-radius-md);
+  background: var(--erp-warning-bg);
+  border: 1px solid var(--erp-warning);
+  color: var(--erp-text);
+  font-size: 0.85rem;
 }
 
 .resultTable {
@@ -632,17 +639,27 @@ thead .stickyCol2 {
 
 .resultTable th,
 .resultTable td {
-  padding: 0.5rem 0.6rem;
+  padding: 0.7rem 0.75rem;
   border-bottom: 1px solid var(--erp-border);
   text-align: center;
   white-space: nowrap;
 }
 
 .resultTable th {
-  background: var(--erp-bg);
-  font-size: 0.76rem;
+  background: var(--erp-primary-50);
+  font-size: 0.74rem;
   font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
   color: var(--erp-text-muted);
+}
+
+.resultTable tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.resultTable tbody tr:hover {
+  background: var(--erp-primary-50);
 }
 
 .resultTable td small {
@@ -719,4 +736,57 @@ thead .stickyCol2 {
 .admitTable select,
 .admitTable input:not([type="checkbox"]) {
   max-width: 100%;
+}
+
+/* Back link: same as the teacher pages (arrow + text, left-aligned). */
+.backLink {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.35rem 0.1rem;
+  border: none;
+  background: none;
+  color: var(--erp-primary-700);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* Section heading above a group of cards (e.g. the schemes). */
+.sectionHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.sectionHead h2 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--erp-text);
+}
+
+/* Card header actions that must stay on one line (Edit / Delete). */
+.cardActions {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.4rem;
+}
+
+.weights > div {
+  width: 11rem;
+}
+
+.labelHint {
+  font-weight: 400;
+  color: var(--erp-text-muted);
+}
+
+@media (max-width: 760px) {
+  .weights > div {
+    width: calc(50% - 0.4rem);
+  }
 }

@@ -689,9 +689,17 @@
 }
 
 .paTable th {
+  background: var(--erp-primary-50);
   font-size: 0.74rem;
   font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
   color: var(--erp-text-muted);
+}
+
+.paTable th small {
+  text-transform: none;
+  letter-spacing: 0;
 }
 
 .paTable th small,
@@ -713,4 +721,35 @@
   color: var(--erp-text);
   font: inherit;
   text-align: center;
+}
+
+/* Term switcher: same pills as the coordinator's pages. */
+.pills {
+  display: flex;
+  gap: 0.45rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  min-height: 2.25rem;
+  padding: 0 0.85rem;
+  border: 1px solid var(--erp-border);
+  border-radius: 999px;
+  background: var(--erp-surface);
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--erp-text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.pillOn {
+  border-color: var(--erp-primary-600);
+  background: var(--erp-primary-50);
+  color: var(--erp-primary-700);
 }

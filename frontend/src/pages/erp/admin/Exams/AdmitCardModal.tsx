@@ -106,7 +106,9 @@ const AdmitCardModal = ({ examId, onClose }: { examId: number; onClose: () => vo
           </button>
 
           <label className={styles.admitLabel}>
-            Instructions for students <span>(one per line)</span>
+            <span>
+              Instructions for students <span className={styles.labelHint}>(one per line)</span>
+            </span>
             <textarea rows={4} value={instructions} onChange={(e) => setInstructions(e.target.value)} />
           </label>
 

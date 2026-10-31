@@ -28,9 +28,9 @@
 }
 
 .examTabActive {
-  background: var(--erp-primary-600);
   border-color: var(--erp-primary-600);
-  color: #fff;
+  background: var(--erp-primary-50);
+  color: var(--erp-primary-700);
 }
 
 .statsRow {
@@ -198,9 +198,11 @@
 }
 
 .marksTable th {
-  background: var(--erp-bg);
-  font-size: 0.78rem;
+  background: var(--erp-primary-50);
+  font-size: 0.74rem;
   font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
   color: var(--erp-text-muted);
 }
 

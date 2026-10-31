@@ -70,10 +70,10 @@ const AssessmentEntry = ({ classSectionId, subject, terms, onBack }: { classSect
       <div>
         <h1 className={styles.detailTitle}>{subject.name} · periodic assessment</h1>
         {terms === 2 && (
-          <div className={styles.chips} role="tablist" aria-label="Term" style={{ marginTop: "0.5rem" }}>
+          <div className={styles.pills} role="tablist" aria-label="Term" style={{ marginTop: "0.6rem" }}>
             {[1, 2].map((t) => (
-              <button key={t} type="button" role="tab" aria-selected={term === t} className={`${styles.chip} ${term === t ? styles.chipActive : ""}`} onClick={() => setTerm(t)}>
-                <strong>Term {t}</strong>
+              <button key={t} type="button" role="tab" aria-selected={term === t} className={`${styles.pill} ${term === t ? styles.pillOn : ""}`} onClick={() => setTerm(t)}>
+                Term {t}
               </button>
             ))}
           </div>

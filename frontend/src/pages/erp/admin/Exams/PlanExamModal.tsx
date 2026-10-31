@@ -54,7 +54,7 @@ const PlanExamModal = ({ group, onClose }: { group?: PlanGroup; onClose: () => v
   };
 
   return (
-    <Modal title={editing ? `Edit ${group!.name}` : "Plan an exam"} onClose={onClose}>
+    <Modal title={editing ? `Edit ${group!.name}` : "Plan an exam"} onClose={onClose} size="lg">
       <div className={styles.admitForm}>
         <Input label="Exam name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Half Yearly Examination, Periodic Test 1" />
         <div className={styles.planRow}>

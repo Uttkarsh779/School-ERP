@@ -94,10 +94,13 @@ const BackupPanel = () => {
 
       <Card title="Restoring a backup">
         <p className={styles.muted} style={{ margin: 0, lineHeight: 1.6 }}>
-          Restoring replaces <strong>all</strong> current data with the backup's, so it is done by your developer on the server, not from this page:
-          download the backup, then run <code>npm run restore-backup -- backup-file.json.gz</code> in the backend folder. It first does a trial run
-          and changes nothing; adding <code>--yes</code> does the real restore.
-        </p>
+          Restoring replaces <strong>all</strong> current data with the backup's,
+          Contact Developer @Uttkarsh 
+           {/* so it is done by your developer on the server, not from this page:
+          download the backup, then run <code>npm run restore-backup -- backup-file.json.gz</code> in the backend folder. 
+          It first does a trial run
+          and changes nothing; adding <code>--yes</code> does the real restore. */}
+        </p> 
       </Card>
     </div>
   );

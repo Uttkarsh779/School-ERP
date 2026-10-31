@@ -96,7 +96,12 @@ const ResultsTab = () => {
                     </td>
                     <td className={styles.l}>{c.scheme}</td>
                     {c.terms === 1 ? (
-                      <td colSpan={3}>{status(c.published, 1)}</td>
+                      <>
+                        <td>{status(c.published, 1)}</td>
+                        <td colSpan={2}>
+                          <span className={styles.admitHint}>One result for the year</span>
+                        </td>
+                      </>
                     ) : (
                       <>
                         <td>{status(c.published, 1)}</td>

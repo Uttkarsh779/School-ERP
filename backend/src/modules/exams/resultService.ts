@@ -4,7 +4,7 @@ import { findStaffByUserId } from "../staff/service";
 import { isClassTeacherOfSection } from "../classSections/service";
 import { isTeacherAssignedToSubject } from "../subjects/service";
 import { assertPublisher, canPublish, isCoordinator } from "./permissions";
-import { gradeFor, schemeForClass, type PaComponent, type Scheme } from "./schemeService";
+import { FALLBACK_SCHEME, gradeFor, listSchemes, schemeForClass, type PaComponent, type Scheme } from "./schemeService";
 import { onTermResultPublished } from "../notifications/events";
 
 // Term and final results, following the class's assessment scheme:
@@ -330,8 +330,9 @@ export const listPublications = async (actor: Actor, sessionId?: number) => {
   };
   classes.sort((a, b) => order(a.className) - order(b.className) || a.section.localeCompare(b.section));
   const out: any[] = [];
+  const schemes = await listSchemes(); // one query, matched by class name below
   for (const c of classes) {
-    const scheme = await schemeForClass(c.className);
+    const scheme = schemes.find((s) => s.classNames.includes(c.className)) ?? FALLBACK_SCHEME;
     out.push({ ...c, scheme: scheme.name, terms: scheme.terms, published: pubs.filter((p) => p.classSectionId === c.id).map((p) => ({ term: p.term, at: p.publishedAt })) });
   }
   return out;

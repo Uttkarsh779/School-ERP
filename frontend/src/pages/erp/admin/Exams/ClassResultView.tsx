@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "react-toastify";
-import { Badge, Button, Card, ConfirmDialog, EmptyState, Input, Spinner } from "../../../../components/ui";
+import { Badge, Button, Card, ConfirmDialog, EmptyState, Icon, Input, Spinner } from "../../../../components/ui";
 import { printTermReportCards } from "../../../../components/shared/Print/termReportCardPrint";
 import { usePrintSchool } from "../../../../components/shared/Print/usePrintSchool";
 import { usePublishResultMutation, useGetClassResultQuery, useUnpublishResultMutation } from "../../../../store/api/examPlan.api";
@@ -62,13 +62,13 @@ const ClassResultView = ({ classSectionId, onBack }: { classSectionId: number; o
   return (
     <div className={styles.listPage}>
       {onBack && (
-        <button type="button" className={styles.linkBtn} onClick={onBack}>
-          ← All classes
+        <button type="button" className={styles.backLink} onClick={onBack}>
+          <Icon name="arrowLeft" size={16} /> All classes
         </button>
       )}
-      <div className={styles.pageTabs} role="tablist" aria-label="Term">
+      <div className={styles.chips} role="tablist" aria-label="Term">
         {tabs.map((t) => (
-          <button key={t.key} type="button" role="tab" aria-selected={term === t.key} className={`${styles.pageTab} ${term === t.key ? styles.pageTabOn : ""}`} onClick={() => setTerm(t.key)}>
+          <button key={t.key} type="button" role="tab" aria-selected={term === t.key} className={`${styles.chip} ${term === t.key ? styles.chipOn : ""}`} onClick={() => setTerm(t.key)}>
             {t.label}
           </button>
         ))}
