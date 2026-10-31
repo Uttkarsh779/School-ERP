@@ -57,6 +57,7 @@ interface IStaff {
   contact?: string | null;
   photoUrl?: string | null;
   address?: string | null;
+  isExamCoordinator?: boolean; // may plan exams, date sheets, admit cards, lock marks
   employeeCode?: string | null;
   gender?: Gender | null;
   dob?: string | null;
@@ -302,6 +303,17 @@ interface IExam {
   publishedAt?: string | null;
   lockedAt?: string | null;
   lockedByUser?: { id: number; name: string } | null;
+  // Exam refactor: type, term, admit card, marks deadline, class teacher "ready",
+  // class test subject/date, max marks per subject.
+  type?: "TERM_EXAM" | "PERIODIC_TEST" | "CLASS_TEST";
+  term?: number;
+  admitCard?: boolean;
+  marksDeadline?: string | null;
+  groupKey?: string | null;
+  subjectId?: number | null;
+  testDate?: string | null;
+  readyAt?: string | null;
+  subjects?: { subjectId: number; maxMarks: number }[];
 }
 
 interface IExamResult {

@@ -38,6 +38,7 @@ export const erpApi = createApi({
     "Calendar",
     "DocumentSetting",
     "Backup",
+    "ExamResult",
   ],
   endpoints: () => ({}),
 });

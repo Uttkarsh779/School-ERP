@@ -102,6 +102,7 @@ const StaffPage = () => {
   const [newDetails, setNewDetails] = useState<StaffDetailsForm>(emptyStaffDetails);
   const [editDetails, setEditDetails] = useState<StaffDetailsForm>(emptyStaffDetails);
   const [resetFor, setResetFor] = useState<IStaff | null>(null);
+  const [examCoordinator, setExamCoordinator] = useState(false);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [togglingId, setTogglingId] = useState<number | null>(null);
@@ -149,6 +150,7 @@ const StaffPage = () => {
   const openProfile = (staff: IStaff) => {
     setProfileStaff(staff);
     setEditDetails(detailsFromStaff(staff));
+    setExamCoordinator(!!staff.isExamCoordinator);
     const details = getRoleDetails(staff.staffCategory);
     setEditForm({
       name: staff.user.name || "",
@@ -176,6 +178,7 @@ const StaffPage = () => {
           contact: editForm.contact,
           qualifications: editForm.qualifications,
           staffCategory: editForm.staffCategory,
+          ...(isSuperAdmin ? { isExamCoordinator: examCoordinator } : {}),
           ...detailsPayload(editDetails, { includeSensitive: isSuperAdmin, onlyFilled: false }),
         },
       }).unwrap();
@@ -673,6 +676,21 @@ const StaffPage = () => {
               </FormSection>
 
               <StaffDetailsFields value={editDetails} onChange={setEditDetails} showSensitive={isSuperAdmin} />
+
+              {isSuperAdmin && isAccountRequiredRole(editForm.staffCategory) && (
+                <FormSection title="Permissions">
+                  <label style={{ display: "flex", gap: "0.6rem", alignItems: "flex-start", cursor: "pointer", fontSize: "0.9rem" }}>
+                    <input type="checkbox" checked={examCoordinator} onChange={(e) => setExamCoordinator(e.target.checked)} style={{ marginTop: 3 }} />
+                    <span>
+                      <strong>Exam coordinator</strong>
+                      <br />
+                      <span style={{ color: "var(--erp-text-muted)", fontSize: "0.84rem" }}>
+                        Can plan exams for all classes, set max marks, date sheets and admit cards, set marks deadlines and lock marks. Publishing stays with the Super Admin and Principal.
+                      </span>
+                    </span>
+                  </label>
+                </FormSection>
+              )}
 
               <div className={styles.formActions} style={{ justifyContent: "space-between", alignItems: "center" }}>
                 <Button

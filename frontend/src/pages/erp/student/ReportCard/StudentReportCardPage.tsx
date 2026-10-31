@@ -5,6 +5,8 @@ import type { TableColumn } from "../../../../components/ui";
 import { useGetExamsQuery, useGetReportCardQuery } from "../../../../store/api/exams.api";
 import { useGetMyStudentProfileQuery } from "../../../../store/api/students.api";
 import { usePrintReportCards } from "../../../../components/shared/Print/usePrintReportCards";
+import { EXAM_TYPE_LABEL, useGetMyResultsQuery } from "../../../../store/api/examPlan.api";
+import TermResultCard, { resultLabel } from "./TermResultCard";
 import styles from "./StudentReportCardPage.module.css";
 
 const RESULT_LABEL: Record<string, string> = {
@@ -29,15 +31,19 @@ const percentageTone = (percentage: number) => {
   return "bad";
 };
 
-// Student report card: available once the school publishes an exam's results. Shows marks,
-// result, rank, the class teacher's remark and co-scholastic grades.
+// Student report card. On top: published term and final report cards (periodic assessment +
+// exam, grades, co-scholastic, remark). Below: marks of each exam once published, and class
+// tests as soon as the teacher saves them (progress only, they don't count in the result).
 const StudentReportCardPage = () => {
   const [examId, setExamId] = useState<string>("");
+  const { data: myResults } = useGetMyResultsQuery();
+  const [resultIdx, setResultIdx] = useState(0);
+  const shownResult = myResults?.[resultIdx];
 
   const { data: profile, isLoading: profileLoading, isError: profileError } = useGetMyStudentProfileQuery();
   const { data: exams, isLoading: examsLoading } = useGetExamsQuery({ classSectionId: profile?.classSectionId ?? 0 }, { skip: !profile });
 
-  const published = useMemo(() => (exams ?? []).filter((e) => e.resultsPublished), [exams]);
+  const published = useMemo(() => (exams ?? []).filter((e) => e.resultsPublished || e.type === "CLASS_TEST"), [exams]);
   const unpublishedCount = (exams ?? []).length - published.length;
 
   // Open the most recent published exam by default.
@@ -81,6 +87,29 @@ const StudentReportCardPage = () => {
         }
       />
 
+      {/* Published term / final report cards */}
+      {myResults && myResults.length > 0 && shownResult && (
+        <section className={styles.section}>
+          <h2 className={styles.sectionTitle}>Report cards</h2>
+          <div className={styles.examTabs} role="tablist" aria-label="Report card">
+            {myResults.map((r, i) => (
+              <button
+                key={`${r.classSectionId}:${r.term}`}
+                type="button"
+                role="tab"
+                aria-selected={i === resultIdx}
+                className={`${styles.examTab} ${i === resultIdx ? styles.examTabActive : ""}`}
+                onClick={() => setResultIdx(i)}
+              >
+                {resultLabel(r)} · {r.session}
+              </button>
+            ))}
+          </div>
+          <TermResultCard result={shownResult} />
+        </section>
+      )}
+
+      {published.length > 0 && <h2 className={styles.sectionTitle}>Exam &amp; test marks</h2>}
       {/* Exam switcher: one tap per exam */}
       {published.length > 0 && (
         <div className={styles.examTabs} role="tablist" aria-label="Exam">
@@ -94,6 +123,7 @@ const StudentReportCardPage = () => {
               onClick={() => setExamId(String(e.id))}
             >
               {e.name}
+              {e.type === "CLASS_TEST" && <small className={styles.tabTag}> · {EXAM_TYPE_LABEL.CLASS_TEST}</small>}
             </button>
           ))}
         </div>
@@ -107,7 +137,7 @@ const StudentReportCardPage = () => {
       {profileLoading || examsLoading ? (
         <Spinner />
       ) : !examId ? (
-        <EmptyState title="No report cards yet" description="Your report card appears here once the school publishes exam results." />
+        myResults?.length ? null : <EmptyState title="No report cards yet" description="Your report card appears here once the school publishes exam results." />
       ) : cardLoading || cardFetching ? (
         <Spinner />
       ) : cardError ? (
@@ -123,7 +153,6 @@ const StudentReportCardPage = () => {
             </div>
             <StatCard label="Total Marks" value={`${reportCard.total} / ${reportCard.maxTotal}`} />
             {reportCard.status && <StatCard label="Result" value={RESULT_LABEL[reportCard.status] ?? reportCard.status} />}
-            {reportCard.rank ? <StatCard label={`Class rank (of ${reportCard.rankedCount})`} value={`#${reportCard.rank}`} /> : null}
           </div>
           {reportCard.failedSubjects && reportCard.failedSubjects.length > 0 && (
             <p className={styles.finalNote}>Needs attention in: {reportCard.failedSubjects.join(", ")}.</p>

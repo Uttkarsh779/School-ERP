@@ -1,15 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
+import { toast } from "react-toastify";
 import { Badge, Button, EmptyState, Icon, PageHeader, Spinner } from "../../../../components/ui";
 import { useGetMyClassSectionsQuery } from "../../../../store/api/classSections.api";
 import { useGetSubjectsQuery } from "../../../../store/api/subjects.api";
 import { useGetClassRosterQuery } from "../../../../store/api/teaching.api";
 import { useGetMyProfileQuery } from "../../../../store/api/profile.api";
 import { useGetExamProgressQuery, useGetExamsQuery } from "../../../../store/api/exams.api";
+import { EXAM_TYPE_LABEL, useGetExamMetaQuery, useGetSchemesQuery, useSetExamReadyMutation } from "../../../../store/api/examPlan.api";
 import ExamResultsView from "../../admin/Exams/ExamResultsView";
-import RemarksEditor from "../../admin/Exams/RemarksEditor";
+import ClassResultView from "../../admin/Exams/ClassResultView";
 import MarksEntry from "./MarksEntry";
-import NewExamSheet from "./NewExamSheet";
+import NewClassTestSheet from "./NewClassTestSheet";
+import AssessmentEntry from "./AssessmentEntry";
 import SubjectResults from "./SubjectResults";
 import styles from "./TeacherExams.module.css";
 
@@ -23,15 +26,19 @@ const statusOf = (exam: IExam) =>
       : { label: "Marks open", tone: "info" as const };
 
 // Teacher exams (phone first). Who can do what — mirrors the server rules:
-//  - Class teacher: create exams for their class, track every subject's progress, see the
-//    full class results and ranks, write report-card remarks, and enter their own subjects.
-//  - Subject teacher: enter and see marks ONLY for the subjects they teach in that class.
+//  - The exam coordinator plans term exams and periodic tests (Exam planner).
+//  - Subject teacher: enters marks for their subjects, sets max marks for their periodic and
+//    class tests, creates class tests (progress only), and fills the term's periodic
+//    assessment (notebook, enrichment..., and an adjustable final mark out of 20).
+//  - Class teacher: follows every subject's progress, marks an exam "ready" when all marks
+//    are in, writes term remarks and co-scholastic grades, and sees the term results.
 // Screens are kept in the URL (?classSectionId, exam, subject, view) so the phone's back
 // button steps back through them.
 const TeacherExamsPage = () => {
   const [params, setParams] = useSearchParams();
   const [newOpen, setNewOpen] = useState(false);
-  const [remarksExamId, setRemarksExamId] = useState<number | null>(null);
+  const { data: meta } = useGetExamMetaQuery();
+  const { data: schemes } = useGetSchemesQuery();
 
   const { data: classes, isLoading: classesLoading } = useGetMyClassSectionsQuery();
   const { data: me } = useGetMyProfileQuery();
@@ -71,6 +78,7 @@ const TeacherExamsPage = () => {
   const exam = exams?.find((e) => e.id === examId) ?? null;
   const subject = mySubjects.find((s) => s.id === subjectId) ?? null;
   const students = roster?.students ?? [];
+  const terms = schemes?.find((s) => cls && s.classNames.includes(cls.className))?.terms ?? 2;
 
   if (classesLoading) {
     return (
@@ -90,6 +98,19 @@ const TeacherExamsPage = () => {
   }
 
   // ---- Deeper screens ----
+  if (view === "assessment" && subject && csId) {
+    return <AssessmentEntry classSectionId={csId} subject={subject} terms={terms} onBack={() => go({ view: null, subject: null })} />;
+  }
+  if (view === "termresults" && isClassTeacher && csId) {
+    return (
+      <div className={styles.page}>
+        <button type="button" className={styles.backBtn} onClick={() => go({ view: null })}>
+          <Icon name="arrowLeft" size={16} /> Exams
+        </button>
+        <ClassResultView classSectionId={csId} />
+      </div>
+    );
+  }
   if (exam && view === "class" && isClassTeacher) {
     return <ExamResultsView examId={exam.id} onBack={() => go({ view: null })} />;
   }
@@ -112,9 +133,7 @@ const TeacherExamsPage = () => {
           onEnter={(sid) => go({ subject: sid, view: "marks" })}
           onSubjectResults={(sid) => go({ subject: sid, view: "results" })}
           onClassResults={() => go({ view: "class" })}
-          onRemarks={() => setRemarksExamId(exam.id)}
         />
-        {remarksExamId !== null && <RemarksEditor examId={remarksExamId} onClose={() => setRemarksExamId(null)} />}
       </>
     );
   }
@@ -122,7 +141,19 @@ const TeacherExamsPage = () => {
   // ---- Exam list ----
   return (
     <div className={styles.page}>
-      <PageHeader title="Exams" subtitle="Enter marks and follow results for your classes" />
+      <PageHeader
+        title="Exams"
+        subtitle="Enter marks, class tests and periodic assessment for your classes"
+        actions={
+          meta?.permissions.coordinator ? (
+            <Link to="/teacher/exam-planner">
+              <Button variant="outline" icon={<Icon name="layers" />}>
+                Exam planner
+              </Button>
+            </Link>
+          ) : undefined
+        }
+      />
 
       {classes.length > 1 && (
         <div className={styles.chips} role="tablist" aria-label="My classes">
@@ -149,13 +180,13 @@ const TeacherExamsPage = () => {
         <span>
           {isClassTeacher ? (
             <>
-              <b>You&apos;re the class teacher of {classLabel(cls)}.</b> Create exams, follow every subject&apos;s marks, see class results and add report remarks.
+              <b>You&apos;re the class teacher of {classLabel(cls)}.</b> Follow every subject&apos;s marks, mark exams ready, write term remarks and see the term results.
               {mySubjects.length > 0 && <> You also enter marks for {mySubjects.map((s) => s.name).join(", ")}.</>}
             </>
           ) : (
             <>
               <b>You teach {mySubjects.length ? mySubjects.map((s) => s.name).join(", ") : "a subject"} in {classLabel(cls)}.</b> Enter and view marks for{" "}
-              {mySubjects.length === 1 ? "this subject" : "these subjects"} only. The class teacher creates the exams.
+              {mySubjects.length === 1 ? "this subject" : "these subjects"} only, create class tests and fill the periodic assessment. The exam coordinator plans term exams and periodic tests.
             </>
           )}
         </span>
@@ -166,9 +197,9 @@ const TeacherExamsPage = () => {
           <h2 className={styles.panelTitle} style={{ margin: 0 }}>
             Exams · {classLabel(cls)}
           </h2>
-          {isClassTeacher && (
+          {mySubjects.length > 0 && (
             <Button icon={<Icon name="plus" />} onClick={() => setNewOpen(true)}>
-              New exam
+              New class test
             </Button>
           )}
         </div>
@@ -178,12 +209,8 @@ const TeacherExamsPage = () => {
         ) : !exams?.length ? (
           <EmptyState
             title="No exams yet"
-            description={
-              isClassTeacher
-                ? "Create the first exam (e.g. Unit Test 1). Subject teachers will then see it and enter their marks."
-                : `When the class teacher${roster?.classSection?.classTeacher ? ` (${roster.classSection.classTeacher})` : ""} creates an exam, it will appear here for you to enter marks.`
-            }
-            action={isClassTeacher ? <Button onClick={() => setNewOpen(true)}>Create exam</Button> : undefined}
+            description="Exams set up by the exam coordinator, and your class tests, will appear here."
+            action={mySubjects.length ? <Button onClick={() => setNewOpen(true)}>New class test</Button> : undefined}
           />
         ) : (
           <ul className={styles.examList}>
@@ -198,7 +225,11 @@ const TeacherExamsPage = () => {
                     <span className={styles.examMain}>
                       <span className={styles.examName}>{e.name}</span>
                       <span className={styles.examMeta}>
-                        {e.session?.name ? `${e.session.name} · ` : ""}Pass {e.passPercentage ?? 33}%
+                        {EXAM_TYPE_LABEL[e.type ?? "TERM_EXAM"]}
+                        {e.type === "CLASS_TEST"
+                          ? ` · ${subjects?.find((s) => s.id === e.subjectId)?.name ?? ""}${e.testDate ? ` · ${new Date(e.testDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", timeZone: "UTC" })}` : ""}`
+                          : ` · Term ${e.term ?? 1}`}
+                        {e.marksDeadline && !e.isLocked ? ` · marks by ${new Date(e.marksDeadline).toLocaleDateString("en-IN", { day: "2-digit", month: "short", timeZone: "Asia/Kolkata" })}` : ""}
                       </span>
                     </span>
                     <Badge tone={st.tone}>{st.label}</Badge>
@@ -211,15 +242,44 @@ const TeacherExamsPage = () => {
         )}
       </section>
 
+      {(mySubjects.length > 0 || isClassTeacher) && (
+        <section className={styles.panel}>
+          <h2 className={styles.panelTitle}>Term results</h2>
+          <div className={styles.actionsGrid}>
+            {mySubjects.map((s) => (
+              <button key={s.id} type="button" className={styles.bigAction} onClick={() => go({ view: "assessment", subject: s.id })}>
+                <span className={styles.examIcon}>
+                  <Icon name="edit" size={18} />
+                </span>
+                <span>
+                  <b>{s.name} · periodic assessment</b>
+                  <small>Notebook, enrichment and the final mark out of 20</small>
+                </span>
+              </button>
+            ))}
+            {isClassTeacher && (
+              <button type="button" className={styles.bigAction} onClick={() => go({ view: "termresults" })}>
+                <span className={styles.examIcon}>
+                  <Icon name="graduationCap" size={18} />
+                </span>
+                <span>
+                  <b>Term results &amp; remarks</b>
+                  <small>Every student&apos;s term result, remarks and co-scholastic grades</small>
+                </span>
+              </button>
+            )}
+          </div>
+        </section>
+      )}
+
       {newOpen && (
-        <NewExamSheet
+        <NewClassTestSheet
           classSection={{ id: cls.id, label: classLabel(cls) }}
-          sessionName={exams?.[0]?.session?.name}
-          existingNames={(exams ?? []).map((e) => e.name)}
+          subjects={mySubjects.map((s) => ({ id: s.id, name: s.name }))}
           onClose={() => setNewOpen(false)}
-          onOpenExam={(e) => {
+          onCreated={(e, sid) => {
             setNewOpen(false);
-            go({ exam: e.id });
+            go({ exam: e.id, subject: sid, view: "marks" });
           }}
         />
       )}
@@ -237,7 +297,6 @@ const ExamDetail = ({
   onEnter,
   onSubjectResults,
   onClassResults,
-  onRemarks,
 }: {
   exam: IExam;
   classText: string;
@@ -246,12 +305,21 @@ const ExamDetail = ({
   onEnter: (subjectId: number) => void;
   onSubjectResults: (subjectId: number) => void;
   onClassResults: () => void;
-  onRemarks: () => void;
 }) => {
   const { data: progress, isLoading } = useGetExamProgressQuery(exam.id, { refetchOnMountOrArgChange: true });
+  const [setReady, { isLoading: settingReady }] = useSetExamReadyMutation();
+  const toggleReady = async () => {
+    try {
+      await setReady({ examId: exam.id, ready: !exam.readyAt }).unwrap();
+      toast.success(exam.readyAt ? "Marked as not ready" : "Marked ready. The exam coordinator can now lock the marks.");
+    } catch (e: any) {
+      toast.error(e?.data?.message ?? "Couldn't update");
+    }
+  };
   const st = statusOf(exam);
   const total = progress?.totalStudents ?? 0;
-  const subjects = progress?.subjects ?? [];
+  // A class test has one subject.
+  const subjects = (progress?.subjects ?? []).filter((s) => !exam.subjectId || s.subjectId === exam.subjectId);
   const mine = subjects.filter((s) => s.isMine);
   const others = subjects.filter((s) => !s.isMine);
   const complete = subjects.filter((s) => total > 0 && s.entered >= total).length;
@@ -272,8 +340,9 @@ const ExamDetail = ({
         <div>
           <h1 className={styles.detailTitle}>{exam.name}</h1>
           <p className={styles.muted} style={{ margin: "0.15rem 0 0" }}>
-            {classText}
-            {exam.session?.name ? ` · ${exam.session.name}` : ""} · Pass {exam.passPercentage ?? 33}%
+            {classText} · {EXAM_TYPE_LABEL[exam.type ?? "TERM_EXAM"]}
+            {exam.type !== "CLASS_TEST" ? ` · Term ${exam.term ?? 1}` : " · progress only, students see marks at once"}
+            {exam.marksDeadline && !exam.isLocked ? ` · marks by ${new Date(exam.marksDeadline).toLocaleDateString("en-IN", { day: "2-digit", month: "short", timeZone: "Asia/Kolkata" })}` : ""}
           </p>
         </div>
         <Badge tone={st.tone}>{st.label}</Badge>
@@ -282,7 +351,7 @@ const ExamDetail = ({
       <ol className={styles.steps} aria-label="Exam progress">
         <li className={`${styles.step} ${styles.stepDone}`}>
           <span className={styles.stepNum}>✓</span>
-          <b>Exam created</b>
+          <b>{exam.type === "CLASS_TEST" ? "Test created" : "Exam planned"}</b>
         </li>
         <li className={`${styles.step} ${locked ? styles.stepDone : styles.stepNow}`}>
           <span className={styles.stepNum}>{locked ? "✓" : 2}</span>
@@ -292,7 +361,7 @@ const ExamDetail = ({
         <li className={`${styles.step} ${exam.resultsPublished ? styles.stepDone : locked ? styles.stepNow : ""}`}>
           <span className={styles.stepNum}>{exam.resultsPublished ? "✓" : 3}</span>
           <b>Results</b>
-          {exam.resultsPublished ? "Published to families" : "Office locks & publishes"}
+          {exam.type === "CLASS_TEST" ? "Visible to students as saved" : exam.resultsPublished ? "Published to families" : "Coordinator locks, Principal publishes"}
         </li>
       </ol>
 
@@ -362,22 +431,24 @@ const ExamDetail = ({
               </section>
 
               <div className={styles.actionsGrid}>
+                {exam.type !== "CLASS_TEST" && !locked && (
+                  <button type="button" className={styles.bigAction} onClick={toggleReady} disabled={settingReady}>
+                    <span className={styles.examIcon}>
+                      <Icon name={exam.readyAt ? "check" : "clipboardCheck"} size={18} />
+                    </span>
+                    <span>
+                      <b>{exam.readyAt ? "Marked ready ✓" : "Mark marks as ready"}</b>
+                      <small>{exam.readyAt ? "Tap to take it back" : `Tell the coordinator all marks are in (${complete}/${subjects.length} subjects done)`}</small>
+                    </span>
+                  </button>
+                )}
                 <button type="button" className={styles.bigAction} onClick={onClassResults}>
                   <span className={styles.examIcon}>
                     <Icon name="graduationCap" size={18} />
                   </span>
                   <span>
-                    <b>Class results &amp; ranks</b>
-                    <small>All subjects, toppers, merit list</small>
-                  </span>
-                </button>
-                <button type="button" className={styles.bigAction} onClick={onRemarks}>
-                  <span className={styles.examIcon}>
-                    <Icon name="edit" size={18} />
-                  </span>
-                  <span>
-                    <b>Report card remarks</b>
-                    <small>Your remark for each student</small>
+                    <b>Exam results</b>
+                    <small>All subjects, toppers and merit list (staff only)</small>
                   </span>
                 </button>
               </div>

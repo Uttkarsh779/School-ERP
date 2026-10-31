@@ -161,3 +161,53 @@
     gap: 1rem;
   }
 }
+
+/* Term / final report cards section */
+.section {
+  margin-bottom: 1.75rem;
+}
+
+.sectionTitle {
+  margin: 0 0 0.75rem;
+  font-size: 1.02rem;
+  font-weight: 700;
+  color: var(--erp-text);
+}
+
+.tabTag {
+  font-weight: 500;
+  opacity: 0.8;
+}
+
+.tableScroll {
+  overflow-x: auto;
+}
+
+.marksTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.marksTable th,
+.marksTable td {
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--erp-border);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.marksTable th {
+  background: var(--erp-bg);
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--erp-text-muted);
+}
+
+.marksTable tr:last-child td {
+  border-bottom: none;
+}
+
+.left {
+  text-align: left !important;
+}

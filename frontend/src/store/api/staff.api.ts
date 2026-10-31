@@ -14,7 +14,7 @@ export interface CreateStaffInput {
   contact?: string;
   staffCategory?: string;
   // HR details (see StaffDetailsFields): strings, null clears a field.
-  [detail: string]: string | null | undefined;
+  [detail: string]: string | boolean | null | undefined;
 }
 
 export const staffApi = erpApi.injectEndpoints({

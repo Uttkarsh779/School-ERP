@@ -67,6 +67,12 @@ const AdmitCardModal = ({ examId, onClose }: { examId: number; onClose: () => vo
           <p className={styles.admitHint}>
             Date sheet for {data.students.length} student{data.students.length === 1 ? "" : "s"}. Leave a subject blank if it has no paper in this exam.
           </p>
+          {data.heldBack.length > 0 && (
+            <p className={styles.resultWarn}>
+              No admit card for {data.heldBack.length} student{data.heldBack.length === 1 ? "" : "s"} with overdue fees:{" "}
+              {data.heldBack.map((s) => `${s.name} (₹${Math.round(s.due).toLocaleString("en-IN")})`).join(", ")}. The Super Admin can allow cards for everyone under Exams → Assessment schemes.
+            </p>
+          )}
           <div className={styles.admitTableWrap}>
             <table className={styles.admitTable}>
               <thead>

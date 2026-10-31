@@ -506,3 +506,217 @@ thead .stickyCol2 {
   justify-content: flex-end;
   gap: 0.6rem;
 }
+
+/* Page tabs: Exams / Term & final results / Assessment schemes */
+.pageTabs {
+  display: flex;
+  gap: 0.35rem;
+  overflow-x: auto;
+  margin-bottom: 1.1rem;
+  border-bottom: 1px solid var(--erp-border);
+  scrollbar-width: thin;
+}
+
+.pageTab {
+  flex: none;
+  padding: 0.65rem 0.95rem;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--erp-text-muted);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.pageTabOn {
+  color: var(--erp-primary-700);
+  border-bottom-color: var(--erp-primary-600);
+}
+
+.readyPill {
+  color: var(--erp-success);
+  font-weight: 600;
+}
+
+/* Plan exam dialog */
+.planRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(170px, 100%), 1fr));
+  gap: 0.75rem;
+}
+
+.checkRow {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.checkRow input {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--erp-primary-600);
+}
+
+.planClassesHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.45rem;
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.planClasses {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+  gap: 0.4rem;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.planClass {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.55rem;
+  border: 1px solid var(--erp-border);
+  border-radius: var(--erp-radius-sm);
+  font-size: 0.84rem;
+  cursor: pointer;
+}
+
+.planClass input {
+  accent-color: var(--erp-primary-600);
+}
+
+.planClassOn {
+  border-color: var(--erp-primary-500);
+  background: var(--erp-primary-50);
+}
+
+/* Term & final results */
+.resultActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.weights {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem;
+  margin-bottom: 0.9rem;
+}
+
+.resultWarn {
+  margin: 0 0 0.85rem;
+  padding: 0.55rem 0.8rem;
+  border-radius: var(--erp-radius-sm);
+  background: color-mix(in srgb, var(--erp-warning) 12%, transparent);
+  font-size: 0.86rem;
+}
+
+.resultTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+}
+
+.resultTable th,
+.resultTable td {
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid var(--erp-border);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.resultTable th {
+  background: var(--erp-bg);
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--erp-text-muted);
+}
+
+.resultTable td small {
+  color: var(--erp-text-muted);
+  font-weight: 600;
+}
+
+.l {
+  text-align: left !important;
+}
+
+.failCell {
+  color: var(--erp-danger);
+}
+
+.failText {
+  color: var(--erp-danger);
+}
+
+.remarkInput {
+  width: 100%;
+  min-width: 220px;
+}
+
+/* Assessment schemes */
+.schemeGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr));
+  gap: 1rem;
+}
+
+.schemeFacts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  font-size: 0.86rem;
+}
+
+.schemeFacts li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.schemeFacts span {
+  font-size: 0.76rem;
+  color: var(--erp-text-muted);
+}
+
+.gradeGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.gradeCell {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.gradeCell input {
+  width: 54px;
+  padding: 0.35rem 0.4rem;
+  border: 1px solid var(--erp-border);
+  border-radius: var(--erp-radius-sm);
+  background: var(--erp-surface);
+  color: var(--erp-text);
+  font: inherit;
+}
+
+.admitTable select,
+.admitTable input:not([type="checkbox"]) {
+  max-width: 100%;
+}

@@ -159,6 +159,8 @@ function App() {
           <Route path="/teacher/timetable" element={<TeacherTimetablePage />} />
           <Route path="/teacher/attendance" element={<TeacherAttendancePage />} />
           <Route path="/teacher/exams" element={<TeacherExamsPage />} />
+          {/* Exam coordinator teachers: the same planner admins use (checked on the server). */}
+          <Route path="/teacher/exam-planner" element={<AdminExamsPage />} />
           <Route path="/teacher/assignments" element={<TeacherAssignmentsPage />} />
           <Route path="/teacher/notices" element={<TeacherNoticesPage />} />
           <Route path="/teacher/students" element={<MyStudentsPage />} />

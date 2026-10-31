@@ -2,7 +2,7 @@ import { prisma } from "../../config/prisma";
 import { getExamAnalysis } from "./analysisService";
 
 // Everything a printed report card needs, for one student or the whole class: student
-// details, marks per subject, result and rank, the class teacher's remark, co-scholastic
+// details, marks per subject, result, the class teacher's remark, co-scholastic
 // grades and attendance for the session. Rank only appears once results are final.
 export const getPrintableReportCards = async (examId: number, studentId?: number) => {
   const exam = await prisma.exam.findUnique({
@@ -83,7 +83,7 @@ export const getPrintableReportCards = async (examId: number, studentId?: number
         percentage: r.percentage,
         status: r.status,
         failedSubjects: r.failedSubjects,
-        rank: isFinal ? r.rank : null,
+        rank: null, // no rank on report cards (school policy); it stays in the staff analysis
         remark: remark?.remark ?? null,
         coScholastic: {
           workEducation: remark?.workEducation ?? null,
@@ -101,7 +101,7 @@ export const getPrintableReportCards = async (examId: number, studentId?: number
     sessionName: exam.session?.name ?? null,
     classSection: { className: exam.classSection.className, section: exam.classSection.section },
     classTeacher: exam.classSection.classTeacher?.user?.name ?? null,
-    rankedCount: isFinal ? analysis.summary.appeared : null,
+    rankedCount: null,
     classAverage: analysis.summary.averagePercentage,
     cards,
   };

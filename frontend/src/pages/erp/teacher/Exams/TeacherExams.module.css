@@ -672,3 +672,45 @@
     flex: 1;
   }
 }
+
+/* Periodic assessment entry */
+.paTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+}
+
+.paTable th,
+.paTable td {
+  padding: 0.45rem 0.5rem;
+  border-bottom: 1px solid var(--erp-border);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.paTable th {
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--erp-text-muted);
+}
+
+.paTable th small,
+.paTable td small {
+  color: var(--erp-text-muted);
+  font-weight: 600;
+}
+
+.paName {
+  text-align: left !important;
+}
+
+.paInput {
+  width: 3.6rem;
+  padding: 0.35rem 0.4rem;
+  border: 1px solid var(--erp-border);
+  border-radius: var(--erp-radius-sm);
+  background: var(--erp-surface);
+  color: var(--erp-text);
+  font: inherit;
+  text-align: center;
+}

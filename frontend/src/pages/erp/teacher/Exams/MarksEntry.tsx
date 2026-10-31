@@ -3,6 +3,7 @@ import { toast } from "react-toastify";
 import { Button, EmptyState, Icon, Input, Spinner } from "../../../../components/ui";
 import { useEnterExamResultsMutation, useGetExamResultsQuery, type EnterExamResultInput } from "../../../../store/api/exams.api";
 import { isAbsentText } from "../../admin/Exams/marksCell";
+import { useGetExamSubjectsQuery, useSaveExamSubjectsMutation } from "../../../../store/api/examPlan.api";
 import styles from "./TeacherExams.module.css";
 
 type Student = { id: number; name: string; rollNo: string };
@@ -10,9 +11,10 @@ type Student = { id: number; name: string; rollNo: string };
 const getErrorMessage = (err: unknown, fallback: string): string =>
   (err && typeof err === "object" && "data" in err ? (err as { data?: { message?: string } }).data?.message : undefined) || fallback;
 
-// Marks for ONE subject, one row per student — built for a phone: a single "max marks" for
-// the subject, a big number box per student, an AB (absent) toggle, Enter moves to the next
-// student, and a sticky save bar with the count. Only the subject's own teacher reaches this.
+// Marks for ONE subject, one row per student — built for a phone: a big number box per
+// student, an AB (absent) toggle, Enter moves to the next student, and a sticky save bar.
+// Max marks are set for the exam: the coordinator's for a term exam; in a periodic test or
+// class test the subject teacher decides them here. Only the subject's own teacher reaches this.
 const MarksEntry = ({
   exam,
   subject,
@@ -25,28 +27,28 @@ const MarksEntry = ({
   onDone: () => void;
 }) => {
   const { data: results, isLoading } = useGetExamResultsQuery(exam.id);
+  const { data: examSubjects, isLoading: subjectsLoading } = useGetExamSubjectsQuery(exam.id, { refetchOnMountOrArgChange: true });
   const [save, { isLoading: saving }] = useEnterExamResultsMutation();
+  const [saveMax, { isLoading: savingMax }] = useSaveExamSubjectsMutation();
+  const subjectRow = examSubjects?.find((s) => s.subjectId === subject.id);
+  const canEditMax = !!subjectRow?.canEdit && !exam.isLocked;
   const [max, setMax] = useState("");
   const [marks, setMarks] = useState<Record<number, string>>({});
   const [dirty, setDirty] = useState(false);
   const inputs = useRef<Record<number, HTMLInputElement | null>>({});
   const locked = !!exam.isLocked;
 
-  // Seed from saved marks; the subject's max is the most common saved max (default 100).
+  // Seed from saved marks; the max comes from the exam's subject settings.
   useEffect(() => {
     if (!results) return;
-    const mine = results.filter((r) => r.subjectId === subject.id);
     const seeded: Record<number, string> = {};
-    const maxCount = new Map<number, number>();
-    for (const r of mine) {
-      seeded[r.studentId] = r.isAbsent ? "AB" : String(r.marksObtained);
-      maxCount.set(r.maxMarks, (maxCount.get(r.maxMarks) ?? 0) + 1);
-    }
-    const commonMax = [...maxCount.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+    for (const r of results.filter((x) => x.subjectId === subject.id)) seeded[r.studentId] = r.isAbsent ? "AB" : String(r.marksObtained);
     setMarks(seeded);
-    setMax(commonMax ? String(commonMax) : "100");
     setDirty(false);
   }, [results, subject.id]);
+  useEffect(() => {
+    if (subjectRow) setMax(subjectRow.maxMarks === null ? "" : String(subjectRow.maxMarks));
+  }, [subjectRow]);
 
   const sorted = useMemo(
     () => [...students].sort((a, b) => (Number(a.rollNo) || 9999) - (Number(b.rollNo) || 9999) || a.name.localeCompare(b.name)),
@@ -85,6 +87,7 @@ const MarksEntry = ({
       });
     if (!rows.length) return toast.error("Enter at least one student's marks");
     try {
+      if (canEditMax && subjectRow && maxNum !== subjectRow.maxMarks) await saveMax({ examId: exam.id, subjects: [{ subjectId: subject.id, maxMarks: maxNum }] }).unwrap();
       const outcomes = await save({ examId: exam.id, results: rows }).unwrap();
       const failed = outcomes.filter((o) => !o.success);
       if (failed.length) toast.error(`${failed.length} mark(s) couldn't be saved: ${failed[0].message}`);
@@ -102,7 +105,17 @@ const MarksEntry = ({
     onDone();
   };
 
-  if (isLoading) return <Spinner />;
+  if (isLoading || subjectsLoading) return <Spinner />;
+  if (subjectRow && subjectRow.maxMarks === null) {
+    return (
+      <div className={styles.page}>
+        <button type="button" className={styles.backBtn} onClick={onDone}>
+          <Icon name="arrowLeft" size={16} /> {exam.name}
+        </button>
+        <EmptyState title={`${subject.name} has no paper in ${exam.name}`} description="The exam coordinator left this subject out of the exam." />
+      </div>
+    );
+  }
 
   return (
     <div className={styles.page}>
@@ -116,7 +129,7 @@ const MarksEntry = ({
         </p>
       </div>
 
-      {locked && <div className={styles.notice}>Marks are locked{exam.lockedByUser ? ` by ${exam.lockedByUser.name}` : ""}. Ask the office to unlock them for a correction.</div>}
+      {locked && <div className={styles.notice}>Marks are locked{exam.lockedByUser ? ` by ${exam.lockedByUser.name}` : ""}. Ask the exam coordinator to unlock them for a correction.</div>}
 
       {sorted.length === 0 ? (
         <EmptyState title="No students in this class" description="Students added to the class will appear here." />
@@ -130,14 +143,14 @@ const MarksEntry = ({
                 inputMode="numeric"
                 min={1}
                 value={max}
-                disabled={locked}
+                disabled={locked || !canEditMax}
                 onChange={(e) => {
                   setMax(e.target.value);
                   setDirty(true);
                 }}
               />
               <p className={styles.muted} style={{ margin: 0, flex: 1, minWidth: "12rem" }}>
-                Same for every student. Tap <b>AB</b> for an absent student; leave a box empty if marks aren&apos;t ready.
+                {canEditMax ? "You decide this for your subject in this test." : "Set by the exam coordinator."} Tap <b>AB</b> for an absent student; leave a box empty if marks aren&apos;t ready.
               </p>
             </div>
           </section>
@@ -196,7 +209,7 @@ const MarksEntry = ({
               <span>
                 {filled} of {sorted.length} entered{errors ? ` · ${errors} to fix` : ""}
               </span>
-              <Button isLoading={saving} onClick={submit} disabled={!dirty && filled > 0}>
+              <Button isLoading={saving || savingMax} onClick={submit} disabled={!dirty && filled > 0}>
                 {dirty || filled === 0 ? "Save marks" : "Saved"}
               </Button>
             </div>

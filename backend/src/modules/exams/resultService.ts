@@ -322,6 +322,13 @@ export const listPublications = async (actor: Actor, sessionId?: number) => {
   const session = sessionId ?? (await prisma.academicSession.findFirst({ where: { isCurrent: true }, select: { id: true } }))?.id;
   const classes = await prisma.classSection.findMany({ where: { sessionId: session }, select: { id: true, className: true, section: true }, orderBy: [{ className: "asc" }, { section: "asc" }] });
   const pubs = await prisma.resultPublication.findMany({ where: { classSectionId: { in: classes.map((c) => c.id) } }, select: { classSectionId: true, term: true, publishedAt: true } });
+  // School order: Nursery, LKG, UKG, then Class 1, 2 … 10 (not "1, 10, 2").
+  const PRE = ["nursery", "lkg", "ukg"];
+  const order = (name: string) => {
+    const n = name.toLowerCase().replace(/^class\s*/, "");
+    return PRE.includes(n) ? PRE.indexOf(n) - 10 : parseInt(n, 10) || 100;
+  };
+  classes.sort((a, b) => order(a.className) - order(b.className) || a.section.localeCompare(b.section));
   const out: any[] = [];
   for (const c of classes) {
     const scheme = await schemeForClass(c.className);

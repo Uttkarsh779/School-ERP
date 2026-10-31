@@ -101,21 +101,6 @@ export interface ExamAnalysis {
 }
 
 export type CoGrade = "" | "A" | "B" | "C";
-export interface RemarksSheet {
-  exam: { id: number; name: string; classSection: string; resultsPublished: boolean; isLocked: boolean };
-  rows: Array<{
-    studentId: number;
-    name: string;
-    rollNo: string;
-    result: { percentage: number | null; status: string; rank: number | null } | null;
-    remark: string;
-    workEducation: CoGrade;
-    artEducation: CoGrade;
-    healthPhysical: CoGrade;
-    discipline: CoGrade;
-  }>;
-}
-export type RemarkInput = Omit<RemarksSheet["rows"][number], "name" | "rollNo" | "result">;
 
 // Marks-entry progress per subject (all subjects for admins/class teacher, own for others).
 export interface ExamProgress {
@@ -186,6 +171,9 @@ export interface AdmitCardSet {
   subjects: { id: number; name: string }[];
   dateSheet: { entries: (DateSheetEntry & { subjectName: string })[]; instructions: string | null };
   students: { id: number; name: string; admissionNo: string; rollNo: string; dob: string | null; fatherName: string | null; photoUrl: string | null }[];
+  // Students with overdue fees left out (unless the Super Admin allows cards for everyone).
+  heldBack: { id: number; name: string; rollNo: string; admissionNo: string; due: number }[];
+  allowDefaulters: boolean;
 }
 
 export const examsApi = erpApi.injectEndpoints({
@@ -194,12 +182,6 @@ export const examsApi = erpApi.injectEndpoints({
       query: (params) => ({ url: "exams", params: params ?? undefined }),
       transformResponse: (res: ApiEnvelope<IExam[]>) => res.data,
       providesTags: ["Exam"],
-    }),
-    // The server sets the session from the class; sessionId is accepted but not needed.
-    createExam: builder.mutation<IExam, { sessionId?: number; name: string; classSectionId: number; passPercentage?: number }>({
-      query: (body) => ({ url: "exams", method: "POST", body }),
-      transformResponse: (res: ApiEnvelope<IExam>) => res.data,
-      invalidatesTags: ["Exam"],
     }),
     enterExamResults: builder.mutation<IExamResultOutcome[], { examId: number; results: EnterExamResultInput[] }>({
       query: ({ examId, results }) => ({ url: `exams/${examId}/results`, method: "POST", body: { results } }),
@@ -230,16 +212,6 @@ export const examsApi = erpApi.injectEndpoints({
       query: ({ examId, locked }) => ({ url: `exams/${examId}/lock`, method: "PATCH", body: { locked } }),
       transformResponse: (res: ApiEnvelope<IExam>) => res.data,
       invalidatesTags: ["Exam"],
-    }),
-    getExamRemarks: builder.query<RemarksSheet, number>({
-      query: (examId) => `exams/${examId}/remarks`,
-      transformResponse: (res: ApiEnvelope<RemarksSheet>) => res.data,
-      providesTags: ["Remarks", "Exam"],
-    }),
-    saveExamRemarks: builder.mutation<{ saved: number }, { examId: number; rows: RemarkInput[] }>({
-      query: ({ examId, rows }) => ({ url: `exams/${examId}/remarks`, method: "PUT", body: { rows } }),
-      transformResponse: (res: ApiEnvelope<{ saved: number }>) => res.data,
-      invalidatesTags: ["Remarks"],
     }),
     setResultsPublished: builder.mutation<IExam, { examId: number; published: boolean }>({
       query: ({ examId, published }) => ({ url: `exams/${examId}/publish`, method: "PATCH", body: { published } }),
@@ -274,7 +246,6 @@ export const {
   useLazyGetAdmitCardsQuery,
   useSaveDateSheetMutation,
   useGetExamsQuery,
-  useCreateExamMutation,
   useEnterExamResultsMutation,
   useGetExamResultsQuery,
   useGetExamProgressQuery,
@@ -283,7 +254,5 @@ export const {
   useGetExamAnalysisQuery,
   useGetExamAuditQuery,
   useSetExamLockMutation,
-  useGetExamRemarksQuery,
-  useSaveExamRemarksMutation,
   useSetResultsPublishedMutation,
 } = examsApi;

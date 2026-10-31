@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useSearchParams } from "react-router-dom";
 import { toast } from "react-toastify";
 import {
   Badge,
@@ -7,22 +7,17 @@ import {
   Card,
   ConfirmDialog,
   EmptyState,
-  FormGrid,
-  FormSection,
   Icon,
   Input,
-  Modal,
   PageHeader,
   Select,
   Spinner,
 } from "../../../../components/ui";
 import type { SelectOption } from "../../../../components/ui";
 import { useGetClassSectionsQuery } from "../../../../store/api/classSections.api";
-import { useGetSessionsQuery } from "../../../../store/api/sessions.api";
 import { useGetSubjectsQuery } from "../../../../store/api/subjects.api";
 import { useGetStudentsQuery } from "../../../../store/api/students.api";
 import {
-  useCreateExamMutation,
   useEnterExamResultsMutation,
   useGetExamResultsQuery,
   useGetExamsQuery,
@@ -30,19 +25,15 @@ import {
   useSetResultsPublishedMutation,
   type EnterExamResultInput,
 } from "../../../../store/api/exams.api";
-import { useAppSelector } from "../../../../store/store";
 import styles from "./AdminExamsPage.module.css";
 import ExamResultsView from "./ExamResultsView";
-import RemarksEditor from "./RemarksEditor";
 import AdmitCardModal from "./AdmitCardModal";
+import PlanExamModal from "./PlanExamModal";
+import ExamSubjectsModal from "./ExamSubjectsModal";
+import ResultsTab from "./ResultsTab";
+import SchemesTab from "./SchemesTab";
+import { EXAM_TYPE_LABEL, useGetExamMetaQuery, useGetExamPlanQuery, type PlanGroup } from "../../../../store/api/examPlan.api";
 import { isAbsentText, validateMarksCell } from "./marksCell";
-
-interface NewExamFormInputs {
-  name: string;
-  sessionId: string;
-  classSectionId: string;
-  passPercentage: string;
-}
 
 interface MarksCell {
   marksObtained: string;
@@ -82,20 +73,41 @@ const getErrorMessage = (err: unknown, fallback: string) => {
   return fallback;
 };
 
+type PageTab = "exams" | "results" | "schemes";
+const TYPE_FILTERS = [
+  { label: "All types", value: "" },
+  { label: "Term exams", value: "TERM_EXAM" },
+  { label: "Periodic tests", value: "PERIODIC_TEST" },
+  { label: "Class tests", value: "CLASS_TEST" },
+];
+const shortDate = (d: string) => new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", timeZone: "Asia/Kolkata" });
+
+// Exam coordinator's page (admins, and teachers given the permission): plan exams for many
+// classes, set max marks, date sheets and admit cards, lock marks; the Super Admin /
+// Principal publish. Marks are entered by subject teachers on their own Exams page, so the
+// marks grid here is read-only. Tabs: Exams, Results (term/final), Schemes.
 const AdminExamsPage = () => {
-  const currentUser = useAppSelector((state) => state.auth.user);
-  const isTeacher = currentUser?.role === "TEACHER";
+  // Marks entry happens on the teacher's Exams page; here they are only reviewed.
+  const isTeacher = false;
+  const { data: meta } = useGetExamMetaQuery();
+  const coordinator = !!meta?.permissions.coordinator;
+  const publisher = !!meta?.permissions.publisher;
+  const { data: plan } = useGetExamPlanQuery(undefined, { skip: !coordinator });
+  const [params, setParams] = useSearchParams();
+  const pageTab = ((["exams", "results", "schemes"] as const).find((k) => k === params.get("tab")) ?? "exams") as PageTab;
+  const [typeFilter, setTypeFilter] = useState("");
+  const [planOpen, setPlanOpen] = useState(false);
+  const [editGroup, setEditGroup] = useState<PlanGroup | null>(null);
+  const [subjectsExam, setSubjectsExam] = useState<IExam | null>(null);
 
   const [classSectionId, setClassSectionId] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [shown, setShown] = useState(PAGE);
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedExam, setSelectedExam] = useState<IExam | null>(null);
   const [marks, setMarks] = useState<Record<string, MarksCell>>({});
   const [lastOutcomes, setLastOutcomes] = useState<IExamResultOutcome[] | null>(null);
   const [resultsExamId, setResultsExamId] = useState<number | null>(null);
-  const [remarksExamId, setRemarksExamId] = useState<number | null>(null);
   const [admitExamId, setAdmitExamId] = useState<number | null>(null);
   const [pendingPublish, setPendingPublish] = useState<IExam | null>(null);
   const [setPublished, { isLoading: publishing }] = useSetResultsPublishedMutation();
@@ -119,7 +131,6 @@ const AdminExamsPage = () => {
   const examCsId = selectedExam?.classSectionId;
 
   const { data: classSections } = useGetClassSectionsQuery();
-  const { data: sessions } = useGetSessionsQuery();
 
   // All exams are loaded once; class, status and search filter them instantly in the browser.
   const { data: exams, isLoading: isLoadingExams, isError: examsError, refetch: refetchExams } = useGetExamsQuery();
@@ -133,7 +144,6 @@ const AdminExamsPage = () => {
     skip: !selectedExam,
   });
 
-  const [createExam, { isLoading: isCreating }] = useCreateExamMutation();
   const [enterResults, { isLoading: isSavingMarks }] = useEnterExamResultsMutation();
 
   useEffect(() => {
@@ -148,53 +158,7 @@ const AdminExamsPage = () => {
     setMarks(seeded);
   }, [existingResults]);
 
-  const {
-    register,
-    handleSubmit,
-    reset,
-    formState: { errors },
-  } = useForm<NewExamFormInputs>();
-
-  const classSectionOptions: SelectOption[] = (classSections ?? []).map((cs) => ({
-    label: `${cs.className} - ${cs.section}`,
-    value: cs.id,
-  }));
-  const sessionOptions: SelectOption[] = (sessions ?? []).map((s) => ({ label: s.name, value: s.id }));
   const currentClassSection = classSections?.find((cs) => cs.id === examCsId);
-
-  const openModal = () => {
-    reset({
-      name: "",
-      sessionId: String((sessions?.find((s) => s.isCurrent) ?? sessions?.[0])?.id || ""),
-      classSectionId: classSectionId || "",
-      passPercentage: "33",
-    });
-    setIsModalOpen(true);
-  };
-
-  const closeModal = () => {
-    setIsModalOpen(false);
-    reset({ name: "", sessionId: "", classSectionId: "", passPercentage: "33" });
-  };
-
-  const onCreateExam = async (values: NewExamFormInputs) => {
-    if (!values.classSectionId) {
-      toast.error("Please select a target class section.");
-      return;
-    }
-    try {
-      await createExam({
-        name: values.name,
-        sessionId: Number(values.sessionId),
-        classSectionId: Number(values.classSectionId),
-        passPercentage: Number(values.passPercentage),
-      }).unwrap();
-      toast.success("Exam created successfully.");
-      closeModal();
-    } catch (err) {
-      toast.error(getErrorMessage(err, "Failed to create exam."));
-    }
-  };
 
   const openMarksEntry = (exam: IExam) => {
     setSelectedExam(exam);
@@ -278,7 +242,10 @@ const AdminExamsPage = () => {
     return [{ label: "All classes", value: "" }, ...[...seen].map(([id, label]) => ({ label, value: String(id) }))];
   }, [sortedExams]);
 
-  const inClass = useMemo(() => sortedExams.filter((e) => !classSectionId || e.classSectionId === Number(classSectionId)), [sortedExams, classSectionId]);
+  const inClass = useMemo(
+    () => sortedExams.filter((e) => (!classSectionId || e.classSectionId === Number(classSectionId)) && (!typeFilter || (e.type ?? "TERM_EXAM") === typeFilter)),
+    [sortedExams, classSectionId, typeFilter]
+  );
   const matching = useMemo(() => {
     const phrase = squash(searchQuery);
     if (!phrase) return inClass;
@@ -301,9 +268,10 @@ const AdminExamsPage = () => {
   }, [matching]);
   const filteredExams = useMemo(() => (statusFilter === "all" ? matching : matching.filter((e) => statusOf(e) === statusFilter)), [matching, statusFilter]);
   const visibleExams = filteredExams.slice(0, shown);
-  const filtersActive = !!(classSectionId || searchQuery.trim() || statusFilter !== "all");
-  useEffect(() => setShown(PAGE), [classSectionId, searchQuery, statusFilter]);
+  const filtersActive = !!(classSectionId || searchQuery.trim() || statusFilter !== "all" || typeFilter);
+  useEffect(() => setShown(PAGE), [classSectionId, searchQuery, statusFilter, typeFilter]);
   const clearFilters = () => {
+    setTypeFilter("");
     setClassSectionId("");
     setSearchQuery("");
     setStatusFilter("all");
@@ -325,25 +293,55 @@ const AdminExamsPage = () => {
     <div>
       <PageHeader
         title="Exams"
-        subtitle="Create exams, review marks and publish report cards"
+        subtitle="Plan exams, check marks, and publish term and final results"
         actions={
-          !selectedExam ? (
-            <Button type="button" icon={<Icon name="plus" size={16} />} onClick={openModal}>
-              New exam
+          !selectedExam && coordinator && pageTab === "exams" ? (
+            <Button type="button" icon={<Icon name="plus" size={16} />} onClick={() => setPlanOpen(true)}>
+              Plan exam
             </Button>
           ) : undefined
         }
       />
 
       {!selectedExam && (
+        <div className={styles.pageTabs} role="tablist" aria-label="Exam sections">
+          {(
+            [
+              ["exams", "Exams"],
+              ["results", "Term & final results"],
+              ["schemes", "Assessment schemes"],
+            ] as const
+          ).map(([k, label]) => (
+            <button
+              key={k}
+              type="button"
+              role="tab"
+              aria-selected={pageTab === k}
+              className={`${styles.pageTab} ${pageTab === k ? styles.pageTabOn : ""}`}
+              onClick={() => setParams(k === "exams" ? {} : { tab: k }, { replace: true })}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {!selectedExam && pageTab === "results" && <ResultsTab />}
+      {!selectedExam && pageTab === "schemes" && <SchemesTab />}
+
+      {!selectedExam && pageTab === "exams" && (
         <div className={styles.listPage}>
           {/* How an exam moves along: what each status means */}
           <p className={styles.flowHint}>
+            <span>Coordinator plans exam</span>
+            <Icon name="chevronRight" size={14} />
             <span>Teachers enter marks</span>
             <Icon name="chevronRight" size={14} />
-            <span>You lock marks</span>
+            <span>Class teacher marks ready</span>
             <Icon name="chevronRight" size={14} />
-            <span>You publish · students see report cards</span>
+            <span>Coordinator locks</span>
+            <Icon name="chevronRight" size={14} />
+            <span>Principal publishes</span>
           </p>
 
           <div className={styles.filterBar}>
@@ -358,6 +356,9 @@ const AdminExamsPage = () => {
             </div>
             <div className={styles.classBox}>
               <Select label="Class" options={classFilterOptions} value={classSectionId} onChange={(e) => setClassSectionId(e.target.value)} />
+            </div>
+            <div className={styles.classBox}>
+              <Select label="Type" options={TYPE_FILTERS} value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} />
             </div>
           </div>
 
@@ -391,7 +392,7 @@ const AdminExamsPage = () => {
           ) : filteredExams.length === 0 ? (
             <EmptyState
               title={filtersActive ? "No exams match" : "No exams yet"}
-              description={filtersActive ? "Try another class, status or search." : "Create the first exam for a class with New exam."}
+              description={filtersActive ? "Try another class, type, status or search." : "Set up the first exam with Plan exam."}
               action={
                 filtersActive ? (
                   <Button variant="outline" onClick={clearFilters}>
@@ -422,37 +423,45 @@ const AdminExamsPage = () => {
                         </div>
                         <div className={styles.examMeta}>
                           <span className={styles.classPill}>{classLabelOf(exam)}</span>
-                          {exam.session?.name && <span>{exam.session.name}</span>}
-                          <span>Pass {exam.passPercentage ?? 33}%</span>
+                          <span>{EXAM_TYPE_LABEL[exam.type ?? "TERM_EXAM"]}</span>
+                          {exam.type !== "CLASS_TEST" && <span>Term {exam.term ?? 1}</span>}
+                          {exam.testDate && <span>{shortDate(exam.testDate)}</span>}
+                          {exam.marksDeadline && !exam.isLocked && <span>Marks by {shortDate(exam.marksDeadline)}</span>}
+                          {exam.readyAt && !exam.isLocked && <span className={styles.readyPill}>✓ Class teacher: ready</span>}
                         </div>
                       </div>
                       <div className={styles.examActions}>
                         <div className={styles.quiet}>
                           <button type="button" className={styles.quietBtn} onClick={() => openMarksEntry(exam)}>
-                            {isTeacher ? "Enter marks" : "Marks"}
+                            Marks
                           </button>
                           <button type="button" className={styles.quietBtn} onClick={() => setResultsExamId(exam.id)}>
                             Results
                           </button>
-                          {!isTeacher && (
-                            <button type="button" className={styles.quietBtn} onClick={() => setRemarksExamId(exam.id)}>
-                              Remarks
+                          {coordinator && exam.type !== "CLASS_TEST" && (
+                            <button type="button" className={styles.quietBtn} onClick={() => setSubjectsExam(exam)}>
+                              Max marks
                             </button>
                           )}
-                          {!isTeacher && (
+                          {coordinator && exam.admitCard && (
                             <button type="button" className={styles.quietBtn} onClick={() => setAdmitExamId(exam.id)}>
                               Admit cards
                             </button>
                           )}
-                          {!isTeacher && status !== "published" && (
+                          {coordinator && exam.groupKey && plan?.some((g) => g.groupKey === exam.groupKey) && (
+                            <button type="button" className={styles.quietBtn} onClick={() => setEditGroup(plan.find((g) => g.groupKey === exam.groupKey) ?? null)}>
+                              Edit
+                            </button>
+                          )}
+                          {coordinator && exam.type !== "CLASS_TEST" && status !== "published" && (
                             <button type="button" className={styles.quietBtn} disabled={lockingId === exam.id} onClick={() => setPendingLock(exam)}>
                               {exam.isLocked ? "Unlock" : "Lock"}
                             </button>
                           )}
                         </div>
-                        {!isTeacher && (
+                        {publisher && exam.type !== "CLASS_TEST" && (
                           <Button type="button" size="sm" variant={status === "published" ? "outline" : "primary"} onClick={() => setPendingPublish(exam)}>
-                            {status === "published" ? "Unpublish" : "Publish"}
+                            {status === "published" ? "Unpublish" : "Publish marks"}
                           </Button>
                         )}
                       </div>
@@ -483,7 +492,7 @@ const AdminExamsPage = () => {
           {!isTeacher && (
             <div style={{ background: "var(--erp-surface)", border: "1px solid var(--erp-border)", padding: "0.75rem 1rem", borderRadius: "var(--erp-radius-sm)", marginBottom: "1.25rem", color: "var(--erp-text-muted)", fontSize: "0.88rem", display: "flex", flexWrap: "wrap", alignItems: "center", gap: "0.5rem" }}>
               <span>
-                <strong>Read-Only View:</strong> Administrators can review marks and report cards. Only assigned subject teachers can enter or modify marks.
+                <strong>Read-only:</strong> subject teachers enter marks from their own Exams page.
               </span>
             </div>
           )}
@@ -588,16 +597,18 @@ const AdminExamsPage = () => {
         </Card>
       )}
 
-      {remarksExamId !== null && <RemarksEditor examId={remarksExamId} onClose={() => setRemarksExamId(null)} />}
       {admitExamId !== null && <AdmitCardModal examId={admitExamId} onClose={() => setAdmitExamId(null)} />}
+      {planOpen && <PlanExamModal onClose={() => setPlanOpen(false)} />}
+      {editGroup && <PlanExamModal group={editGroup} onClose={() => setEditGroup(null)} />}
+      {subjectsExam && <ExamSubjectsModal examId={subjectsExam.id} title={`${subjectsExam.name} · ${classLabelOf(subjectsExam)}`} onClose={() => setSubjectsExam(null)} />}
 
       {pendingPublish && (
         <ConfirmDialog
           title={pendingPublish.resultsPublished ? "Unpublish results?" : "Publish results?"}
           message={
             pendingPublish.resultsPublished
-              ? `Students will no longer see their "${pendingPublish.name}" report card until you publish again. The class teacher can then edit remarks.`
-              : `Students will see their "${pendingPublish.name}" report card with marks, rank and the class teacher's remarks. Marks are locked when published.`
+              ? `Students will no longer see their "${pendingPublish.name}" marks until you publish again.`
+              : `Students will see their "${pendingPublish.name}" marks. Marks are locked when published. Term and final report cards are published from the "Term & final results" tab.`
           }
           confirmLabel={pendingPublish.resultsPublished ? "Unpublish" : "Publish"}
           tone={pendingPublish.resultsPublished ? "danger" : "primary"}
@@ -632,57 +643,6 @@ const AdminExamsPage = () => {
         />
       )}
 
-      {isModalOpen && (
-        <Modal title="Create New Exam" onClose={closeModal}>
-          <form onSubmit={handleSubmit(onCreateExam)}>
-            <FormSection title="Exam Configurations">
-              <FormGrid>
-                <Input
-                  label="Exam Name *"
-                  placeholder="e.g. Mid-Term Examination 2026"
-                  required
-                  error={errors.name?.message}
-                  {...register("name", { required: "Exam name is required" })}
-                />
-                <Select
-                  label="Target Class Section *"
-                  options={classSectionOptions}
-                  placeholder="Select Class Section..."
-                  error={errors.classSectionId?.message}
-                  {...register("classSectionId", { required: "Class section is required" })}
-                />
-                <Select
-                  label="Academic Session *"
-                  options={sessionOptions}
-                  placeholder="Select Session..."
-                  error={errors.sessionId?.message}
-                  {...register("sessionId", { required: "Session is required" })}
-                />
-                <Input
-                  label="Pass Mark (% per subject) *"
-                  type="number"
-                  min={0}
-                  max={100}
-                  step="0.5"
-                  error={errors.passPercentage?.message}
-                  {...register("passPercentage", {
-                    required: "Pass mark is required",
-                    validate: (v) => (Number(v) >= 0 && Number(v) <= 100) || "Enter a value between 0 and 100",
-                  })}
-                />
-              </FormGrid>
-            </FormSection>
-            <div className={styles.formActions}>
-              <Button type="button" variant="outline" onClick={closeModal}>
-                Cancel
-              </Button>
-              <Button type="submit" isLoading={isCreating}>
-                Create Exam
-              </Button>
-            </div>
-          </form>
-        </Modal>
-      )}
     </div>
   );
 };
