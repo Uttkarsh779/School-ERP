@@ -35,7 +35,7 @@ const call = (method: string, path: string, token?: string, body?: unknown) =>
   });
 
 describe("exam lock / audit endpoint access (no database)", () => {
-  test("lock is admin-only and validates its body", async () => {
+  test("lock is for the exam coordinator (admins here) and validates its body", async () => {
     assert.strictEqual((await call("PATCH", "/api/exams/1/lock", undefined, { locked: true })).status, 401);
     assert.strictEqual((await call("PATCH", "/api/exams/1/lock", tokenFor(999999, "TEACHER"), { locked: true })).status, 403);
     assert.strictEqual((await call("PATCH", "/api/exams/1/lock", tokenFor(999999, "ADMIN"), {})).status, 400);
@@ -112,7 +112,9 @@ describe("marks permissions against the database", async () => {
         data: { name: "Perm Student", rollNo: "1", admissionNo: `PERM-${stamp}`, classSectionId: cs.id },
       });
       studentId = student.id;
-      const exam = await prisma.exam.create({ data: { sessionId: session.id, classSectionId: cs.id, name: "Perm Test" } });
+      const exam = await prisma.exam.create({
+        data: { sessionId: session.id, classSectionId: cs.id, name: "Perm Test", subjects: { create: [{ subjectId: maths.id, maxMarks: 100 }, { subjectId: english.id, maxMarks: 100 }] } },
+      });
       examId = exam.id;
 
       const enter = (token: string, subjectId: number, marks: number) =>

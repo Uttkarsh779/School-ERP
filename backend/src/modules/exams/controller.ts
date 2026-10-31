@@ -21,6 +21,8 @@ import { getExamAnalysis } from "./analysisService";
 import { getPrintableReportCards } from "./printService";
 import { getRemarksSheet, getStudentRemark, saveRemarks, setResultsPublished } from "./remarksService";
 import { onResultsPublished } from "../notifications/events";
+import { createPlannedExam } from "./planService";
+import { assertCoordinator, assertPublisher, isCoordinator } from "./permissions";
 
 // What part of a class's marks the caller may SEE:
 //   FULL    - admins, and the class teacher (all subjects of their class)
@@ -134,59 +136,12 @@ export const getExams = async (req: CustomRequest, res: Response): Promise<void>
   res.status(200).json({ success: true, data: exams });
 };
 
-// Admin can create an exam for any class; a teacher only for a class they're linked
-// to (class teacher or subject teacher there) — e.g. a subject teacher setting up
-// their own unit test for a class doesn't need to go through the admin.
-// Exams are created by admins and by the class's CLASS TEACHER (a subject teacher only
-// enters marks for their subject). The exam always belongs to its class's session.
+// Creating an exam for one class goes through the exam plan (coordinator only); teachers
+// create class tests instead (planService.createClassTest).
 export const postExam = async (req: CustomRequest, res: Response): Promise<void> => {
-  const { name, classSectionId, passPercentage } = req.body;
-  const examName = typeof name === "string" ? name.trim() : "";
-  if (!examName || !classSectionId) {
-    res.status(400).json({ success: false, message: "Exam name and class are required" });
-    return;
-  }
-  if (examName.length > 80) {
-    res.status(400).json({ success: false, message: "Exam name must be 80 characters or fewer" });
-    return;
-  }
-
-  // Optional — defaults to 33% (the column default) when omitted.
-  const passMark = passPercentage === undefined || passPercentage === "" ? undefined : Number(passPercentage);
-  if (passMark !== undefined && (!Number.isFinite(passMark) || passMark < 0 || passMark > 100)) {
-    res.status(400).json({ success: false, message: "passPercentage must be between 0 and 100" });
-    return;
-  }
-
-  const classSection = await prisma.classSection.findUnique({ where: { id: Number(classSectionId) }, select: { id: true, sessionId: true } });
-  if (!classSection) {
-    res.status(404).json({ success: false, message: "Class not found" });
-    return;
-  }
-  const role = req.user?.role;
-  if (role !== "SUPER_ADMIN" && role !== "ADMIN") {
-    const staff = role === "TEACHER" && req.user ? await findStaffByUserId(req.user.id) : null;
-    if (!staff || !(await isClassTeacherOfSection(staff.id, classSection.id))) {
-      res.status(403).json({ success: false, message: "Only the class teacher can create exams for this class" });
-      return;
-    }
-  }
-  const duplicate = await prisma.exam.findFirst({
-    where: { classSectionId: classSection.id, name: { equals: examName, mode: "insensitive" } },
-    select: { id: true },
-  });
-  if (duplicate) {
-    res.status(409).json({ success: false, message: `An exam named "${examName}" already exists for this class` });
-    return;
-  }
-
-  const exam = await createExam({
-    sessionId: classSection.sessionId,
-    name: examName,
-    classSectionId: Number(classSectionId),
-    passPercentage: passMark,
-  });
-  res.status(201).json({ success: true, data: exam });
+  const { name, classSectionId, type, term, admitCard, marksDeadline } = req.body ?? {};
+  const result = await createPlannedExam(req.user!, { name, type, term, admitCard, marksDeadline, classSectionIds: [classSectionId] });
+  res.status(201).json({ success: true, data: result });
 };
 
 // Marks-entry progress per subject: how many students have a mark (or AB) saved. Admins
@@ -272,10 +227,16 @@ export const postExamResults = async (req: CustomRequest, res: Response): Promis
   if (exam.isLocked) {
     res.status(409).json({
       success: false,
-      message: "Marks for this exam are locked. Ask an administrator to unlock it to make corrections.",
+      message: "Marks for this exam are locked. Ask the exam coordinator to unlock it to make corrections.",
     });
     return;
   }
+  if (exam.marksDeadline && exam.marksDeadline < new Date() && !(await isCoordinator(req.user!))) {
+    res.status(409).json({ success: false, message: "The marks-entry deadline for this exam has passed. Ask the exam coordinator to extend it." });
+    return;
+  }
+  // Max marks are set per subject for the exam (not typed per student).
+  const examSubjects = new Map<number, number>((await prisma.examSubject.findMany({ where: { examId } })).map((s: any) => [s.subjectId, s.maxMarks]));
 
   const role = req.user!.role;
   if (role !== "TEACHER") {
@@ -312,8 +273,14 @@ export const postExamResults = async (req: CustomRequest, res: Response): Promis
 
   for (const row of rows) {
     try {
-      // An absent row only needs maxMarks; it's stored with marksObtained = 0.
+      // An absent row is stored with marksObtained = 0. Max marks come from the exam.
       if (row.isAbsent) row.marksObtained = 0;
+      const subjectMax = examSubjects.get(Number(row.subjectId));
+      if (subjectMax === undefined || (exam.subjectId && exam.subjectId !== Number(row.subjectId))) {
+        outcomes.push({ studentId: row.studentId, subjectId: row.subjectId, success: false, message: "This subject has no paper in this exam" });
+        continue;
+      }
+      row.maxMarks = subjectMax;
       if (row.marksObtained == null || row.maxMarks == null || !row.subjectId) {
         outcomes.push({
           studentId: row.studentId,
@@ -391,9 +358,9 @@ export const getReportCard = async (req: CustomRequest, res: Response): Promise<
     res.status(404).json({ success: false, message: "Exam not found" });
     return;
   }
-  // Students (and parents) see a report card only after the admin publishes the results.
+  // Students (and parents) see marks only after publishing, except class tests (visible at once).
   const role = req.user!.role;
-  if ((role === "STUDENT" || role === "PARENT") && !exam.resultsPublished) {
+  if ((role === "STUDENT" || role === "PARENT") && !exam.resultsPublished && exam.type !== "CLASS_TEST") {
     res.status(403).json({ success: false, message: "Results for this exam haven't been published yet." });
     return;
   }
@@ -417,8 +384,9 @@ export const getReportCard = async (req: CustomRequest, res: Response): Promise<
       resultsPublished: exam.resultsPublished,
       status: mine?.status ?? null,
       failedSubjects: mine?.failedSubjects ?? [],
-      rank: isFinal ? mine?.rank ?? null : null,
-      rankedCount: isFinal ? analysis?.summary.appeared ?? null : null,
+      // No rank on report cards (school policy); ranks stay in the staff result analysis.
+      rank: null,
+      rankedCount: null,
       remarks: remark
         ? {
             remark: remark.remark,
@@ -453,7 +421,7 @@ export const getReportCardsPrint = async (req: CustomRequest, res: Response): Pr
       return;
     }
     const role = req.user!.role;
-    if ((role === "STUDENT" || role === "PARENT") && !exam.resultsPublished) {
+    if ((role === "STUDENT" || role === "PARENT") && !exam.resultsPublished && exam.type !== "CLASS_TEST") {
       res.status(403).json({ success: false, message: "Results for this exam haven't been published yet." });
       return;
     }
@@ -502,6 +470,9 @@ export const patchExamLock = async (req: CustomRequest, res: Response): Promise<
     res.status(404).json({ success: false, message: "Exam not found" });
     return;
   }
+  await assertCoordinator(req.user!);
+  // After publishing, only the publisher (Super Admin / Principal) can reopen marks.
+  if (!locked && exam.resultsPublished) await assertPublisher(req.user!);
   const updated = await setExamLock(exam.id, locked, req.user!.id);
   res.status(200).json({ success: true, message: locked ? "Marks locked" : "Marks unlocked", data: updated });
 };
@@ -537,6 +508,7 @@ export const patchExamPublish = async (req: CustomRequest, res: Response): Promi
     res.status(400).json({ success: false, message: "published (boolean) is required" });
     return;
   }
+  await assertPublisher(req.user!);
   const exam = await setResultsPublished(req.user!, Number(req.params.id), req.body.published);
   if (req.body.published) onResultsPublished(exam.id);
   res.json({ success: true, message: req.body.published ? "Results published" : "Results unpublished", data: exam });

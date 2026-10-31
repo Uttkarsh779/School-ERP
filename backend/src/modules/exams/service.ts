@@ -3,14 +3,14 @@ import { prisma } from "../../config/prisma";
 export const listExamsForClassSection = (classSectionId?: number) =>
   prisma.exam.findMany({
     where: classSectionId ? { classSectionId } : undefined,
-    include: { session: true, classSection: true, lockedByUser: { select: { id: true, name: true } } },
+    include: { session: true, classSection: true, lockedByUser: { select: { id: true, name: true } }, subjects: { select: { subjectId: true, maxMarks: true } } },
     orderBy: { id: "desc" },
   });
 
 export const listExamsForClassSections = (classSectionIds: number[]) =>
   prisma.exam.findMany({
     where: { classSectionId: { in: classSectionIds } },
-    include: { session: true, classSection: true, lockedByUser: { select: { id: true, name: true } } },
+    include: { session: true, classSection: true, lockedByUser: { select: { id: true, name: true } }, subjects: { select: { subjectId: true, maxMarks: true } } },
     orderBy: { id: "desc" },
   });
 

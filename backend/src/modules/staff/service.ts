@@ -103,13 +103,14 @@ export const createStaff = async (data: {
 
 export const updateStaff = async (
   id: number,
-  data: { name?: string; email?: string; qualifications?: string; contact?: string; staffCategory?: any; details?: StaffDetails }
+  data: { name?: string; email?: string; qualifications?: string; contact?: string; staffCategory?: any; details?: StaffDetails; isExamCoordinator?: boolean }
 ) => {
   const details = data.details ?? {};
   await assertUniqueDetails(details, id);
   if (details.employeeCode === null) throw httpError(400, "Employee code can't be empty");
   const updateData: Prisma.StaffUpdateInput = {
     ...details,
+    ...(data.isExamCoordinator !== undefined ? { isExamCoordinator: data.isExamCoordinator } : {}),
     qualifications: data.qualifications,
     contact: data.contact,
   };

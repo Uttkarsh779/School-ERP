@@ -1,5 +1,7 @@
 import { prisma } from "../../config/prisma";
 import { httpError } from "../../utils/httpError";
+import { getDefaultersReport } from "../fees/ledgerService";
+import { getExamSettings } from "./schemeService";
 
 // Exam admit cards: the exam's date sheet (date and time of each subject's paper, plus
 // instructions for students) is saved on the exam, and printed on one admit card per
@@ -62,13 +64,20 @@ export const getAdmitCards = async (examId: number) => {
     },
   });
   if (!exam) throw httpError(404, "Exam not found");
-  const [subjects, students] = await Promise.all([
-    prisma.subject.findMany({ where: { classSectionId: exam.classSectionId }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
+  if (!exam.admitCard) throw httpError(400, "Admit cards are switched off for this exam");
+  const [subjects, students, settings, defaulters] = await Promise.all([
+    prisma.subject.findMany({ where: { classSectionId: exam.classSectionId, examSubjects: { some: { examId } } }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
     prisma.student.findMany({
       where: { classSectionId: exam.classSectionId, isActive: true },
       select: { id: true, name: true, admissionNo: true, rollNo: true, dob: true, fatherName: true, photoUrl: true },
     }),
+    getExamSettings(),
+    getDefaultersReport(exam.classSectionId),
   ]);
+  // Students with overdue fees are held back unless the Super Admin allows cards for everyone.
+  const dues = new Map(defaulters.map((d: any) => [d.studentId as number, d.totalDue as number] as const));
+  const held = settings.admitCardsForDefaulters ? [] : students.filter((s) => dues.has(s.id));
+  const issued = students.filter((s) => !held.includes(s));
   const byRoll = (a: { rollNo: string; name: string }, b: { rollNo: string; name: string }) =>
     a.rollNo.localeCompare(b.rollNo, undefined, { numeric: true }) || a.name.localeCompare(b.name);
   const names = new Map(subjects.map((s) => [s.id, s.name]));
@@ -82,6 +91,8 @@ export const getAdmitCards = async (examId: number) => {
       instructions: sheet.instructions,
       entries: sheet.entries.filter((e) => names.has(e.subjectId)).map((e) => ({ ...e, subjectName: names.get(e.subjectId)! })),
     },
-    students: students.sort(byRoll),
+    students: issued.sort(byRoll),
+    heldBack: held.sort(byRoll).map((s) => ({ id: s.id, name: s.name, rollNo: s.rollNo, admissionNo: s.admissionNo, due: dues.get(s.id) ?? 0 })),
+    allowDefaulters: settings.admitCardsForDefaulters,
   };
 };

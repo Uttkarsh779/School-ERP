@@ -69,6 +69,20 @@ export const onResultsPublished = (examId: number) =>
     }));
   });
 
+// ---- A term or final result published for a class (term 0 = final).
+export const onTermResultPublished = (classSectionId: number, term: number) =>
+  notifyLater(async () => {
+    const what = term === 0 ? "Final result" : `Term ${term} result`;
+    return (await studentUsers({ classSectionId })).map((s: any) => ({
+      userId: s.userId,
+      type: "RESULTS",
+      title: `${what} is out`,
+      body: `${s.name}'s ${what.toLowerCase()} and report card are now available.`,
+      link: "/student/report-card",
+      dedupeKey: `term-result:${classSectionId}:${term}`,
+    }));
+  });
+
 // ---- Homework set for a class.
 export const onHomeworkCreated = (assignmentId: number) =>
   notifyLater(async () => {

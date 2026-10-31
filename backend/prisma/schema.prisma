@@ -158,6 +158,7 @@ model Subject {
 
   teacherSubjects TeacherSubject[]
   examResults     ExamResult[]
+  examSubjects    ExamSubject[]
   timetableSlots  TimetableSlot[]
   assignments     Assignment[]
 
@@ -192,6 +193,7 @@ model Staff {
   qualifications String?
   contact  String?
   photoUrl String? // profile photo (Cloudinary), set by the staff member
+  isExamCoordinator Boolean @default(false) // may plan exams, date sheets, admit cards, lock marks
   address  String?
 
   // HR details, kept by the office (prisma/staff_details.sql). employeeCode is printed on
@@ -379,6 +381,21 @@ model Exam {
   // Date sheet printed on admit cards: { entries: [{ subjectId, date, start, end }], instructions }
   // (prisma/exam_date_sheet.sql, exams/admitCardService.ts)
   dateSheet      Json?
+  // Exam refactor (prisma/exam_refactor.sql). type: TERM_EXAM (Half Yearly/Annual, the 80) |
+  // PERIODIC_TEST (feeds the periodic assessment) | CLASS_TEST (a subject teacher's test,
+  // progress only, marks visible at once). One exam set up for many classes shares groupKey.
+  type            String    @default("TERM_EXAM")
+  term            Int       @default(1)
+  admitCard       Boolean   @default(false)
+  marksDeadline   DateTime?
+  groupKey        String?
+  subjectId       Int?      // class tests: the one subject
+  testDate        DateTime? @db.Date
+  createdByUserId Int?
+  readyAt         DateTime? // class teacher confirmed all marks are in
+  readyByUserId   Int?
+  createdAt       DateTime  @default(now())
+  subjects        ExamSubject[]
 
   // Once locked (by an admin) teachers can no longer enter/edit marks. Corrections:
   // unlock -> edit (logged in ExamResultAudit) -> lock again.
@@ -1454,4 +1471,118 @@ model BackupRecord {
   createdAt       DateTime  @default(now())
 
   @@index([createdAt])
+}
+
+// --- Exam refactor (prisma/exam_refactor.sql) ---
+
+// How a group of classes is assessed: terms, periodic assessment (paMax, built from
+// paComponents) + term exam (examMax), final weightage between terms, grade scale and the
+// co-scholastic scale (3-point A–C or 5-point A–E). Matched to classes by className.
+model AssessmentScheme {
+  id             Int      @id @default(autoincrement())
+  name           String
+  classNames     String[]
+  terms          Int      @default(2)
+  paMax          Float    @default(20)
+  examMax        Float    @default(80)
+  passPercentage Float    @default(33)
+  finalWeights   Int[]    @default([50, 50])
+  // [{ key, label, max, source: "TESTS" (from periodic tests; rule AVERAGE | BEST + best) | "MARKS" (entered) }]
+  paComponents   Json     @default("[]")
+  gradeScale     Json     @default("[]") // [{ min, grade }] on the rounded percentage
+  coScale        Int      @default(3)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @default(now()) @updatedAt
+}
+
+model ExamSubject {
+  id        Int     @id @default(autoincrement())
+  examId    Int
+  exam      Exam    @relation(fields: [examId], references: [id], onDelete: Cascade)
+  subjectId Int
+  subject   Subject @relation(fields: [subjectId], references: [id])
+  maxMarks  Float
+
+  @@unique([examId, subjectId])
+}
+
+// Periodic-assessment marks entered directly (notebook, subject enrichment, portfolio...).
+model AssessmentMark {
+  id              Int      @id @default(autoincrement())
+  classSectionId  Int
+  studentId       Int
+  subjectId       Int
+  term            Int
+  component       String
+  marks           Float
+  updatedByUserId Int
+  updatedAt       DateTime @default(now())
+
+  @@unique([studentId, subjectId, term, component], map: "AssessmentMark_unique")
+}
+
+// The subject teacher's final periodic-assessment mark when it differs from the calculated one.
+model PeriodicAdjustment {
+  id              Int      @id @default(autoincrement())
+  classSectionId  Int
+  studentId       Int
+  subjectId       Int
+  term            Int
+  marks           Float
+  updatedByUserId Int
+  updatedAt       DateTime @default(now())
+
+  @@unique([studentId, subjectId, term], map: "PeriodicAdjustment_unique")
+}
+
+model AssessmentAudit {
+  id              Int      @id @default(autoincrement())
+  kind            String // MARK | ADJUSTMENT
+  classSectionId  Int
+  studentId       Int
+  subjectId       Int
+  term            Int
+  component       String?
+  oldMarks        Float?
+  newMarks        Float?
+  changedByUserId Int
+  changedAt       DateTime @default(now())
+
+  @@index([classSectionId, term], map: "AssessmentAudit_class_idx")
+}
+
+// Class teacher's remark and co-scholastic grades, once per term.
+model TermRemark {
+  id              Int      @id @default(autoincrement())
+  classSectionId  Int
+  studentId       Int
+  term            Int
+  remark          String?
+  workEducation   String?
+  artEducation    String?
+  healthPhysical  String?
+  discipline      String?
+  updatedByUserId Int
+  updatedAt       DateTime @default(now())
+
+  @@unique([classSectionId, studentId, term], map: "TermRemark_unique")
+}
+
+// A published term (1, 2) or final (0) result for a class, frozen as a snapshot.
+model ResultPublication {
+  id                Int      @id @default(autoincrement())
+  classSectionId    Int
+  term              Int
+  weights           Int[]    @default([])
+  snapshot          Json
+  publishedByUserId Int
+  publishedAt       DateTime @default(now())
+
+  @@unique([classSectionId, term], map: "ResultPublication_unique")
+}
+
+model ExamSetting {
+  id                      Int      @id @default(1)
+  admitCardsForDefaulters Boolean  @default(false)
+  updatedAt               DateTime @default(now())
 }

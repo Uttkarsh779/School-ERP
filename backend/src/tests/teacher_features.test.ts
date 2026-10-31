@@ -116,7 +116,7 @@ describe("access control", () => {
     assert.strictEqual((await call("GET", "/api/leaves", tokenFor(999999, "TEACHER"))).status, 403);
     assert.strictEqual((await call("PATCH", "/api/leaves/1/decision", tokenFor(999999, "STUDENT"), { approved: true })).status, 403);
   });
-  test("only admins publish results; parents can't list homework any more", async () => {
+  test("only the Super Admin / Principal publish results; parents can't list homework any more", async () => {
     assert.strictEqual((await call("PATCH", "/api/exams/1/publish", tokenFor(999999, "TEACHER"), { published: true })).status, 403);
     assert.strictEqual((await call("GET", "/api/assignments", tokenFor(999999, "PARENT"))).status, 403);
   });
@@ -198,12 +198,15 @@ describe("teacher features against the database", async () => {
         200
       );
       assert.strictEqual((await call("GET", `/api/exams/${exam.id}/report-card/${student.id}`, S)).status, 403, "hidden until published");
-      assert.strictEqual((await call("PATCH", `/api/exams/${exam.id}/publish`, A, { published: true })).status, 200);
+      // Admins can't publish (Super Admin / Principal only).
+      assert.strictEqual((await call("PATCH", `/api/exams/${exam.id}/publish`, A, { published: true })).status, 403);
+      const superAdmin = await prisma.user.findFirstOrThrow({ where: { role: "SUPER_ADMIN", isActive: true } });
+      assert.strictEqual((await call("PATCH", `/api/exams/${exam.id}/publish`, tokenFor(superAdmin.id, "SUPER_ADMIN"), { published: true })).status, 200);
       const card = await call("GET", `/api/exams/${exam.id}/report-card/${student.id}`, S);
       assert.strictEqual(card.status, 200);
       assert.strictEqual(card.json.data.remarks.remark, "Sincere");
       assert.strictEqual(card.json.data.remarks.coScholastic.discipline, "A");
-      assert.strictEqual(card.json.data.rank, 1);
+      assert.strictEqual(card.json.data.rank, null, "no rank on report cards");
       assert.strictEqual((await call("PUT", `/api/exams/${exam.id}/remarks`, T, { rows: [{ studentId: student.id, remark: "x" }] })).status, 409, "locked after publish");
 
       // Student leave -> class teacher approves -> attendance marked LEAVE (Sundays skipped)

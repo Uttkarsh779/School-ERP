@@ -69,9 +69,12 @@ export const postStaff = async (req: CustomRequest, res: Response): Promise<void
 };
 
 export const patchStaff = async (req: CustomRequest, res: Response): Promise<void> => {
-  const { name, email, qualifications, contact, staffCategory } = req.body;
+  const { name, email, qualifications, contact, staffCategory, isExamCoordinator } = req.body;
   const details = parseStaffDetails(req.body);
-  const staff = await updateStaff(Number(req.params.id), { name, email, qualifications, contact, staffCategory, details });
+  const staff = await updateStaff(Number(req.params.id), {
+    name, email, qualifications, contact, staffCategory, details,
+    isExamCoordinator: typeof isExamCoordinator === "boolean" ? isExamCoordinator : undefined,
+  });
   res.status(200).json({ success: true, data: sanitize(staff, req) });
 };
 

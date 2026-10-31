@@ -6,20 +6,23 @@ import jwt from "jsonwebtoken";
 import app from "../app";
 import { prisma } from "../config/prisma";
 
-// Exam rules for teachers: only the class teacher creates exams; a subject teacher sees
-// only their own subjects (progress + results). Uses existing data; the exam it creates
-// is removed afterwards.
+// Exam rules for teachers: the exam coordinator (an admin here) plans exams; teachers can't.
+// A subject teacher creates class tests for their own subject and sees only their own
+// subjects (progress + results). Uses existing data; what it creates is removed afterwards.
 const secret = () => process.env.JWT_SECRET || "fallback_jwt_secret_key";
 const tag = `ZZ Scope ${Date.now().toString(36)}`;
 let server: Server;
 let base: string;
-const ctx: { classId: number; sessionId: number; classTeacherUser: number; subjectUser: number; subjectStaff: number; examId: number } = {
+const ctx: { classId: number; sessionId: number; classTeacherUser: number; subjectUser: number; subjectStaff: number; examId: number; adminUser: number; subjectId: number; classTestId: number } = {
   classId: 0,
   sessionId: 0,
   classTeacherUser: 0,
   subjectUser: 0,
   subjectStaff: 0,
   examId: 0,
+  adminUser: 0,
+  subjectId: 0,
+  classTestId: 0,
 };
 
 const tokenFor = async (userId: number) => {
@@ -53,31 +56,53 @@ before(async () => {
       ctx.classTeacherUser = c.classTeacher.userId;
       ctx.subjectUser = other.staff.userId;
       ctx.subjectStaff = other.staffId;
+      ctx.subjectId = other.subjectId;
       break;
     }
   }
+  ctx.adminUser = (await prisma.user.findFirstOrThrow({ where: { role: "ADMIN" } })).id;
 });
 
 after(async () => {
-  if (ctx.examId) await prisma.exam.deleteMany({ where: { id: ctx.examId } });
+  const ids = [ctx.examId, ctx.classTestId].filter(Boolean);
+  if (ids.length) await prisma.exam.deleteMany({ where: { id: { in: ids } } });
   await new Promise<void>((r) => server.close(() => r()));
 });
 
 describe("teacher exam scope", () => {
-  test("a subject teacher cannot create an exam", async (t) => {
+  test("teachers (subject or class teacher) can't plan exams", async (t) => {
     if (!ctx.classId) return t.skip("no class with a separate subject teacher in the data");
-    const r = await call("POST", "/api/exams", ctx.subjectUser, { name: tag, classSectionId: ctx.classId });
-    assert.strictEqual(r.status, 403);
+    for (const user of [ctx.subjectUser, ctx.classTeacherUser]) {
+      const r = await call("POST", "/api/exams/plan", user, { name: tag, classSectionIds: [ctx.classId] });
+      assert.strictEqual(r.status, 403);
+    }
   });
 
-  test("the class teacher creates it, in the class's session; duplicates are refused", async (t) => {
+  test("the coordinator plans it, in the class's session, with max marks per subject; duplicates are refused", async (t) => {
     if (!ctx.classId) return t.skip("no suitable class");
-    const r = await call("POST", "/api/exams", ctx.classTeacherUser, { name: tag, classSectionId: ctx.classId, passPercentage: 40 });
+    const r = await call("POST", "/api/exams/plan", ctx.adminUser, { name: tag, type: "PERIODIC_TEST", term: 1, classSectionIds: [ctx.classId] });
     assert.strictEqual(r.status, 201, JSON.stringify(r.json));
-    ctx.examId = r.json.data.id;
-    assert.strictEqual(r.json.data.sessionId, ctx.sessionId);
-    const dup = await call("POST", "/api/exams", ctx.classTeacherUser, { name: tag.toUpperCase(), classSectionId: ctx.classId });
+    const exam = await prisma.exam.findFirstOrThrow({ where: { groupKey: r.json.data.groupKey }, include: { subjects: true } });
+    ctx.examId = exam.id;
+    assert.strictEqual(exam.sessionId, ctx.sessionId);
+    assert.strictEqual(exam.subjects.length, await prisma.subject.count({ where: { classSectionId: ctx.classId } }));
+    const dup = await call("POST", "/api/exams/plan", ctx.adminUser, { name: tag.toUpperCase(), classSectionIds: [ctx.classId] });
     assert.strictEqual(dup.status, 409);
+  });
+
+  test("a subject teacher sets their own periodic test's max marks and creates class tests", async (t) => {
+    if (!ctx.examId) return t.skip("exam not created");
+    const own = await call("PUT", `/api/exams/${ctx.examId}/subjects`, ctx.subjectUser, { subjects: [{ subjectId: ctx.subjectId, maxMarks: 40 }] });
+    assert.strictEqual(own.status, 200, JSON.stringify(own.json));
+    const other = await prisma.subject.findFirst({ where: { classSectionId: ctx.classId, teacherSubjects: { none: { staffId: ctx.subjectStaff } } } });
+    if (other) {
+      const r = await call("PUT", `/api/exams/${ctx.examId}/subjects`, ctx.subjectUser, { subjects: [{ subjectId: other.id, maxMarks: 40 }] });
+      assert.strictEqual(r.status, 403);
+    }
+    const ct = await call("POST", "/api/exams/class-tests", ctx.subjectUser, { classSectionId: ctx.classId, subjectId: ctx.subjectId, name: `${tag} quiz`, maxMarks: 10, testDate: "2026-11-02" });
+    assert.strictEqual(ct.status, 201, JSON.stringify(ct.json));
+    ctx.classTestId = ct.json.data.id;
+    assert.strictEqual(ct.json.data.type, "CLASS_TEST");
   });
 
   test("progress: class teacher sees every subject, subject teacher only their own", async (t) => {
