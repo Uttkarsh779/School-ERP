@@ -166,6 +166,7 @@ export interface DateSheet {
 }
 export interface AdmitCardSet {
   exam: { id: number; name: string; session: string | null };
+  admitCard: boolean;
   classSection: { className: string; section: string };
   classTeacher: string | null;
   subjects: { id: number; name: string }[];

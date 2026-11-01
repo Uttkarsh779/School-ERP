@@ -2,6 +2,7 @@ import { prisma } from "../../config/prisma";
 import { httpError } from "../../utils/httpError";
 import { getDefaultersReport } from "../fees/ledgerService";
 import { getExamSettings } from "./schemeService";
+import { onDateSheetPublished } from "../notifications/events";
 
 // Exam admit cards: the exam's date sheet (date and time of each subject's paper, plus
 // instructions for students) is saved on the exam, and printed on one admit card per
@@ -46,12 +47,47 @@ export const parseDateSheet = (body: any, subjectIds: number[]): DateSheet => {
 };
 
 export const saveDateSheet = async (examId: number, body: unknown) => {
-  const exam = await prisma.exam.findUnique({ where: { id: examId }, select: { classSectionId: true } });
+  const exam = await prisma.exam.findUnique({ where: { id: examId }, select: { classSectionId: true, dateSheet: true } });
   if (!exam) throw httpError(404, "Exam not found");
   const subjects = await prisma.subject.findMany({ where: { classSectionId: exam.classSectionId }, select: { id: true } });
   const sheet = parseDateSheet(body, subjects.map((s) => s.id));
   await prisma.exam.update({ where: { id: examId }, data: { dateSheet: sheet as any } });
+  // Students hear about it the first time a date sheet with papers is saved.
+  const hadPapers = ((exam.dateSheet as DateSheet | null)?.entries ?? []).length > 0;
+  if (!hadPapers && sheet.entries.length > 0) onDateSheetPublished(examId);
   return sheet;
+};
+
+// Date sheets students and staff can see: the term exams and periodic tests of the given
+// classes (current session) that have papers scheduled, earliest first, with subject names.
+export const listDateSheets = async (classSectionIds: number[]) => {
+  if (!classSectionIds.length) return [];
+  const exams = await prisma.exam.findMany({
+    where: { classSectionId: { in: classSectionIds }, type: { not: "CLASS_TEST" }, session: { isCurrent: true } },
+    include: { classSection: { select: { className: true, section: true } } },
+  });
+  const subjectIds = [...new Set(exams.flatMap((e) => ((e.dateSheet as DateSheet | null)?.entries ?? []).map((x) => x.subjectId)))];
+  const names = new Map((await prisma.subject.findMany({ where: { id: { in: subjectIds } }, select: { id: true, name: true } })).map((s) => [s.id, s.name] as const));
+  const today = new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10);
+  return exams
+    .map((e) => {
+      const sheet = (e.dateSheet as DateSheet | null) ?? { entries: [], instructions: null };
+      const entries = sheet.entries.filter((x) => names.has(x.subjectId)).map((x) => ({ ...x, subjectName: names.get(x.subjectId)! }));
+      return {
+        examId: e.id,
+        name: e.name,
+        type: e.type,
+        term: e.term,
+        classSection: e.classSection,
+        instructions: sheet.instructions,
+        entries,
+        firstDate: entries[0]?.date ?? null,
+        lastDate: entries[entries.length - 1]?.date ?? null,
+        finished: entries.length > 0 && entries[entries.length - 1].date < today,
+      };
+    })
+    .filter((e) => e.entries.length > 0)
+    .sort((a, b) => (a.firstDate ?? "").localeCompare(b.firstDate ?? ""));
 };
 
 // Everything the printed admit cards need. Only students currently studying are included.
@@ -64,7 +100,6 @@ export const getAdmitCards = async (examId: number) => {
     },
   });
   if (!exam) throw httpError(404, "Exam not found");
-  if (!exam.admitCard) throw httpError(400, "Admit cards are switched off for this exam");
   const [subjects, students, settings, defaulters] = await Promise.all([
     prisma.subject.findMany({ where: { classSectionId: exam.classSectionId, examSubjects: { some: { examId } } }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
     prisma.student.findMany({
@@ -84,6 +119,8 @@ export const getAdmitCards = async (examId: number) => {
   const sheet = (exam.dateSheet as DateSheet | null) ?? { entries: [], instructions: null };
   return {
     exam: { id: exam.id, name: exam.name, session: exam.session?.name ?? null },
+    // The date sheet is set for every exam; admit cards are printed only when switched on.
+    admitCard: exam.admitCard,
     classSection: { className: exam.classSection.className, section: exam.classSection.section },
     classTeacher: exam.classSection.classTeacher?.user.name ?? null,
     subjects,

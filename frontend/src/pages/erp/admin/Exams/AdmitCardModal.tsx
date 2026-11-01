@@ -55,7 +55,11 @@ const AdmitCardModal = ({ examId, onClose }: { examId: number; onClose: () => vo
   };
 
   return (
-    <Modal title={data ? `Admit cards — ${data.exam.name} (${data.classSection.className} - ${data.classSection.section})` : "Admit cards"} onClose={onClose}>
+    <Modal
+      title={data ? `${data.admitCard ? "Date sheet & admit cards" : "Date sheet"} — ${data.exam.name} (${data.classSection.className} - ${data.classSection.section})` : "Date sheet"}
+      onClose={onClose}
+      size="lg"
+    >
       {isLoading ? (
         <Spinner />
       ) : isError || !data ? (
@@ -65,9 +69,9 @@ const AdmitCardModal = ({ examId, onClose }: { examId: number; onClose: () => vo
       ) : (
         <div className={styles.admitForm}>
           <p className={styles.admitHint}>
-            Date sheet for {data.students.length} student{data.students.length === 1 ? "" : "s"}. Leave a subject blank if it has no paper in this exam.
+            Students see the date sheet on their dashboard once it&apos;s saved. Leave a subject blank if it has no paper in this exam.
           </p>
-          {data.heldBack.length > 0 && (
+          {data.admitCard && data.heldBack.length > 0 && (
             <p className={styles.resultWarn}>
               No admit card for {data.heldBack.length} student{data.heldBack.length === 1 ? "" : "s"} with overdue fees:{" "}
               {data.heldBack.map((s) => `${s.name} (₹${Math.round(s.due).toLocaleString("en-IN")})`).join(", ")}. The Super Admin can allow cards for everyone under Exams → Assessment schemes.
@@ -119,9 +123,11 @@ const AdmitCardModal = ({ examId, onClose }: { examId: number; onClose: () => vo
             <Button variant="outline" onClick={() => onSave(false)} isLoading={saving}>
               Save
             </Button>
-            <Button onClick={() => onSave(true)} isLoading={saving}>
-              Save &amp; print admit cards
-            </Button>
+            {data.admitCard && (
+              <Button onClick={() => onSave(true)} isLoading={saving}>
+                Save &amp; print admit cards
+              </Button>
+            )}
           </div>
         </div>
       )}

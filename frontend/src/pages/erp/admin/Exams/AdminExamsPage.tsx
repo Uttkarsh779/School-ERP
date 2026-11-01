@@ -443,9 +443,9 @@ const AdminExamsPage = () => {
                               Max marks
                             </button>
                           )}
-                          {coordinator && exam.admitCard && (
+                          {coordinator && exam.type !== "CLASS_TEST" && (
                             <button type="button" className={styles.quietBtn} onClick={() => setAdmitExamId(exam.id)}>
-                              Admit cards
+                              {exam.admitCard ? "Date sheet & admit cards" : "Date sheet"}
                             </button>
                           )}
                           {coordinator && exam.groupKey && plan?.some((g) => g.groupKey === exam.groupKey) && (

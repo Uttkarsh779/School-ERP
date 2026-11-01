@@ -69,6 +69,21 @@ export const onResultsPublished = (examId: number) =>
     }));
   });
 
+// ---- An exam's date sheet published for a class.
+export const onDateSheetPublished = (examId: number) =>
+  notifyLater(async () => {
+    const exam = await prisma.exam.findUnique({ where: { id: examId }, select: { name: true, classSectionId: true } });
+    if (!exam) return [];
+    return (await studentUsers({ classSectionId: exam.classSectionId })).map((s: any) => ({
+      userId: s.userId,
+      type: "NOTICE",
+      title: `${exam.name}: date sheet is out`,
+      body: `See the dates and times of ${s.name}'s papers.`,
+      link: "/student",
+      dedupeKey: `date-sheet:${examId}`,
+    }));
+  });
+
 // ---- A term or final result published for a class (term 0 = final).
 export const onTermResultPublished = (classSectionId: number, term: number) =>
   notifyLater(async () => {

@@ -180,6 +180,19 @@ export interface AssessmentSheet {
     grade: string | null;
   }[];
 }
+export interface DateSheetItem {
+  examId: number;
+  name: string;
+  type: ExamType;
+  term: number;
+  classSection: { className: string; section: string };
+  instructions: string | null;
+  entries: { subjectId: number; subjectName: string; date: string; start: string; end: string }[];
+  firstDate: string | null;
+  lastDate: string | null;
+  finished: boolean;
+}
+
 export interface TermRemarksSheet {
   term: number;
   classSection: { id: number; className: string; section: string };
@@ -261,6 +274,11 @@ export const examPlanApi = erpApi.injectEndpoints({
       query: (body) => ({ url: "exams/assessment/adjust", method: "PUT", body }),
       invalidatesTags: ["ExamResult"],
     }),
+    getDateSheets: builder.query<DateSheetItem[], { classSectionId?: number } | void>({
+      query: (params) => ({ url: "exams/date-sheets", params: params ?? undefined }),
+      transformResponse: data<DateSheetItem[]>,
+      providesTags: ["Exam"],
+    }),
     getTermRemarks: builder.query<TermRemarksSheet, { classSectionId: number; term: number }>({
       query: (params) => ({ url: "exams/term-remarks", params }),
       transformResponse: data<TermRemarksSheet>,
@@ -297,4 +315,5 @@ export const {
   useSaveAdjustmentsMutation,
   useGetTermRemarksQuery,
   useSaveTermRemarksMutation,
+  useGetDateSheetsQuery,
 } = examPlanApi;

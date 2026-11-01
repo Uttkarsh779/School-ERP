@@ -21,6 +21,7 @@ import {
   postExam,
   postExamResults,
   getExamProgress,
+  getDateSheets,
 } from "./controller";
 
 const router = Router();
@@ -35,6 +36,7 @@ router.get(
   asyncHandler(getExams)
 );
 router.post("/", authorizeRoles(["SUPER_ADMIN", "ADMIN", "TEACHER"]), asyncHandler(postExam)); // coordinator, see planService
+router.get("/date-sheets", authorizeRoles(["SUPER_ADMIN", "ADMIN", "TEACHER", "STUDENT", "PARENT"]), asyncHandler(getDateSheets));
 router.post(
   "/:id/results",
   authorizeRoles(["SUPER_ADMIN", "ADMIN", "TEACHER"]),

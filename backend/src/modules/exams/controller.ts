@@ -22,6 +22,7 @@ import { getPrintableReportCards } from "./printService";
 import { getRemarksSheet, getStudentRemark, saveRemarks, setResultsPublished } from "./remarksService";
 import { onResultsPublished } from "../notifications/events";
 import { createPlannedExam } from "./planService";
+import { listDateSheets } from "./admitCardService";
 import { assertCoordinator, assertPublisher, isCoordinator } from "./permissions";
 
 // What part of a class's marks the caller may SEE:
@@ -134,6 +135,23 @@ export const getExams = async (req: CustomRequest, res: Response): Promise<void>
   const ids = await viewableClassSectionIds(req);
   const exams = ids === "ALL" ? await listExamsForClassSection() : await listExamsForClassSections(ids);
   res.status(200).json({ success: true, data: exams });
+};
+
+// Date sheets of the exams the caller may see (same rules as the exam list): a student their
+// own class, a teacher their classes, admins any class (or one with ?classSectionId=).
+export const getDateSheets = async (req: CustomRequest, res: Response): Promise<void> => {
+  const classSectionId = req.query.classSectionId ? Number(req.query.classSectionId) : undefined;
+  if (classSectionId && !(await canViewClassExams(req, classSectionId))) {
+    res.status(403).json({ success: false, message: "Forbidden" });
+    return;
+  }
+  const ids = await viewableClassSectionIds(req);
+  const classIds = classSectionId
+    ? [classSectionId]
+    : ids === "ALL"
+      ? (await prisma.classSection.findMany({ where: { session: { isCurrent: true } }, select: { id: true } })).map((c: any) => c.id)
+      : ids;
+  res.json({ success: true, data: await listDateSheets(classIds) });
 };
 
 // Creating an exam for one class goes through the exam plan (coordinator only); teachers
