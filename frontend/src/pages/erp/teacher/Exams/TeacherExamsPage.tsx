@@ -7,7 +7,8 @@ import { useGetSubjectsQuery } from "../../../../store/api/subjects.api";
 import { useGetClassRosterQuery } from "../../../../store/api/teaching.api";
 import { useGetMyProfileQuery } from "../../../../store/api/profile.api";
 import { useGetExamProgressQuery, useGetExamsQuery } from "../../../../store/api/exams.api";
-import { EXAM_TYPE_LABEL, useGetExamMetaQuery, useGetSchemesQuery, useSetExamReadyMutation } from "../../../../store/api/examPlan.api";
+import { EXAM_TYPE_LABEL, useGetDateSheetsQuery, useGetExamMetaQuery, useGetSchemesQuery, useSetExamReadyMutation } from "../../../../store/api/examPlan.api";
+import { DateSheetTable } from "../../../../components/shared/DateSheet/DateSheet";
 import ExamResultsView from "../../admin/Exams/ExamResultsView";
 import ClassResultView from "../../admin/Exams/ClassResultView";
 import MarksEntry from "./MarksEntry";
@@ -308,6 +309,8 @@ const ExamDetail = ({
 }) => {
   const { data: progress, isLoading } = useGetExamProgressQuery(exam.id, { refetchOnMountOrArgChange: true });
   const [setReady, { isLoading: settingReady }] = useSetExamReadyMutation();
+  const { data: dateSheets } = useGetDateSheetsQuery({ classSectionId: exam.classSectionId }, { skip: exam.type === "CLASS_TEST" });
+  const dateSheet = dateSheets?.find((d) => d.examId === exam.id);
   const toggleReady = async () => {
     try {
       await setReady({ examId: exam.id, ready: !exam.readyAt }).unwrap();
@@ -364,6 +367,13 @@ const ExamDetail = ({
           {exam.type === "CLASS_TEST" ? "Visible to students as saved" : exam.resultsPublished ? "Published to families" : "Coordinator locks, Principal publishes"}
         </li>
       </ol>
+
+      {dateSheet && (
+        <section className={styles.panel}>
+          <h2 className={styles.panelTitle}>Date sheet</h2>
+          <DateSheetTable exam={dateSheet} />
+        </section>
+      )}
 
       {locked && <div className={styles.notice}>Marks are locked{exam.lockedByUser ? ` by ${exam.lockedByUser.name}` : ""}, so they can be viewed but not changed.</div>}
 

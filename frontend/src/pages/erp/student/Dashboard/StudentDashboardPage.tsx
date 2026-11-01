@@ -1,5 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import UpcomingHolidays from "../../../../components/shared/SchoolCalendar/UpcomingHolidays";
+import UpcomingExams from "../../../../components/shared/DateSheet/DateSheet";
 import { Badge, Button, Card, EmptyState, Icon, PageHeader, Spinner, StatCard } from "../../../../components/ui";
 import { useGetStudentDashboardQuery } from "../../../../store/api/dashboard.api";
 import { useGetMyStudentProfileQuery } from "../../../../store/api/students.api";
@@ -313,6 +314,7 @@ const StudentDashboardPage = () => {
       </div>
 
       <div className={styles.twoCol}>
+        <UpcomingExams />
         <UpcomingHolidays who="STUDENTS" calendarPath="/student/calendar" />
       </div>
     </div>
