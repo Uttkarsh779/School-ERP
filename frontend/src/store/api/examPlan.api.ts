@@ -36,8 +36,15 @@ export interface Scheme {
 }
 
 export interface ExamMeta {
-  permissions: { coordinator: boolean; publisher: boolean };
+  permissions: { coordinator: boolean; publisher: boolean; schemes: boolean };
   settings: { admitCardsForDefaulters: boolean };
+  sessions: { id: number; name: string; isCurrent: boolean }[];
+}
+
+export interface ExamClass {
+  id: number;
+  className: string;
+  section: string;
 }
 
 export interface PlanGroup {
@@ -93,6 +100,7 @@ export interface TermSubjectResult {
   grade: string | null;
   passed: boolean | null;
   complete: boolean;
+  missing?: string[]; // what's holding this subject back: "Exam", "Notebook"...
 }
 export interface FinalSubjectResult {
   subjectId: number;
@@ -136,6 +144,7 @@ export interface ClassResult {
   attendance?: Record<number, { present: number; workingDays: number }>;
   termsInScheme: number;
   defaultWeights: number[];
+  publishedTerms: number[];
   published: { at: string; weights: number[] } | null;
   canPublish: boolean;
 }
@@ -145,6 +154,7 @@ export interface PublicationOverview {
   section: string;
   scheme: string;
   terms: number;
+  examStatus: { term: number; exams: number; locked: number }[];
   published: { term: number; at: string }[];
 }
 export interface MyResult {
@@ -197,6 +207,7 @@ export interface TermRemarksSheet {
   term: number;
   classSection: { id: number; className: string; section: string };
   coScale: number;
+  terms: number;
   grades: string[];
   canEdit: boolean;
   students: { studentId: number; name: string; rollNo: string; remark: string | null; workEducation: string | null; artEducation: string | null; healthPhysical: string | null; discipline: string | null }[];
@@ -217,7 +228,12 @@ export const examPlanApi = erpApi.injectEndpoints({
     }),
     deleteScheme: builder.mutation<unknown, number>({ query: (id) => ({ url: `exams/schemes/${id}`, method: "DELETE" }), invalidatesTags: ["Exam", "ExamResult"] }),
 
-    getExamPlan: builder.query<PlanGroup[], void>({ query: () => "exams/plan", transformResponse: data<PlanGroup[]>, providesTags: ["Exam"] }),
+    getExamClasses: builder.query<ExamClass[], void>({ query: () => "exams/classes", transformResponse: data<ExamClass[]>, providesTags: ["ClassSection"] }),
+    getExamPlan: builder.query<PlanGroup[], number | void>({
+      query: (sessionId) => ({ url: "exams/plan", params: sessionId ? { sessionId } : undefined }),
+      transformResponse: data<PlanGroup[]>,
+      providesTags: ["Exam"],
+    }),
     createPlannedExam: builder.mutation<{ groupKey: string; created: number }, PlanInput>({
       query: (body) => ({ url: "exams/plan", method: "POST", body }),
       transformResponse: data<{ groupKey: string; created: number }>,
@@ -234,6 +250,16 @@ export const examPlanApi = erpApi.injectEndpoints({
       transformResponse: data<ExamSubjectRow[]>,
       invalidatesTags: ["Exam", "ExamResult"],
     }),
+    copyExamSubjects: builder.mutation<{ classes: number; skipped: string[] }, number>({
+      query: (id) => ({ url: `exams/${id}/subjects/copy`, method: "POST" }),
+      transformResponse: data<{ classes: number; skipped: string[] }>,
+      invalidatesTags: ["Exam", "ExamResult"],
+    }),
+    copyDateSheet: builder.mutation<{ classes: number; notMatched: string[] }, number>({
+      query: (id) => ({ url: `exams/${id}/date-sheet/copy`, method: "POST" }),
+      transformResponse: data<{ classes: number; notMatched: string[] }>,
+      invalidatesTags: ["Exam"],
+    }),
     createClassTest: builder.mutation<IExam, { classSectionId: number; subjectId: number; name: string; maxMarks: number; testDate: string; term?: number }>({
       query: (body) => ({ url: "exams/class-tests", method: "POST", body }),
       transformResponse: data<IExam>,
@@ -244,20 +270,24 @@ export const examPlanApi = erpApi.injectEndpoints({
       invalidatesTags: ["Exam"],
     }),
 
-    getResultsOverview: builder.query<PublicationOverview[], void>({ query: () => "exams/results/overview", transformResponse: data<PublicationOverview[]>, providesTags: ["ExamResult"] }),
+    getResultsOverview: builder.query<PublicationOverview[], number | void>({
+      query: (sessionId) => ({ url: "exams/results/overview", params: sessionId ? { sessionId } : undefined }),
+      transformResponse: data<PublicationOverview[]>,
+      providesTags: ["ExamResult"],
+    }),
     getClassResult: builder.query<ClassResult, { classSectionId: number; term: number; weights?: number[] }>({
       query: ({ classSectionId, term, weights }) => ({ url: "exams/results", params: { classSectionId, term, ...(weights ? { weights: weights.join(",") } : {}) } }),
       transformResponse: data<ClassResult>,
       providesTags: ["ExamResult", "Exam"],
     }),
-    publishResult: builder.mutation<{ published: number }, { classSectionIds: number[]; term: number; weights?: number[] }>({
+    publishResult: builder.mutation<{ published: number; skipped: { classSectionId: number; label: string; reason: string }[] }, { classSectionIds: number[]; term: number; weights?: number[] }>({
       query: (body) => ({ url: "exams/results/publish", method: "POST", body }),
-      transformResponse: data<{ published: number }>,
-      invalidatesTags: ["ExamResult"],
+      transformResponse: data<{ published: number; skipped: { classSectionId: number; label: string; reason: string }[] }>,
+      invalidatesTags: ["ExamResult", "Exam", "Dashboard"],
     }),
     unpublishResult: builder.mutation<unknown, { classSectionId: number; term: number }>({
       query: (params) => ({ url: "exams/results", method: "DELETE", params }),
-      invalidatesTags: ["ExamResult"],
+      invalidatesTags: ["ExamResult", "Exam", "Dashboard"],
     }),
     getMyResults: builder.query<MyResult[], void>({ query: () => "exams/my-results", transformResponse: data<MyResult[]>, providesTags: ["ExamResult"] }),
 
@@ -297,7 +327,10 @@ export const {
   useGetSchemesQuery,
   useSaveSchemeMutation,
   useDeleteSchemeMutation,
+  useGetExamClassesQuery,
   useGetExamPlanQuery,
+  useCopyExamSubjectsMutation,
+  useCopyDateSheetMutation,
   useCreatePlannedExamMutation,
   useUpdatePlannedExamMutation,
   useDeleteExamMutation,

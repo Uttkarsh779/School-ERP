@@ -138,8 +138,9 @@ export const getStudentDashboard = async (userId: number) => {
         maxTotal: mine.maxTotal,
         percentage: mine.percentage,
         status: mine.status,
-        rank: isFinal ? mine.rank : null,
-        rankedCount: isFinal ? analysis.summary.appeared : null,
+        // No ranks for students (school policy); they stay in the staff result analysis.
+        rank: null,
+        rankedCount: null,
         failedSubjects: mine.failedSubjects,
       };
     }

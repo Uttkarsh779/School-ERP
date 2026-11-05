@@ -17,7 +17,7 @@ interface Base {
   updated_at?: string;
 }
 
-type UserRole = "SUPER_ADMIN" | "ADMIN" | "TEACHER" | "STUDENT" | "PARENT";
+type UserRole = "SUPER_ADMIN" | "ADMIN" | "PRINCIPAL" | "ACCOUNTANT" | "TEACHER" | "STUDENT" | "PARENT";
 
 interface IUser extends Base {
   email: string;
@@ -314,6 +314,8 @@ interface IExam {
   testDate?: string | null;
   readyAt?: string | null;
   subjects?: { subjectId: number; maxMarks: number }[];
+  dateSheet?: { entries?: unknown[] } | null;
+  _count?: { results: number };
 }
 
 interface IExamResult {

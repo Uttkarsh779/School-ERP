@@ -1,11 +1,15 @@
 import { Router, type Response } from "express";
 import { authorizeRoles, type CustomRequest } from "../../middleware/auth";
+import { allow } from "../../config/permissions";
 import { asyncHandler } from "../../utils/asyncHandler";
 import { httpError } from "../../utils/httpError";
 import { getStudentByUserId } from "../students/service";
-import { assertCoordinator, examPermissions } from "./permissions";
+import { assertCoordinator, assertSchemeEditor, examPermissions } from "./permissions";
 import { deleteScheme, getExamSettings, listSchemes, saveScheme, updateExamSettings } from "./schemeService";
-import { createClassTest, createPlannedExam, deleteExam, getExamSubjects, listPlan, saveExamSubjects, setExamReady, updatePlannedExam } from "./planService";
+import { prisma } from "../../config/prisma";
+import { listClassSections } from "../classSections/service";
+import { copyDateSheet } from "./admitCardService";
+import { copyExamSubjects, createClassTest, createPlannedExam, deleteExam, getExamSubjects, listPlan, saveExamSubjects, setExamReady, updatePlannedExam } from "./planService";
 import {
   getAssessmentSheet,
   getClassResult,
@@ -23,7 +27,7 @@ import {
 // results. Mounted on /api/exams before the per-exam routes. Fine-grained rules (exam
 // coordinator, publisher, class teacher, subject teacher) are checked in the services.
 const router = Router();
-const staff = authorizeRoles(["SUPER_ADMIN", "ADMIN", "TEACHER"]);
+const staff = allow("exams.coordinate", "TEACHER");
 const H = (fn: (req: CustomRequest) => Promise<unknown>, status = 200) =>
   asyncHandler(async (req: CustomRequest, res: Response) => {
     res.status(status).json({ success: true, data: await fn(req) });
@@ -34,12 +38,30 @@ const int = (v: unknown, field: string) => {
   return n;
 };
 
-router.get("/meta", staff, H(async (req) => ({ permissions: await examPermissions(req.user!), settings: await getExamSettings() })));
+router.get(
+  "/meta",
+  staff,
+  H(async (req) => ({
+    permissions: await examPermissions(req.user!),
+    settings: await getExamSettings(),
+    sessions: await prisma.academicSession.findMany({ select: { id: true, name: true, isCurrent: true }, orderBy: { startDate: "desc" } }),
+  }))
+);
+// The current session's classes, for the coordinator's forms (a coordinator teacher can't use
+// the office's class list).
+router.get(
+  "/classes",
+  staff,
+  H(async (req) => {
+    await assertCoordinator(req.user!);
+    return (await listClassSections()).map((c: any) => ({ id: c.id, className: c.className, section: c.section }));
+  })
+);
 
 router.get("/schemes", staff, H(() => listSchemes()));
-router.post("/schemes", staff, H(async (req) => (await assertCoordinator(req.user!), saveScheme(null, req.body)), 201));
-router.put("/schemes/:sid", staff, H(async (req) => (await assertCoordinator(req.user!), saveScheme(int(req.params.sid, "Scheme"), req.body))));
-router.delete("/schemes/:sid", staff, H(async (req) => (await assertCoordinator(req.user!), deleteScheme(int(req.params.sid, "Scheme")))));
+router.post("/schemes", staff, H(async (req) => (assertSchemeEditor(req.user!), saveScheme(null, req.body)), 201));
+router.put("/schemes/:sid", staff, H(async (req) => (assertSchemeEditor(req.user!), saveScheme(int(req.params.sid, "Scheme"), req.body))));
+router.delete("/schemes/:sid", staff, H(async (req) => (assertSchemeEditor(req.user!), deleteScheme(int(req.params.sid, "Scheme")))));
 router.put("/settings", authorizeRoles(["SUPER_ADMIN"]), H((req) => updateExamSettings(req.body)));
 
 router.get("/plan", staff, H((req) => listPlan(req.user!, req.query.sessionId ? Number(req.query.sessionId) : undefined)));
@@ -80,6 +102,8 @@ router.put("/term-remarks", staff, H((req) => saveTermRemarks(req.user!, req.bod
 
 router.get("/:id/subjects", staff, H((req) => getExamSubjects(req.user!, int(req.params.id, "Exam"))));
 router.put("/:id/subjects", staff, H((req) => saveExamSubjects(req.user!, int(req.params.id, "Exam"), req.body?.subjects)));
+router.post("/:id/subjects/copy", staff, H((req) => copyExamSubjects(req.user!, int(req.params.id, "Exam"))));
+router.post("/:id/date-sheet/copy", staff, H((req) => copyDateSheet(req.user!, int(req.params.id, "Exam"))));
 router.patch("/:id/ready", staff, H((req) => setExamReady(req.user!, int(req.params.id, "Exam"), !!req.body?.ready)));
 router.delete("/:id", staff, H((req) => deleteExam(req.user!, int(req.params.id, "Exam"))));
 

@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { toast } from "react-toastify";
-import { Badge, Button, EmptyState, Icon, PageHeader, Spinner } from "../../../../components/ui";
+import { Badge, Button, ConfirmDialog, EmptyState, Icon, PageHeader, Spinner } from "../../../../components/ui";
 import { useGetMyClassSectionsQuery } from "../../../../store/api/classSections.api";
 import { useGetSubjectsQuery } from "../../../../store/api/subjects.api";
 import { useGetClassRosterQuery } from "../../../../store/api/teaching.api";
 import { useGetMyProfileQuery } from "../../../../store/api/profile.api";
 import { useGetExamProgressQuery, useGetExamsQuery } from "../../../../store/api/exams.api";
-import { EXAM_TYPE_LABEL, useGetDateSheetsQuery, useGetExamMetaQuery, useGetSchemesQuery, useSetExamReadyMutation } from "../../../../store/api/examPlan.api";
+import { EXAM_TYPE_LABEL, useDeleteExamMutation, useGetDateSheetsQuery, useGetExamMetaQuery, useGetSchemesQuery, useSetExamReadyMutation } from "../../../../store/api/examPlan.api";
 import { DateSheetTable } from "../../../../components/shared/DateSheet/DateSheet";
 import ExamResultsView from "../../admin/Exams/ExamResultsView";
 import ClassResultView from "../../admin/Exams/ClassResultView";
@@ -26,6 +26,15 @@ const statusOf = (exam: IExam) =>
       ? { label: "Locked", tone: "warning" as const }
       : { label: "Marks open", tone: "info" as const };
 
+const deadlinePassed = (exam: IExam) => !!exam.marksDeadline && new Date(exam.marksDeadline) < new Date();
+const deadlineText = (exam: IExam) => (exam.marksDeadline ? new Date(exam.marksDeadline).toLocaleDateString("en-IN", { day: "2-digit", month: "short", timeZone: "Asia/Kolkata" }) : "");
+const TYPE_TABS = [
+  ["", "All"],
+  ["TERM_EXAM", "Term exams"],
+  ["PERIODIC_TEST", "Periodic tests"],
+  ["CLASS_TEST", "Class tests"],
+] as const;
+
 // Teacher exams (phone first). Who can do what — mirrors the server rules:
 //  - The exam coordinator plans term exams and periodic tests (Exam planner).
 //  - Subject teacher: enters marks for their subjects, sets max marks for their periodic and
@@ -38,6 +47,7 @@ const statusOf = (exam: IExam) =>
 const TeacherExamsPage = () => {
   const [params, setParams] = useSearchParams();
   const [newOpen, setNewOpen] = useState(false);
+  const [typeTab, setTypeTab] = useState("");
   const { data: meta } = useGetExamMetaQuery();
   const { data: schemes } = useGetSchemesQuery();
 
@@ -76,10 +86,19 @@ const TeacherExamsPage = () => {
     () => (subjects ?? []).filter((s) => staffId && s.teacherSubjects?.some((t) => t.staffId === staffId)),
     [subjects, staffId]
   );
+  // Other teachers' class tests aren't this teacher's work (the class teacher follows them all).
+  const myExams = useMemo(
+    () => (exams ?? []).filter((e) => e.type !== "CLASS_TEST" || isClassTeacher || mySubjects.some((s) => s.id === e.subjectId)),
+    [exams, isClassTeacher, mySubjects]
+  );
+  const shownExams = myExams.filter((e) => !typeTab || (e.type ?? "TERM_EXAM") === typeTab);
+  const typesPresent = new Set(myExams.map((e) => e.type ?? "TERM_EXAM"));
   const exam = exams?.find((e) => e.id === examId) ?? null;
   const subject = mySubjects.find((s) => s.id === subjectId) ?? null;
   const students = roster?.students ?? [];
-  const terms = schemes?.find((s) => cls && s.classNames.includes(cls.className))?.terms ?? 2;
+  const scheme = schemes?.find((s) => cls && s.classNames.includes(cls.className));
+  const terms = scheme?.terms ?? 2;
+  const coordinator = !!meta?.permissions.coordinator;
 
   if (classesLoading) {
     return (
@@ -93,7 +112,17 @@ const TeacherExamsPage = () => {
     return (
       <div>
         <PageHeader title="Exams" />
-        <EmptyState title="No classes yet" description="You'll see exams here once you're made a class teacher or given a subject to teach." />
+        <EmptyState
+          title="No classes yet"
+          description="You'll see exams here once you're made a class teacher or given a subject to teach."
+          action={
+            coordinator ? (
+              <Link to="/teacher/exam-planner">
+                <Button variant="outline">Open the exam planner</Button>
+              </Link>
+            ) : undefined
+          }
+        />
       </div>
     );
   }
@@ -118,7 +147,7 @@ const TeacherExamsPage = () => {
   if (exam && subject && (view === "marks" || view === "results")) {
     if (!roster) return <Spinner />;
     return view === "marks" ? (
-      <MarksEntry exam={exam} subject={subject} students={students} onDone={() => go({ view: null, subject: null })} />
+      <MarksEntry exam={exam} subject={subject} students={students} coordinator={coordinator} onDone={() => go({ view: null, subject: null })} />
     ) : (
       <SubjectResults exam={exam} subject={subject} students={students} onBack={() => go({ view: null, subject: null })} />
     );
@@ -130,6 +159,7 @@ const TeacherExamsPage = () => {
           exam={exam}
           classText={classLabel(cls)}
           isClassTeacher={isClassTeacher}
+          coordinator={coordinator}
           onBack={() => go({ exam: null, view: null, subject: null })}
           onEnter={(sid) => go({ subject: sid, view: "marks" })}
           onSubjectResults={(sid) => go({ subject: sid, view: "results" })}
@@ -207,15 +237,25 @@ const TeacherExamsPage = () => {
 
         {examsLoading ? (
           <Spinner />
-        ) : !exams?.length ? (
+        ) : !myExams.length ? (
           <EmptyState
             title="No exams yet"
             description="Exams set up by the exam coordinator, and your class tests, will appear here."
             action={mySubjects.length ? <Button onClick={() => setNewOpen(true)}>New class test</Button> : undefined}
           />
         ) : (
+          <>
+          {typesPresent.size > 1 && (
+            <div className={styles.typeTabs} role="tablist" aria-label="Exam type">
+              {TYPE_TABS.filter(([k]) => !k || typesPresent.has(k)).map(([k, label]) => (
+                <button key={k} type="button" role="tab" aria-selected={typeTab === k} className={`${styles.preset} ${typeTab === k ? styles.presetOn : ""}`} onClick={() => setTypeTab(k)}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
           <ul className={styles.examList}>
-            {exams.map((e) => {
+            {shownExams.map((e) => {
               const st = statusOf(e);
               return (
                 <li key={e.id}>
@@ -230,7 +270,7 @@ const TeacherExamsPage = () => {
                         {e.type === "CLASS_TEST"
                           ? ` · ${subjects?.find((s) => s.id === e.subjectId)?.name ?? ""}${e.testDate ? ` · ${new Date(e.testDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", timeZone: "UTC" })}` : ""}`
                           : ` · Term ${e.term ?? 1}`}
-                        {e.marksDeadline && !e.isLocked ? ` · marks by ${new Date(e.marksDeadline).toLocaleDateString("en-IN", { day: "2-digit", month: "short", timeZone: "Asia/Kolkata" })}` : ""}
+                        {e.marksDeadline && !e.isLocked ? ` · ${deadlinePassed(e) ? "deadline was" : "marks by"} ${deadlineText(e)}` : ""}
                       </span>
                     </span>
                     <Badge tone={st.tone}>{st.label}</Badge>
@@ -240,6 +280,7 @@ const TeacherExamsPage = () => {
               );
             })}
           </ul>
+          </>
         )}
       </section>
 
@@ -254,7 +295,7 @@ const TeacherExamsPage = () => {
                 </span>
                 <span>
                   <b>{s.name} · periodic assessment</b>
-                  <small>Notebook, enrichment and the final mark out of 20</small>
+                  <small>Notebook, enrichment and the final mark out of {scheme?.paMax ?? 20}</small>
                 </span>
               </button>
             ))}
@@ -294,6 +335,7 @@ const ExamDetail = ({
   exam,
   classText,
   isClassTeacher,
+  coordinator,
   onBack,
   onEnter,
   onSubjectResults,
@@ -302,6 +344,7 @@ const ExamDetail = ({
   exam: IExam;
   classText: string;
   isClassTeacher: boolean;
+  coordinator: boolean;
   onBack: () => void;
   onEnter: (subjectId: number) => void;
   onSubjectResults: (subjectId: number) => void;
@@ -309,6 +352,8 @@ const ExamDetail = ({
 }) => {
   const { data: progress, isLoading } = useGetExamProgressQuery(exam.id, { refetchOnMountOrArgChange: true });
   const [setReady, { isLoading: settingReady }] = useSetExamReadyMutation();
+  const [deleteExam, { isLoading: deleting }] = useDeleteExamMutation();
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const { data: dateSheets } = useGetDateSheetsQuery({ classSectionId: exam.classSectionId }, { skip: exam.type === "CLASS_TEST" });
   const dateSheet = dateSheets?.find((d) => d.examId === exam.id);
   const toggleReady = async () => {
@@ -319,6 +364,16 @@ const ExamDetail = ({
       toast.error(e?.data?.message ?? "Couldn't update");
     }
   };
+  const removeTest = async () => {
+    try {
+      await deleteExam(exam.id).unwrap();
+      toast.success("Class test deleted");
+      onBack();
+    } catch (e: any) {
+      toast.error(e?.data?.message ?? "Couldn't delete the test");
+      setConfirmDelete(false);
+    }
+  };
   const st = statusOf(exam);
   const total = progress?.totalStudents ?? 0;
   // A class test has one subject.
@@ -326,7 +381,12 @@ const ExamDetail = ({
   const mine = subjects.filter((s) => s.isMine);
   const others = subjects.filter((s) => !s.isMine);
   const complete = subjects.filter((s) => total > 0 && s.entered >= total).length;
+  const allIn = subjects.length > 0 && complete === subjects.length;
+  const anyEntered = subjects.some((s) => s.entered > 0);
   const locked = !!exam.isLocked;
+  const classTest = exam.type === "CLASS_TEST";
+  // Past the deadline only the coordinator can still enter marks (same rule as the server).
+  const closed = locked || (deadlinePassed(exam) && !coordinator);
 
   const Bar = ({ entered }: { entered: number }) => (
     <div className={`${styles.bar} ${total && entered >= total ? styles.barDone : ""}`}>
@@ -345,7 +405,7 @@ const ExamDetail = ({
           <p className={styles.muted} style={{ margin: "0.15rem 0 0" }}>
             {classText} · {EXAM_TYPE_LABEL[exam.type ?? "TERM_EXAM"]}
             {exam.type !== "CLASS_TEST" ? ` · Term ${exam.term ?? 1}` : " · progress only, students see marks at once"}
-            {exam.marksDeadline && !exam.isLocked ? ` · marks by ${new Date(exam.marksDeadline).toLocaleDateString("en-IN", { day: "2-digit", month: "short", timeZone: "Asia/Kolkata" })}` : ""}
+            {exam.marksDeadline && !exam.isLocked ? ` · marks by ${deadlineText(exam)}` : ""}
           </p>
         </div>
         <Badge tone={st.tone}>{st.label}</Badge>
@@ -356,13 +416,13 @@ const ExamDetail = ({
           <span className={styles.stepNum}>✓</span>
           <b>{exam.type === "CLASS_TEST" ? "Test created" : "Exam planned"}</b>
         </li>
-        <li className={`${styles.step} ${locked ? styles.stepDone : styles.stepNow}`}>
-          <span className={styles.stepNum}>{locked ? "✓" : 2}</span>
+        <li className={`${styles.step} ${locked || (classTest && allIn) ? styles.stepDone : styles.stepNow}`}>
+          <span className={styles.stepNum}>{locked || (classTest && allIn) ? "✓" : 2}</span>
           <b>Marks entry</b>
           {isClassTeacher && progress ? `${complete}/${subjects.length} subjects done` : "Teachers enter marks"}
         </li>
-        <li className={`${styles.step} ${exam.resultsPublished ? styles.stepDone : locked ? styles.stepNow : ""}`}>
-          <span className={styles.stepNum}>{exam.resultsPublished ? "✓" : 3}</span>
+        <li className={`${styles.step} ${exam.resultsPublished || (classTest && anyEntered) ? styles.stepDone : locked ? styles.stepNow : ""}`}>
+          <span className={styles.stepNum}>{exam.resultsPublished || (classTest && anyEntered) ? "✓" : 3}</span>
           <b>Results</b>
           {exam.type === "CLASS_TEST" ? "Visible to students as saved" : exam.resultsPublished ? "Published to families" : "Coordinator locks, Principal publishes"}
         </li>
@@ -376,6 +436,7 @@ const ExamDetail = ({
       )}
 
       {locked && <div className={styles.notice}>Marks are locked{exam.lockedByUser ? ` by ${exam.lockedByUser.name}` : ""}, so they can be viewed but not changed.</div>}
+      {!locked && closed && <div className={styles.notice}>The marks deadline ({deadlineText(exam)}) has passed. Ask the exam coordinator to extend it.</div>}
 
       {isLoading ? (
         <Spinner />
@@ -385,7 +446,7 @@ const ExamDetail = ({
             <h2 className={styles.panelTitle}>My subjects</h2>
             {mine.length === 0 ? (
               <p className={styles.muted} style={{ margin: 0 }}>
-                No subject of this class is allocated to you. Subject teachers enter their own marks.
+                {isClassTeacher ? "You don't teach a subject with a paper in this exam. Subject teachers enter their own marks." : "None of your subjects has a paper in this exam."}
               </p>
             ) : (
               <ul className={styles.subjects}>
@@ -400,7 +461,7 @@ const ExamDetail = ({
                     </span>
                     <span style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
                       <Button size="sm" onClick={() => onEnter(s.subjectId)}>
-                        {locked ? "View marks" : s.entered ? "Edit marks" : "Enter marks"}
+                        {closed ? "View marks" : s.entered ? "Edit marks" : "Enter marks"}
                       </Button>
                       {s.entered > 0 && !isClassTeacher && (
                         <Button size="sm" variant="outline" onClick={() => onSubjectResults(s.subjectId)}>
@@ -418,9 +479,9 @@ const ExamDetail = ({
             <>
               <section className={styles.panel}>
                 <h2 className={styles.panelTitle}>All subjects · class teacher view</h2>
-                {others.length === 0 && mine.length === subjects.length ? (
+                {others.length === 0 ? (
                   <p className={styles.muted} style={{ margin: 0 }}>
-                    You teach every subject of this class.
+                    {subjects.length ? "You teach every subject with a paper in this exam." : "No papers have been set for this exam yet."}
                   </p>
                 ) : (
                   <ul className={styles.subjects}>
@@ -442,13 +503,13 @@ const ExamDetail = ({
 
               <div className={styles.actionsGrid}>
                 {exam.type !== "CLASS_TEST" && !locked && (
-                  <button type="button" className={styles.bigAction} onClick={toggleReady} disabled={settingReady}>
+                  <button type="button" className={styles.bigAction} onClick={toggleReady} disabled={settingReady || (!exam.readyAt && !allIn)}>
                     <span className={styles.examIcon}>
                       <Icon name={exam.readyAt ? "check" : "clipboardCheck"} size={18} />
                     </span>
                     <span>
                       <b>{exam.readyAt ? "Marked ready ✓" : "Mark marks as ready"}</b>
-                      <small>{exam.readyAt ? "Tap to take it back" : `Tell the coordinator all marks are in (${complete}/${subjects.length} subjects done)`}</small>
+                      <small>{exam.readyAt ? "Tap to take it back" : allIn ? "Tell the coordinator all marks are in" : `Available when every subject is complete (${complete}/${subjects.length} done)`}</small>
                     </span>
                   </button>
                 )}
@@ -464,7 +525,24 @@ const ExamDetail = ({
               </div>
             </>
           )}
+
+          {classTest && mine.length > 0 && (
+            <button type="button" className={styles.dangerLink} onClick={() => setConfirmDelete(true)}>
+              Delete this class test
+            </button>
+          )}
         </>
+      )}
+
+      {confirmDelete && (
+        <ConfirmDialog
+          title="Delete this class test?"
+          message={`"${exam.name}" and any marks saved for it will be removed. Students will no longer see it.`}
+          confirmLabel="Delete"
+          isLoading={deleting}
+          onCancel={() => setConfirmDelete(false)}
+          onConfirm={removeTest}
+        />
       )}
     </div>
   );

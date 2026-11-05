@@ -213,12 +213,6 @@ const StudentDashboardPage = () => {
                     {latestResult.total} / {latestResult.maxTotal} marks
                   </div>
                 </div>
-                {latestResult.rank && (
-                  <div>
-                    <div className={styles.bigValue}>#{latestResult.rank}</div>
-                    <div className={styles.muted}>Class rank of {latestResult.rankedCount}</div>
-                  </div>
-                )}
               </div>
               {latestResult.failedSubjects.length > 0 && (
                 <p className={styles.warnNote}>Needs attention in: {latestResult.failedSubjects.join(", ")}</p>

@@ -753,3 +753,40 @@
   background: var(--erp-primary-50);
   color: var(--erp-primary-700);
 }
+
+.typeTabs {
+  display: flex;
+  gap: 0.4rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin-bottom: 0.7rem;
+}
+
+.typeTabs .preset {
+  flex-shrink: 0;
+}
+
+.dangerLink {
+  align-self: flex-start;
+  border: none;
+  background: none;
+  padding: 0.25rem 0;
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--erp-danger);
+  cursor: pointer;
+}
+
+/* Keep the student's name in view while scrolling the marks sideways on a phone. */
+.paTable th.paName,
+.paTable td.paName {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--erp-surface);
+}
+
+.paTable th.paName {
+  background: var(--erp-primary-50);
+}

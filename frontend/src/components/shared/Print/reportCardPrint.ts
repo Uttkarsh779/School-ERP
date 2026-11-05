@@ -57,6 +57,8 @@ const cardHtml = (c: PrintableReportCard, set: PrintableReportCards, school: Pri
     })
     .join("");
 
+  // Co-scholastic grades are given per term now, so most exam cards have none: leave Part B out.
+  const hasCo = CO_SCHOLASTIC.some(([k]) => c.coScholastic[k]);
   const co = CO_SCHOLASTIC.map(([k, label]) => {
     const g = c.coScholastic[k];
     return `<tr><td>${label}</td><td class="c"><b>${esc(g ?? "—")}</b>${g && CO_MEANING[g] ? ` <span class="muted">(${CO_MEANING[g]})</span>` : ""}</td></tr>`;
@@ -103,11 +105,15 @@ const cardHtml = (c: PrintableReportCard, set: PrintableReportCards, school: Pri
     ${c.failedSubjects.length && c.status === "FAIL" ? `<p class="note">Needs attention in: ${esc(c.failedSubjects.join(", "))}. Pass mark is ${set.exam.passPercentage}% in each subject.</p>` : ""}
 
     <div class="two">
-      <div>
+      ${
+        hasCo
+          ? `<div>
         <h3>Part B — Co-scholastic areas</h3>
         <table class="small"><thead><tr><th>Area</th><th class="c" style="width:45%">Grade</th></tr></thead><tbody>${co}</tbody></table>
         <div class="muted tiny">A – Outstanding · B – Very good · C – Fair</div>
-      </div>
+      </div>`
+          : ""
+      }
       <div>
         <h3>Grading scale (marks %)</h3>
         <table class="small scale"><tbody>
@@ -116,8 +122,7 @@ const cardHtml = (c: PrintableReportCard, set: PrintableReportCards, school: Pri
       </div>
     </div>
 
-    <h3>Class teacher's remark</h3>
-    <div class="remark">${c.remark ? esc(c.remark) : '<span class="muted">—</span>'}</div>
+    ${c.remark ? `<h3>Class teacher's remark</h3><div class="remark">${esc(c.remark)}</div>` : ""}
 
     <div class="signs">
       <div><div class="line"></div>Class Teacher${set.classTeacher ? `<div class="muted">${esc(set.classTeacher)}</div>` : ""}</div>

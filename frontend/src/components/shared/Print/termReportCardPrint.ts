@@ -9,6 +9,7 @@ import { esc, letterheadHtml, LETTERHEAD_CSS, printHtml, signatureHtml, type Pri
 
 export type PrintableResult = Pick<ClassResult, "kind" | "term" | "classSection" | "session" | "classTeacher" | "scheme" | "weights" | "subjects" | "attendance"> & {
   students: ResultStudent<TermSubjectResult & FinalSubjectResult>[];
+  provisional?: boolean; // staff printing a result that isn't published yet
 };
 
 const CO = [
@@ -38,6 +39,7 @@ const scholasticTerm = (s: PrintableResult["students"][number], r: PrintableResu
 
 const scholasticFinal = (s: PrintableResult["students"][number], r: PrintableResult) => {
   const w = r.weights ?? [50, 50];
+  const termMax = r.scheme.paMax + r.scheme.examMax;
   const rows = s.subjects
     .filter((x) => x.term1 || x.term2)
     .map(
@@ -45,7 +47,7 @@ const scholasticFinal = (s: PrintableResult["students"][number], r: PrintableRes
         `<tr><td class="l">${esc(x.subjectName)}</td><td>${n(x.term1?.total)}</td><td>${esc(x.term1?.grade ?? "—")}</td><td>${n(x.term2?.total)}</td><td>${esc(x.term2?.grade ?? "—")}</td><td><b>${n(x.percentage)}</b></td><td><b>${esc(x.grade ?? "—")}</b></td></tr>`
     )
     .join("");
-  return `<table class="marks"><thead><tr><th class="l">Subject</th><th>Term 1<br><small>(100)</small></th><th>Grade</th><th>Term 2<br><small>(100)</small></th><th>Grade</th><th>Final %<br><small>(${w[0]}% + ${w[1]}%)</small></th><th>Grade</th></tr></thead><tbody>${rows}</tbody></table>`;
+  return `<table class="marks"><thead><tr><th class="l">Subject</th><th>Term 1<br><small>(${termMax})</small></th><th>Grade</th><th>Term 2<br><small>(${termMax})</small></th><th>Grade</th><th>Final %<br><small>(${w[0]}% + ${w[1]}%)</small></th><th>Grade</th></tr></thead><tbody>${rows}</tbody></table>`;
 };
 
 const coTable = (s: PrintableResult["students"][number], r: PrintableResult) => {
@@ -67,7 +69,7 @@ const cardHtml = (s: PrintableResult["students"][number], r: PrintableResult, sc
   const legend = grades.map((g, i) => `${esc(g.grade)} ${g.min}${i === 0 ? "–100" : `–${grades[i - 1].min - 1}`}`).join(" · ");
   return `<section class="card">
     ${letterheadHtml(school)}
-    <div class="title"><h2>${esc(titleOf(r))}</h2><div>Session ${esc(r.session)}</div></div>
+    <div class="title"><h2>${esc(titleOf(r))}</h2><div>Session ${esc(r.session)}</div>${r.provisional ? '<div class="prov">Provisional: not yet published, marks may change</div>' : ""}</div>
     <div class="who">
       <table class="details">
         <tr><th>Student's name</th><td colspan="3"><b>${esc(st.name)}</b></td></tr>
@@ -115,6 +117,7 @@ export const printTermReportCards = (r: PrintableResult, school: PrintSchool | n
   .title { text-align: center; margin: 8px 0 8px; }
   .title h2 { display: inline-block; margin: 0 0 3px; padding: 3px 22px; background: var(--ink); color: #fff; font: 700 12pt "Segoe UI", Arial, sans-serif; letter-spacing: .16em; text-transform: uppercase; border-radius: 3px; }
   .title div { font-weight: 600; color: #4a5361; }
+  .title .prov { color: #8a3b12; }
   .who { display: flex; gap: 10px; }
   .details { flex: 1; border-collapse: collapse; }
   .details th, .details td { border: 1px solid var(--line); padding: 3px 7px; text-align: left; }

@@ -1,5 +1,6 @@
 import { Router } from "express";
-import { authenticateToken, authorizeRoles } from "../../middleware/auth";
+import { authenticateToken } from "../../middleware/auth";
+import { allow } from "../../config/permissions";
 import { asyncHandler } from "../../utils/asyncHandler";
 import type { Response } from "express";
 import type { CustomRequest } from "../../middleware/auth";
@@ -32,32 +33,32 @@ router.use(planRouter);
 
 router.get(
   "/",
-  authorizeRoles(["SUPER_ADMIN", "ADMIN", "TEACHER", "STUDENT", "PARENT"]),
+  allow("exams.coordinate", "TEACHER", "STUDENT", "PARENT"),
   asyncHandler(getExams)
 );
-router.post("/", authorizeRoles(["SUPER_ADMIN", "ADMIN", "TEACHER"]), asyncHandler(postExam)); // coordinator, see planService
-router.get("/date-sheets", authorizeRoles(["SUPER_ADMIN", "ADMIN", "TEACHER", "STUDENT", "PARENT"]), asyncHandler(getDateSheets));
+router.post("/", allow("exams.coordinate", "TEACHER"), asyncHandler(postExam)); // coordinator, see planService
+router.get("/date-sheets", allow("exams.coordinate", "TEACHER", "STUDENT", "PARENT"), asyncHandler(getDateSheets));
 router.post(
   "/:id/results",
-  authorizeRoles(["SUPER_ADMIN", "ADMIN", "TEACHER"]),
+  allow("exams.coordinate", "TEACHER"),
   asyncHandler(postExamResults)
 );
-router.get("/:id/results", authorizeRoles(["SUPER_ADMIN", "ADMIN", "TEACHER"]), asyncHandler(getExamResults));
-router.get("/:id/progress", authorizeRoles(["SUPER_ADMIN", "ADMIN", "TEACHER"]), asyncHandler(getExamProgress));
-router.get("/:id/analysis", authorizeRoles(["SUPER_ADMIN", "ADMIN", "TEACHER"]), asyncHandler(getExamAnalysisHandler));
-router.get("/:id/audit", authorizeRoles(["SUPER_ADMIN", "ADMIN", "TEACHER"]), asyncHandler(getExamAudit));
-router.patch("/:id/lock", authorizeRoles(["SUPER_ADMIN", "ADMIN", "TEACHER"]), asyncHandler(patchExamLock)); // coordinator
-router.patch("/:id/publish", authorizeRoles(["SUPER_ADMIN", "TEACHER"]), asyncHandler(patchExamPublish)); // Super Admin / Principal
-router.get("/:id/remarks", authorizeRoles(["SUPER_ADMIN", "ADMIN", "TEACHER"]), asyncHandler(getExamRemarks));
-router.put("/:id/remarks", authorizeRoles(["SUPER_ADMIN", "ADMIN", "TEACHER"]), asyncHandler(putExamRemarks));
+router.get("/:id/results", allow("exams.coordinate", "TEACHER"), asyncHandler(getExamResults));
+router.get("/:id/progress", allow("exams.coordinate", "TEACHER"), asyncHandler(getExamProgress));
+router.get("/:id/analysis", allow("exams.coordinate", "TEACHER"), asyncHandler(getExamAnalysisHandler));
+router.get("/:id/audit", allow("exams.coordinate", "TEACHER"), asyncHandler(getExamAudit));
+router.patch("/:id/lock", allow("exams.coordinate", "TEACHER"), asyncHandler(patchExamLock)); // coordinator
+router.patch("/:id/publish", allow("exams.publish"), asyncHandler(patchExamPublish)); // Super Admin / Principal
+router.get("/:id/remarks", allow("exams.coordinate", "TEACHER"), asyncHandler(getExamRemarks));
+router.put("/:id/remarks", allow("exams.coordinate", "TEACHER"), asyncHandler(putExamRemarks));
 router.get(
   "/:id/report-card/:studentId",
-  authorizeRoles(["SUPER_ADMIN", "ADMIN", "TEACHER", "STUDENT", "PARENT"]),
+  allow("exams.coordinate", "TEACHER", "STUDENT", "PARENT"),
   asyncHandler(getReportCard)
 );
 router.get(
   "/:id/report-cards/print",
-  authorizeRoles(["SUPER_ADMIN", "ADMIN", "TEACHER", "STUDENT", "PARENT"]),
+  allow("exams.coordinate", "TEACHER", "STUDENT", "PARENT"),
   asyncHandler(getReportCardsPrint)
 );
 
@@ -69,7 +70,7 @@ const examId = (req: CustomRequest) => {
 };
 router.put(
   "/:id/date-sheet",
-  authorizeRoles(["SUPER_ADMIN", "ADMIN", "TEACHER"]),
+  allow("exams.coordinate", "TEACHER"),
   asyncHandler(async (req: CustomRequest, res: Response) => {
     await assertCoordinator(req.user!);
     res.json({ success: true, message: "Date sheet saved", data: await saveDateSheet(examId(req), req.body) });
@@ -77,7 +78,7 @@ router.put(
 );
 router.get(
   "/:id/admit-cards",
-  authorizeRoles(["SUPER_ADMIN", "ADMIN", "TEACHER"]),
+  allow("exams.coordinate", "TEACHER"),
   asyncHandler(async (req: CustomRequest, res: Response) => {
     await assertCoordinator(req.user!);
     res.json({ success: true, data: await getAdmitCards(examId(req)) });

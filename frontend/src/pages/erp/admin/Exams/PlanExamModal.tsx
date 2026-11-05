@@ -1,8 +1,7 @@
 import { useMemo, useState } from "react";
 import { toast } from "react-toastify";
 import { Button, Input, Modal, Select } from "../../../../components/ui";
-import { useGetClassSectionsQuery } from "../../../../store/api/classSections.api";
-import { useCreatePlannedExamMutation, useUpdatePlannedExamMutation, type ExamType, type PlanGroup } from "../../../../store/api/examPlan.api";
+import { useCreatePlannedExamMutation, useGetExamClassesQuery, useUpdatePlannedExamMutation, type ExamType, type PlanGroup } from "../../../../store/api/examPlan.api";
 import styles from "./AdminExamsPage.module.css";
 
 // Exam coordinator: set up a term exam or periodic test once for many classes, or change a
@@ -19,13 +18,14 @@ const istDay = (d: string | null) => (d ? new Date(new Date(d).getTime() + 5.5 *
 
 const PlanExamModal = ({ group, onClose }: { group?: PlanGroup; onClose: () => void }) => {
   const editing = !!group;
-  const { data: classSections } = useGetClassSectionsQuery();
+  const { data: classSections } = useGetExamClassesQuery();
   const [create, { isLoading: creating }] = useCreatePlannedExamMutation();
   const [update, { isLoading: updating }] = useUpdatePlannedExamMutation();
   const [name, setName] = useState(group?.name ?? "");
   const [type, setType] = useState<ExamType>(group?.type ?? "TERM_EXAM");
   const [term, setTerm] = useState(String(group?.term ?? 1));
   const [admitCard, setAdmitCard] = useState(group?.admitCard ?? true);
+  const kind = group?.type ?? type;
   const [deadline, setDeadline] = useState(istDay(group?.marksDeadline ?? null));
   const [picked, setPicked] = useState<Set<number>>(new Set());
 
@@ -77,11 +77,11 @@ const PlanExamModal = ({ group, onClose }: { group?: PlanGroup; onClose: () => v
           <Input label="Marks entry deadline" type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} />
         </div>
         <p className={styles.admitHint}>
-          {type === "TERM_EXAM"
-            ? "Counts as the term's written exam (the 80 marks). In Class 10, the Half Yearly counts as a periodic test and the Annual as the exam."
-            : "Counts towards the term's periodic assessment (out of 20). Each subject teacher can set their own max marks."}
+          {kind === "TERM_EXAM"
+            ? "The term's written exam; each class can have one per term. In a one-result class (Class 10), the last term exam is the exam and earlier ones count as periodic tests."
+            : "Counts towards the term's periodic assessment. Each subject teacher can set their own max marks."}
         </p>
-        {(editing ? group!.type === "TERM_EXAM" : type === "TERM_EXAM") && (
+        {kind === "TERM_EXAM" && (
           <label className={styles.checkRow}>
             <input type="checkbox" checked={admitCard} onChange={(e) => setAdmitCard(e.target.checked)} />
             Issue admit cards for this exam
@@ -89,6 +89,11 @@ const PlanExamModal = ({ group, onClose }: { group?: PlanGroup; onClose: () => v
         )}
 
         <div>
+          {editing && (
+            <p className={styles.admitHint}>
+              Set up for {group!.exams.map((e) => `${e.className} - ${e.section}`).join(", ")}.
+            </p>
+          )}
           <div className={styles.planClassesHead}>
             <span>{editing ? "Add more classes" : "Classes"}</span>
             {classes.length > 0 && (
@@ -116,7 +121,7 @@ const PlanExamModal = ({ group, onClose }: { group?: PlanGroup; onClose: () => v
             Cancel
           </Button>
           <Button onClick={save} isLoading={creating || updating} disabled={name.trim().length < 2}>
-            {editing ? "Save" : `Set up for ${picked.size || ""} class${picked.size === 1 ? "" : "es"}`}
+            {editing ? "Save" : picked.size ? `Set up for ${picked.size} class${picked.size === 1 ? "" : "es"}` : "Set up"}
           </Button>
         </div>
       </div>

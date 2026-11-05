@@ -39,6 +39,8 @@ const ChangeHistory = ({ examId }: { examId: number }) => {
       render: (e) =>
         e.action === "CREATE" ? (
           <span>Entered <strong>{fmtMark(e.newMarks, e.newMaxMarks, e.newIsAbsent)}</strong></span>
+        ) : e.action === "DELETE" ? (
+          <span>Removed <strong>{fmtMark(e.oldMarks, e.oldMaxMarks, e.oldIsAbsent)}</strong></span>
         ) : (
           <span>
             {fmtMark(e.oldMarks, e.oldMaxMarks, e.oldIsAbsent)} → <strong>{fmtMark(e.newMarks, e.newMaxMarks, e.newIsAbsent)}</strong>
@@ -74,7 +76,7 @@ const ChangeHistory = ({ examId }: { examId: number }) => {
 // Staff-only results view for one exam: summary, toppers, subject-wise stats and the full
 // merit list with ranks. Ranking/pass rules live on the backend (exams/analysisService.ts).
 const ExamResultsView = ({ examId, onBack }: { examId: number; onBack: () => void }) => {
-  const { data, isLoading, isFetching, isError, refetch } = useGetExamAnalysisQuery(examId);
+  const { data, isLoading, isError, refetch } = useGetExamAnalysisQuery(examId);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [viewing, setViewing] = useState<ExamAnalysisStudent | null>(null);
@@ -133,7 +135,7 @@ const ExamResultsView = ({ examId, onBack }: { examId: number; onBack: () => voi
     );
   }
 
-  if (isLoading || isFetching || !data) {
+  if (isLoading || !data) {
     return (
       <div className={styles.page}>
         {header}

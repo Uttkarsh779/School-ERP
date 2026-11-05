@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "react-toastify";
-import { Button, EmptyState, Icon, Input, Spinner } from "../../../../components/ui";
+import { Button, ConfirmDialog, EmptyState, Icon, Input, Spinner } from "../../../../components/ui";
 import { useEnterExamResultsMutation, useGetExamResultsQuery, type EnterExamResultInput } from "../../../../store/api/exams.api";
 import { isAbsentText } from "../../admin/Exams/marksCell";
 import { useGetExamSubjectsQuery, useSaveExamSubjectsMutation } from "../../../../store/api/examPlan.api";
@@ -15,15 +15,19 @@ const getErrorMessage = (err: unknown, fallback: string): string =>
 // student, an AB (absent) toggle, Enter moves to the next student, and a sticky save bar.
 // Max marks are set for the exam: the coordinator's for a term exam; in a periodic test or
 // class test the subject teacher decides them here. Only the subject's own teacher reaches this.
+// Emptying a saved box removes that mark. After the deadline the sheet is read-only, except for
+// the exam coordinator.
 const MarksEntry = ({
   exam,
   subject,
   students,
+  coordinator,
   onDone,
 }: {
   exam: IExam;
   subject: { id: number; name: string };
   students: Student[];
+  coordinator: boolean;
   onDone: () => void;
 }) => {
   const { data: results, isLoading } = useGetExamResultsQuery(exam.id);
@@ -31,12 +35,23 @@ const MarksEntry = ({
   const [save, { isLoading: saving }] = useEnterExamResultsMutation();
   const [saveMax, { isLoading: savingMax }] = useSaveExamSubjectsMutation();
   const subjectRow = examSubjects?.find((s) => s.subjectId === subject.id);
-  const canEditMax = !!subjectRow?.canEdit && !exam.isLocked;
+  const canEditMax = !!subjectRow?.canEdit && !exam.isLocked && !(exam.marksDeadline && new Date(exam.marksDeadline) < new Date() && !coordinator);
   const [max, setMax] = useState("");
   const [marks, setMarks] = useState<Record<number, string>>({});
   const [dirty, setDirty] = useState(false);
   const inputs = useRef<Record<number, HTMLInputElement | null>>({});
-  const locked = !!exam.isLocked;
+  const [leaving, setLeaving] = useState(false);
+  const pastDeadline = !!exam.marksDeadline && new Date(exam.marksDeadline) < new Date() && !coordinator;
+  const locked = !!exam.isLocked || pastDeadline;
+  const savedIds = useMemo(() => new Set((results ?? []).filter((r) => r.subjectId === subject.id).map((r) => r.studentId)), [results, subject.id]);
+
+  // Don't lose typed marks to a closed tab or a reload.
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
 
   // Seed from saved marks; the max comes from the exam's subject settings.
   useEffect(() => {
@@ -79,18 +94,18 @@ const MarksEntry = ({
   const submit = async () => {
     if (!maxOk) return toast.error("Enter the maximum marks for this subject first");
     if (errors) return toast.error(`Fix the ${errors} highlighted mark${errors === 1 ? "" : "s"} first`);
-    const rows: EnterExamResultInput[] = sorted
-      .filter((s) => (marks[s.id] ?? "").trim() !== "")
-      .map((s) => {
-        const absent = isAbsentText(marks[s.id]);
-        return { studentId: s.id, subjectId: subject.id, marksObtained: absent ? 0 : Number(marks[s.id]), maxMarks: maxNum, isAbsent: absent };
-      });
+    const rows = sorted.flatMap((s): EnterExamResultInput[] => {
+      const value = (marks[s.id] ?? "").trim();
+      if (!value) return savedIds.has(s.id) ? [{ studentId: s.id, subjectId: subject.id, marksObtained: 0, maxMarks: maxNum, clear: true }] : [];
+      const absent = isAbsentText(value);
+      return [{ studentId: s.id, subjectId: subject.id, marksObtained: absent ? 0 : Number(value), maxMarks: maxNum, isAbsent: absent }];
+    });
     if (!rows.length) return toast.error("Enter at least one student's marks");
     try {
       if (canEditMax && subjectRow && maxNum !== subjectRow.maxMarks) await saveMax({ examId: exam.id, subjects: [{ subjectId: subject.id, maxMarks: maxNum }] }).unwrap();
       const outcomes = await save({ examId: exam.id, results: rows }).unwrap();
       const failed = outcomes.filter((o) => !o.success);
-      if (failed.length) toast.error(`${failed.length} mark(s) couldn't be saved: ${failed[0].message}`);
+      if (failed.length) toast.error(`${failed.length} mark${failed.length === 1 ? "" : "s"} couldn't be saved: ${failed[0].message}`);
       else {
         toast.success(`${subject.name}: ${rows.length} mark${rows.length === 1 ? "" : "s"} saved`);
         setDirty(false);
@@ -100,10 +115,7 @@ const MarksEntry = ({
     }
   };
 
-  const back = () => {
-    if (dirty && !window.confirm("You have unsaved marks. Leave without saving?")) return;
-    onDone();
-  };
+  const back = () => (dirty ? setLeaving(true) : onDone());
 
   if (isLoading || subjectsLoading) return <Spinner />;
   if (subjectRow && subjectRow.maxMarks === null) {
@@ -129,7 +141,8 @@ const MarksEntry = ({
         </p>
       </div>
 
-      {locked && <div className={styles.notice}>Marks are locked{exam.lockedByUser ? ` by ${exam.lockedByUser.name}` : ""}. Ask the exam coordinator to unlock them for a correction.</div>}
+      {exam.isLocked && <div className={styles.notice}>Marks are locked{exam.lockedByUser ? ` by ${exam.lockedByUser.name}` : ""}. Ask the exam coordinator to unlock them for a correction.</div>}
+      {!exam.isLocked && pastDeadline && <div className={styles.notice}>The marks deadline has passed. Ask the exam coordinator to extend it.</div>}
 
       {sorted.length === 0 ? (
         <EmptyState title="No students in this class" description="Students added to the class will appear here." />
@@ -150,7 +163,7 @@ const MarksEntry = ({
                 }}
               />
               <p className={styles.muted} style={{ margin: 0, flex: 1, minWidth: "12rem" }}>
-                {canEditMax ? "You decide this for your subject in this test." : "Set by the exam coordinator."} Tap <b>AB</b> for an absent student; leave a box empty if marks aren&apos;t ready.
+                {canEditMax ? "You decide this for your subject in this test." : "Set by the exam coordinator."} Tap <b>AB</b> for an absent student; leave a box empty if marks aren&apos;t ready. Emptying a saved box removes that mark.
               </p>
             </div>
           </section>
@@ -215,6 +228,17 @@ const MarksEntry = ({
             </div>
           )}
         </>
+      )}
+
+      {leaving && (
+        <ConfirmDialog
+          title="Leave without saving?"
+          message="The marks you've typed since your last save will be lost."
+          confirmLabel="Leave"
+          cancelLabel="Keep editing"
+          onCancel={() => setLeaving(false)}
+          onConfirm={onDone}
+        />
       )}
     </div>
   );

@@ -59,7 +59,7 @@ export const getTeacherDashboard = async (userId: number) => {
           where: { classSectionId: { in: classIds } },
           orderBy: { id: "desc" },
           take: 6,
-          include: { session: { select: { name: true } }, classSection: { select: { id: true, className: true, section: true } } },
+          include: { session: { select: { name: true } }, classSection: { select: { id: true, className: true, section: true } }, subjects: { select: { subjectId: true } } },
         })
       : [],
     prisma.assignment.findMany({
@@ -129,18 +129,12 @@ export const getTeacherDashboard = async (userId: number) => {
   // (every subject tested in the class when they're class teacher, otherwise their own).
   const mySubjectIds = new Set((teacherSubjects as any[]).map((t) => t.subjectId));
   const examIds = (exams as any[]).map((e) => e.id);
-  const [resultRows, classSubjects] = examIds.length
-    ? await Promise.all([
-        prisma.examResult.groupBy({ by: ["examId", "subjectId"], where: { examId: { in: examIds } }, _count: { _all: true } }),
-        prisma.subject.findMany({ where: { classSectionId: { in: classIds } }, select: { id: true, classSectionId: true } }),
-      ])
-    : [[], []];
+  const resultRows = examIds.length ? await prisma.examResult.groupBy({ by: ["examId", "subjectId"], where: { examId: { in: examIds } }, _count: { _all: true } }) : [];
 
   const examRows = (exams as any[]).map((exam) => {
     const isClassTeacher = exam.classSectionId && classTeacherIds.includes(exam.classSectionId);
-    const subjectIds = (classSubjects as any[])
-      .filter((s) => s.classSectionId === exam.classSectionId && (isClassTeacher || mySubjectIds.has(s.id)))
-      .map((s) => s.id);
+    // Only subjects with a paper in this exam (a class test has one).
+    const subjectIds = (exam.subjects as { subjectId: number }[]).map((s) => s.subjectId).filter((id) => isClassTeacher || mySubjectIds.has(id));
     const students = studentsByClass.get(exam.classSectionId) ?? 0;
     const expected = subjectIds.length * students;
     const entered = (resultRows as any[])

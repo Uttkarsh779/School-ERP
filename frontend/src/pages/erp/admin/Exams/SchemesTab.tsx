@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react";
 import { toast } from "react-toastify";
 import { Button, Card, ConfirmDialog, EmptyState, Input, Modal, Select, Spinner } from "../../../../components/ui";
-import { useGetClassSectionsQuery } from "../../../../store/api/classSections.api";
 import {
   useDeleteSchemeMutation,
+  useGetExamClassesQuery,
   useGetExamMetaQuery,
   useGetSchemesQuery,
   useSaveSchemeMutation,
@@ -16,7 +16,8 @@ import styles from "./AdminExamsPage.module.css";
 
 // Assessment schemes: how each group of classes is assessed (terms, periodic assessment +
 // exam marks and their parts, final weightage, grade scale, co-scholastic scale). The exam
-// coordinator edits them; the Super Admin also sets the admit-card rule for fee dues here.
+// Super Admin and the Principal edit them (others read them); the Super Admin also sets the
+// admit-card rule for fee dues here.
 
 const PRE = ["Nursery", "LKG", "UKG"];
 const classOrder = (c: string) => (PRE.includes(c) ? PRE.indexOf(c) - 10 : parseInt(c.replace(/\D/g, ""), 10) || 100);
@@ -109,7 +110,12 @@ const SchemeEditor = ({ scheme, allClasses, onClose }: { scheme: Partial<Scheme>
             <span>
               Periodic assessment parts <small className={compTotal === s.paMax ? styles.readyPill : styles.failText}>({compTotal} of {s.paMax})</small>
             </span>
-            <button type="button" className={styles.linkBtn} onClick={() => set({ paComponents: [...comps, { key: `C${comps.length + 1}`, label: "", max: 5, source: "MARKS" }] })}>
+            <button type="button" className={styles.linkBtn} onClick={() => {
+                // A key is never reused: marks already entered stay tied to their own part.
+                let n = comps.length + 1;
+                while (comps.some((c) => c.key === `C${n}`)) n += 1;
+                set({ paComponents: [...comps, { key: `C${n}`, label: "", max: 5, source: "MARKS" }] });
+              }}>
               + Add part
             </button>
           </div>
@@ -195,19 +201,19 @@ const SchemeEditor = ({ scheme, allClasses, onClose }: { scheme: Partial<Scheme>
 const SchemesTab = () => {
   const { data: schemes, isLoading, isError, refetch } = useGetSchemesQuery();
   const { data: meta } = useGetExamMetaQuery();
-  const { data: classSections } = useGetClassSectionsQuery();
+  const { data: classSections } = useGetExamClassesQuery();
   const isSuperAdmin = useAppSelector((s) => s.auth.user?.role) === "SUPER_ADMIN";
   const [editing, setEditing] = useState<Partial<Scheme> | null>(null);
   const [deleting, setDeleting] = useState<Scheme | null>(null);
   const [remove, { isLoading: removing }] = useDeleteSchemeMutation();
   const [updateSettings, { isLoading: savingSetting }] = useUpdateExamSettingsMutation();
-  const coordinator = !!meta?.permissions.coordinator;
+  const canEdit = !!meta?.permissions.schemes; // Super Admin and Principal
   const allClasses = useMemo(() => [...new Set((classSections ?? []).map((c) => c.className))].sort((a, b) => classOrder(a) - classOrder(b)), [classSections]);
   const unassigned = allClasses.filter((c) => !(schemes ?? []).some((s) => s.classNames.includes(c)));
 
   return (
     <div className={styles.listPage}>
-      <Card title="Admit cards and unpaid fees" subtitle={isSuperAdmin ? "Only the Super Admin can change this." : undefined}>
+      <Card title="Admit cards and unpaid fees" subtitle={isSuperAdmin ? undefined : "Only the Super Admin can change this."}>
         <label className={styles.checkRow}>
           <input
             type="checkbox"
@@ -231,12 +237,13 @@ const SchemesTab = () => {
 
       <div className={styles.sectionHead}>
         <h2>Assessment schemes</h2>
-        {coordinator && (
+        {canEdit && (
           <Button size="sm" onClick={() => setEditing(structuredClone(blank))}>
             New scheme
           </Button>
         )}
       </div>
+      {!canEdit && <p className={styles.admitHint}>Only the Super Admin and the Principal can change these.</p>}
       {unassigned.length > 0 && <p className={styles.resultWarn}>Not in any scheme yet (they use the default two-term pattern): {unassigned.join(", ")}</p>}
 
       {isLoading ? (
@@ -251,7 +258,7 @@ const SchemesTab = () => {
               title={s.name}
               subtitle={s.classNames.join(", ") || "No classes"}
               action={
-                coordinator ? (
+                canEdit ? (
                   <div className={styles.cardActions}>
                     <Button size="sm" variant="outline" onClick={() => setEditing(s)}>
                       Edit

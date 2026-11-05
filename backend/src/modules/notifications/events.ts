@@ -1,6 +1,7 @@
 import { prisma } from "../../config/prisma";
 import { notify, notifyLater, type NotificationInput } from "./service";
 import { isTodayOff } from "../calendar/service";
+import { PERMISSIONS } from "../../config/permissions";
 
 // What triggers a notification, who receives it and what it says. Each function is called
 // from the module where the event happens and runs in the background (notifyLater).
@@ -13,7 +14,16 @@ const prettyDate = (d: Date | string) =>
   new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short", timeZone: "Asia/Kolkata" });
 const rupees = (n: number) => `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
 
-const ROLE_HOME: Record<string, string> = { SUPER_ADMIN: "/admin", ADMIN: "/admin", TEACHER: "/teacher", STUDENT: "/student" };
+const ROLE_HOME: Record<string, string> = {
+  SUPER_ADMIN: "/admin",
+  ADMIN: "/admin",
+  PRINCIPAL: "/admin",
+  ACCOUNTANT: "/admin",
+  TEACHER: "/teacher",
+  STUDENT: "/student",
+};
+// Notices for "staff" (targetRole TEACHER) or everyone also reach the Principal and Accountant.
+const STAFF_ROLES = ["TEACHER", "PRINCIPAL", "ACCOUNTANT"];
 
 const studentUsers = (where: object) =>
   prisma.student.findMany({ where: { ...where, isActive: true, userId: { not: null } }, select: { id: true, name: true, userId: true } });
@@ -59,13 +69,14 @@ export const onResultsPublished = (examId: number) =>
   notifyLater(async () => {
     const exam = await prisma.exam.findUnique({ where: { id: examId }, select: { name: true, classSectionId: true } });
     if (!exam) return [];
+    const stamp = Date.now();
     return (await studentUsers({ classSectionId: exam.classSectionId })).map((s: any) => ({
       userId: s.userId,
       type: "RESULTS",
       title: `${exam.name} results are out`,
       body: `${s.name}'s report card for ${exam.name} is now available.`,
       link: "/student/report-card",
-      dedupeKey: `results:${examId}`,
+      dedupeKey: `results:${examId}:${stamp}`, // a re-publish after a correction is news too
     }));
   });
 
@@ -84,17 +95,34 @@ export const onDateSheetPublished = (examId: number) =>
     }));
   });
 
-// ---- A term or final result published for a class (term 0 = final).
-export const onTermResultPublished = (classSectionId: number, term: number) =>
+// ---- A date sheet changed after students were told about it.
+export const onDateSheetChanged = (examId: number) =>
   notifyLater(async () => {
-    const what = term === 0 ? "Final result" : `Term ${term} result`;
+    const exam = await prisma.exam.findUnique({ where: { id: examId }, select: { name: true, classSectionId: true } });
+    if (!exam) return [];
+    const stamp = Date.now();
+    return (await studentUsers({ classSectionId: exam.classSectionId })).map((s: any) => ({
+      userId: s.userId,
+      type: "NOTICE",
+      title: `${exam.name}: date sheet changed`,
+      body: `Please check the new dates and times of ${s.name}'s papers.`,
+      link: "/student",
+      dedupeKey: `date-sheet:${examId}:${stamp}`,
+    }));
+  });
+
+// ---- A term or final result published for a class (term 0 = final).
+export const onTermResultPublished = (classSectionId: number, term: number, oneResult = false) =>
+  notifyLater(async () => {
+    const stamp = Date.now(); // a re-publish after a correction is news too
+    const what = oneResult ? "Annual result" : term === 0 ? "Final result" : `Term ${term} result`;
     return (await studentUsers({ classSectionId })).map((s: any) => ({
       userId: s.userId,
       type: "RESULTS",
       title: `${what} is out`,
       body: `${s.name}'s ${what.toLowerCase()} and report card are now available.`,
       link: "/student/report-card",
-      dedupeKey: `term-result:${classSectionId}:${term}`,
+      dedupeKey: `term-result:${classSectionId}:${term}:${stamp}`,
     }));
   });
 
@@ -127,7 +155,7 @@ export const onNoticesPosted = (noticeIds: number[]) =>
         users = (await studentUsers({ classSectionId: n.targetClassSectionId })).map((s: any) => ({ id: s.userId, role: "STUDENT" }));
       } else {
         users = await prisma.user.findMany({
-          where: { isActive: true, role: n.targetRole ? n.targetRole : { in: ["STUDENT", "TEACHER"] } },
+          where: { isActive: true, role: { in: !n.targetRole ? ["STUDENT", ...STAFF_ROLES] : n.targetRole === "TEACHER" ? STAFF_ROLES : [n.targetRole] } },
           select: { id: true, role: true },
         });
       }
@@ -155,7 +183,7 @@ export const onLeaveApplied = (leaveId: number) =>
         fromDate: true,
         toDate: true,
         student: { select: { name: true, classSection: { select: { className: true, section: true, classTeacher: { select: { userId: true } } } } } },
-        staff: { select: { user: { select: { name: true } } } },
+        staff: { select: { userId: true, user: { select: { name: true, role: true } } } },
       },
     });
     if (!l) return [];
@@ -174,7 +202,9 @@ export const onLeaveApplied = (leaveId: number) =>
         },
       ];
     }
-    const admins = await prisma.user.findMany({ where: { isActive: true, role: { in: ["ADMIN", "SUPER_ADMIN"] } }, select: { id: true } });
+    // Whoever can decide it (decideLeave): the Principal's own leave goes to the Super Admin.
+    const deciders = l.staff?.user?.role === "PRINCIPAL" ? ["SUPER_ADMIN"] : [...PERMISSIONS["leaves.manage"]];
+    const admins = await prisma.user.findMany({ where: { isActive: true, role: { in: deciders as any }, id: { not: l.staff?.userId } }, select: { id: true } });
     return admins.map((a: any) => ({
       userId: a.id,
       type: "LEAVE" as const,
@@ -200,7 +230,7 @@ export const onLeaveDecided = (leaveId: number) =>
         type: "LEAVE",
         title: `Leave ${l.status === "APPROVED" ? "approved" : "not approved"}`,
         body: `Your leave for ${range} was ${l.status === "APPROVED" ? "approved" : "not approved"}.${l.decisionNote ? ` Note: ${l.decisionNote}` : ""}`,
-        link: role === "STUDENT" ? "/student/leave" : role === "TEACHER" ? "/teacher/leave" : "/admin/leaves",
+        link: role === "STUDENT" ? "/student/leave" : role === "TEACHER" ? "/teacher/leave" : "/admin/my-leave",
         dedupeKey: `leave-decided:${leaveId}`,
       },
     ];

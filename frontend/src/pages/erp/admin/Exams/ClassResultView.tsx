@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "react-toastify";
 import { Badge, Button, Card, ConfirmDialog, EmptyState, Icon, Input, Spinner } from "../../../../components/ui";
 import { printTermReportCards } from "../../../../components/shared/Print/termReportCardPrint";
@@ -39,11 +39,28 @@ const ClassResultView = ({ classSectionId, onBack }: { classSectionId: number; o
   const tabs = terms === 1 ? [{ key: 1, label: "Result for the year" }] : [{ key: 1, label: "Term 1" }, { key: 2, label: "Term 2" }, { key: 0, label: "Final result" }];
   const incomplete = (data?.students ?? []).filter((s) => !s.complete).length;
   const what = term === 0 ? "final result" : terms === 1 ? "result" : `Term ${term} result`;
+  // The final is built from both published terms.
+  const finalBlocked = term === 0 && !data?.published && !(data?.publishedTerms.includes(1) && data?.publishedTerms.includes(2));
+  // What's missing, per subject, so the right teacher can be chased.
+  const missing = useMemo(() => {
+    if (!data || data.published || data.kind !== "TERM") return [];
+    const bySubject = new Map<string, { students: number; parts: Set<string> }>();
+    for (const s of data.students)
+      for (const x of s.subjects) {
+        if (!x.missing?.length) continue;
+        const row = bySubject.get(x.subjectName) ?? { students: 0, parts: new Set<string>() };
+        row.students += 1;
+        x.missing.forEach((p) => row.parts.add(p));
+        bySubject.set(x.subjectName, row);
+      }
+    return [...bySubject].map(([subject, r]) => ({ subject, students: r.students, parts: [...r.parts].join(", ") }));
+  }, [data]);
 
   const doPublish = async () => {
     try {
       await publish({ classSectionIds: [classSectionId], term, weights: term === 0 && w1 !== null ? [w1, 100 - w1] : undefined }).unwrap();
       toast.success(`The ${what} is published. Students have been notified.`);
+      setW1(null);
     } catch (e: any) {
       toast.error(e?.data?.message ?? "Couldn't publish");
     }
@@ -94,7 +111,7 @@ const ClassResultView = ({ classSectionId, onBack }: { classSectionId: number; o
                   Remarks &amp; co-scholastic
                 </Button>
               )}
-              <Button size="sm" variant="outline" onClick={() => printTermReportCards(data, schoolFor("reportCard"))} disabled={!data.students.length}>
+              <Button size="sm" variant="outline" onClick={() => printTermReportCards({ ...data, provisional: !data.published }, schoolFor("reportCard"))} disabled={!data.students.length}>
                 Print report cards
               </Button>
               {data.canPublish &&
@@ -103,7 +120,7 @@ const ClassResultView = ({ classSectionId, onBack }: { classSectionId: number; o
                     Unpublish
                   </Button>
                 ) : (
-                  <Button size="sm" onClick={() => setConfirm("publish")}>
+                  <Button size="sm" onClick={() => setConfirm("publish")} disabled={finalBlocked} title={finalBlocked ? "Publish Term 1 and Term 2 first" : undefined}>
                     Publish
                   </Button>
                 ))}
@@ -112,15 +129,29 @@ const ClassResultView = ({ classSectionId, onBack }: { classSectionId: number; o
         >
           {term === 0 && terms === 2 && !data.published && (
             <div className={styles.weights}>
-              <Input label="Term 1 weightage (%)" type="number" min={0} max={100} value={w1 ?? ""} onChange={(e) => setW1(Math.max(0, Math.min(100, Number(e.target.value) || 0)))} />
+              <Input label="Term 1 weightage (%)" type="number" min={0} max={100} value={w1 ?? ""} onChange={(e) => setW1(Math.max(0, Math.min(100, Math.round(Number(e.target.value)) || 0)))} />
               <Input label="Term 2 weightage (%)" type="number" value={w1 === null ? "" : 100 - w1} disabled />
               <span className={styles.admitHint}>The school decides this. It's saved with the final result when you publish.</span>
             </div>
           )}
+          {finalBlocked && <p className={styles.resultWarn}>Publish Term 1 and Term 2 first. The final result is worked out from both published terms.</p>}
           {incomplete > 0 && !data.published && (
-            <p className={styles.resultWarn}>
-              {incomplete} student{incomplete === 1 ? "" : "s"} still have missing marks (exam, periodic tests, or notebook/enrichment marks). Their result shows as incomplete.
-            </p>
+            <div className={styles.resultWarn}>
+              <strong>
+                {incomplete} student{incomplete === 1 ? " has" : "s have"} missing marks.
+              </strong>{" "}
+              {missing.length > 0 ? (
+                <ul className={styles.missingList}>
+                  {missing.map((m) => (
+                    <li key={m.subject}>
+                      <b>{m.subject}</b>: {m.students} student{m.students === 1 ? "" : "s"} ({m.parts})
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                "Their result shows as incomplete."
+              )}
+            </div>
           )}
           {data.students.length === 0 ? (
             <EmptyState title="No students in this class" />
@@ -183,8 +214,8 @@ const ClassResultView = ({ classSectionId, onBack }: { classSectionId: number; o
           title={confirm === "publish" ? `Publish the ${what}?` : `Unpublish the ${what}?`}
           message={
             confirm === "publish"
-              ? `Students will see their report card and get a notification. The result is frozen as it is now${incomplete ? `; ${incomplete} student(s) still have missing marks` : ""}. Marks, periodic assessment and remarks for this ${term === 0 ? "year" : "term"} can't change until it's unpublished.`
-              : "Students will no longer see this report card. Teachers can correct marks and remarks again."
+              ? `Students will see their report card and get a notification${term === 0 ? "" : ", and this term's exams are locked and released with it"}. The result is frozen as it is now${incomplete ? `, with ${incomplete} student${incomplete === 1 ? "" : "s"} still missing marks` : ""}. Marks and remarks can't change until it's unpublished.`
+              : `Students will no longer see this report card${term === 0 ? "" : " or this term's exam marks"}. Marks stay locked until the exam coordinator unlocks them for corrections; remarks and periodic assessment can be changed straight away.`
           }
           confirmLabel={confirm === "publish" ? "Publish" : "Unpublish"}
           tone={confirm === "publish" ? "primary" : "danger"}

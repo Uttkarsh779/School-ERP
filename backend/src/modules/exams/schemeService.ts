@@ -80,6 +80,10 @@ export const gradeFor = (scheme: Scheme, percentage: number) => {
   return [...scheme.gradeScale].sort((a, b) => b.min - a.min).find((g) => p >= g.min)?.grade ?? "";
 };
 
+// Pass and grade use the same rounded percentage, so a student can't get a passing grade
+// and still be listed as failed (32.6% rounds to 33: grade D, and a pass).
+export const passedFor = (scheme: Pick<Scheme, "passPercentage">, percentage: number) => Math.round(percentage) >= scheme.passPercentage;
+
 const num = (v: unknown, field: string, min: number, max: number) => {
   const n = Number(v);
   if (!Number.isFinite(n) || n < min || n > max) throw httpError(400, `${field} must be between ${min} and ${max}`);
@@ -95,7 +99,7 @@ export const parseScheme = (body: any) => {
   const paMax = num(body?.paMax, "Periodic assessment marks", 0, 100);
   const examMax = num(body?.examMax, "Term exam marks", 1, 200);
   const passPercentage = num(body?.passPercentage ?? 33, "Pass percentage", 0, 100);
-  const finalWeights = terms === 1 ? [100] : (Array.isArray(body?.finalWeights) ? body.finalWeights : [50, 50]).slice(0, 2).map((w: unknown) => num(w, "Term weightage", 0, 100));
+  const finalWeights = terms === 1 ? [100] : (Array.isArray(body?.finalWeights) ? body.finalWeights : [50, 50]).slice(0, 2).map((w: unknown) => Math.round(num(w, "Term weightage", 0, 100)));
   if (terms === 2 && finalWeights[0] + finalWeights[1] !== 100) throw httpError(400, "Term 1 and Term 2 weightage must add up to 100");
 
   const comps: PaComponent[] = (Array.isArray(body?.paComponents) ? body.paComponents : []).map((c: any, i: number) => {

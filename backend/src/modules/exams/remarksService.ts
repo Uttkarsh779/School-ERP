@@ -1,6 +1,7 @@
 import { prisma } from "../../config/prisma";
 import { httpError } from "../../utils/httpError";
 import { getExamAnalysis } from "./analysisService";
+import { isSchoolWide } from "../../config/permissions";
 
 // Report-card remarks (CBSE style): per student per exam, the class teacher writes a remark
 // and A/B/C co-scholastic grades. Admin publishes the results — only then do students see
@@ -37,7 +38,7 @@ export const parseRemarkRows = (rows: unknown): RemarkRow[] => {
 };
 
 export const assertCanWriteRemarks = async (actor: { id: number; role: string }, classSectionId: number) => {
-  if (actor.role === "SUPER_ADMIN" || actor.role === "ADMIN") return;
+  if (isSchoolWide(actor.role)) return;
   if (actor.role !== "TEACHER") throw httpError(403, "Forbidden");
   const staff = await prisma.staff.findUnique({ where: { userId: actor.id }, select: { id: true } });
   const cs = await prisma.classSection.findUnique({ where: { id: classSectionId }, select: { classTeacherId: true } });

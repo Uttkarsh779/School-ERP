@@ -1,20 +1,24 @@
 import { useEffect, useState } from "react";
 import { toast } from "react-toastify";
-import { Button, EmptyState, Modal, Spinner } from "../../../../components/ui";
+import { Button, ConfirmDialog, EmptyState, Modal, Spinner } from "../../../../components/ui";
 import { DEFAULT_INSTRUCTIONS, printAdmitCards } from "../../../../components/shared/Print/admitCardPrint";
 import { usePrintSchool } from "../../../../components/shared/Print/usePrintSchool";
 import { useGetAdmitCardsQuery, useSaveDateSheetMutation } from "../../../../store/api/exams.api";
+import { useCopyDateSheetMutation } from "../../../../store/api/examPlan.api";
 import styles from "./AdminExamsPage.module.css";
 
 // Admit cards for one exam: the office fills in the date sheet (date and time of each
 // subject's paper) and the instructions, then prints a card for every student of the class.
-// Subjects left blank have no paper in this exam.
+// Subjects left blank have no paper in this exam. siblings = how many other classes share this
+// exam; the same date sheet can be used for them in one go (subjects matched by name).
 
 type Row = { subjectId: number; name: string; date: string; start: string; end: string };
 
-const AdmitCardModal = ({ examId, onClose }: { examId: number; onClose: () => void }) => {
+const AdmitCardModal = ({ examId, siblings = 0, onClose }: { examId: number; siblings?: number; onClose: () => void }) => {
   const { data, isLoading, isError, refetch } = useGetAdmitCardsQuery(examId, { refetchOnMountOrArgChange: true });
   const [save, { isLoading: saving }] = useSaveDateSheetMutation();
+  const [copy, { isLoading: copying }] = useCopyDateSheetMutation();
+  const [confirmCopy, setConfirmCopy] = useState(false);
   const schoolFor = usePrintSchool();
   const [rows, setRows] = useState<Row[]>([]);
   const [instructions, setInstructions] = useState(DEFAULT_INSTRUCTIONS);
@@ -35,11 +39,12 @@ const AdmitCardModal = ({ examId, onClose }: { examId: number; onClose: () => vo
   };
 
   const saveSheet = async () => {
-    await save({
+    const saved = await save({
       examId,
       entries: rows.map(({ subjectId, date, start, end }) => ({ subjectId, date, start, end })),
       instructions: instructions.trim() === DEFAULT_INSTRUCTIONS ? null : instructions,
     }).unwrap();
+    if (saved.warnings?.length) toast.warn(saved.warnings.join("; "), { autoClose: 9000 });
   };
 
   const onSave = async (andPrint: boolean) => {
@@ -47,10 +52,23 @@ const AdmitCardModal = ({ examId, onClose }: { examId: number; onClose: () => vo
       await saveSheet();
       if (!andPrint) return void toast.success("Date sheet saved");
       const fresh = await refetch().unwrap();
-      if (fresh.students.length === 0) return void toast.info("There are no active students in this class.");
+      if (!fresh.dateSheet.entries.length) return void toast.info("Fill in the date sheet before printing admit cards.");
+      if (fresh.students.length === 0) return void toast.info(fresh.heldBack.length ? "Every student in this class has overdue fees, so no cards were issued." : "There are no active students in this class.");
       printAdmitCards(fresh, schoolFor("admitCard"));
     } catch (e: any) {
       toast.error(e?.data?.message ?? "Couldn't save the date sheet");
+    }
+  };
+
+  const onCopy = async () => {
+    setConfirmCopy(false);
+    try {
+      await saveSheet();
+      const r = await copy(examId).unwrap();
+      toast.success(`Date sheet set for ${r.classes + 1} classes`);
+      if (r.notMatched.length) toast.warn(`Still to fill in, no matching paper here: ${r.notMatched.join(", ")}`, { autoClose: 10000 });
+    } catch (e: any) {
+      toast.error(e?.data?.message ?? "Couldn't copy the date sheet");
     }
   };
 
@@ -120,6 +138,11 @@ const AdmitCardModal = ({ examId, onClose }: { examId: number; onClose: () => vo
             <Button variant="ghost" onClick={onClose}>
               Close
             </Button>
+            {siblings > 0 && (
+              <Button variant="outline" onClick={() => setConfirmCopy(true)} isLoading={saving || copying}>
+                Use for all {siblings + 1} classes
+              </Button>
+            )}
             <Button variant="outline" onClick={() => onSave(false)} isLoading={saving}>
               Save
             </Button>
@@ -130,6 +153,17 @@ const AdmitCardModal = ({ examId, onClose }: { examId: number; onClose: () => vo
             )}
           </div>
         </div>
+      )}
+      {confirmCopy && (
+        <ConfirmDialog
+          title="Use this date sheet for all classes?"
+          message={`This replaces the date sheet of the other ${siblings} class${siblings === 1 ? "" : "es"} of this exam, matching papers by subject name. Classes already locked or published are left as they are. Students are notified of any change.`}
+          confirmLabel="Use for all"
+          tone="primary"
+          isLoading={saving || copying}
+          onCancel={() => setConfirmCopy(false)}
+          onConfirm={onCopy}
+        />
       )}
     </Modal>
   );

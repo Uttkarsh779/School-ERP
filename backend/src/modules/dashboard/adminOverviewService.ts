@@ -47,7 +47,7 @@ export const getAdminOperationalOverview = async () => {
             where: { sessionId: session.id },
             orderBy: { id: "desc" },
             take: 6,
-            include: { classSection: { select: { id: true, className: true, section: true } }, _count: { select: { results: true } } },
+            include: { classSection: { select: { id: true, className: true, section: true } }, _count: { select: { results: true, subjects: true } } },
           })
         : [],
       prisma.student.findMany({
@@ -116,15 +116,10 @@ export const getAdminOperationalOverview = async () => {
     .filter((c) => c.percentage !== null);
   const lowClasses = classMonth.filter((c) => (c.percentage ?? 100) < LOW_ATTENDANCE).sort((a, b) => (a.percentage ?? 0) - (b.percentage ?? 0));
 
-  // ---- Exams: marks entered vs expected (active students x class subjects)
-  const examClassIds = [...new Set((exams as any[]).map((e) => e.classSectionId))];
-  const subjectCounts = examClassIds.length
-    ? await prisma.subject.groupBy({ by: ["classSectionId"], where: { classSectionId: { in: examClassIds } }, _count: { _all: true } })
-    : [];
-  const subjectsByClass = new Map<number, number>((subjectCounts as any[]).map((s) => [s.classSectionId, s._count._all]));
+  // ---- Exams: marks entered vs expected (active students x the exam's papers)
   const studentsByClass = new Map<number, number>(classes.map((c: any) => [c.id, c._count.students]));
   const examProgress = (exams as any[]).map((e) => {
-    const expected = (subjectsByClass.get(e.classSectionId) ?? 0) * (studentsByClass.get(e.classSectionId) ?? 0);
+    const expected = e._count.subjects * (studentsByClass.get(e.classSectionId) ?? 0);
     return {
       examId: e.id,
       name: e.name,

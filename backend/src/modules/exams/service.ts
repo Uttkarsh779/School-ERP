@@ -1,18 +1,24 @@
 import { prisma } from "../../config/prisma";
 
-export const listExamsForClassSection = (classSectionId?: number) =>
-  prisma.exam.findMany({
-    where: classSectionId ? { classSectionId } : undefined,
-    include: { session: true, classSection: true, lockedByUser: { select: { id: true, name: true } }, subjects: { select: { subjectId: true, maxMarks: true } } },
-    orderBy: { id: "desc" },
-  });
+const examListInclude = {
+  session: true,
+  classSection: true,
+  lockedByUser: { select: { id: true, name: true } },
+  subjects: { select: { subjectId: true, maxMarks: true } },
+  _count: { select: { results: true } },
+} as const;
+
+export const listExamsForClassSection = (classSectionId: number) =>
+  prisma.exam.findMany({ where: { classSectionId }, include: examListInclude, orderBy: { id: "desc" } });
 
 export const listExamsForClassSections = (classSectionIds: number[]) =>
-  prisma.exam.findMany({
-    where: { classSectionId: { in: classSectionIds } },
-    include: { session: true, classSection: true, lockedByUser: { select: { id: true, name: true } }, subjects: { select: { subjectId: true, maxMarks: true } } },
-    orderBy: { id: "desc" },
-  });
+  prisma.exam.findMany({ where: { classSectionId: { in: classSectionIds } }, include: examListInclude, orderBy: { id: "desc" } });
+
+// One session's exams for the coordinator's page: the current session unless one is asked for.
+export const listExamsForSession = async (sessionId?: number) => {
+  const id = sessionId ?? (await prisma.academicSession.findFirst({ where: { isCurrent: true }, select: { id: true } }))?.id;
+  return prisma.exam.findMany({ where: { sessionId: id }, include: examListInclude, orderBy: { id: "desc" } });
+};
 
 export const getExamById = (id: number) => prisma.exam.findUnique({ where: { id } });
 
@@ -71,12 +77,37 @@ export const saveExamResultWithAudit = (data: {
     return { changed: true };
   });
 
+// Taking back a mark the teacher saved by mistake. There's no row left to show the old value,
+// so the audit trail keeps it (action DELETE, old values filled, new marks 0).
+export const removeExamResultWithAudit = (data: { examId: number; studentId: number; subjectId: number; changedByUserId: number }) =>
+  prisma.$transaction(async (tx: any) => {
+    const key = { examId: data.examId, studentId: data.studentId, subjectId: data.subjectId };
+    const existing = await tx.examResult.findUnique({ where: { examId_studentId_subjectId: key } });
+    if (!existing) return { changed: false };
+    await tx.examResult.delete({ where: { examId_studentId_subjectId: key } });
+    await tx.examResultAudit.create({
+      data: {
+        ...key,
+        action: "DELETE",
+        oldMarks: existing.marksObtained,
+        oldMaxMarks: existing.maxMarks,
+        oldIsAbsent: existing.isAbsent,
+        newMarks: 0,
+        newMaxMarks: existing.maxMarks,
+        newIsAbsent: false,
+        changedByUserId: data.changedByUserId,
+      },
+    });
+    return { changed: true };
+  });
+
 export const setExamLock = (examId: number, locked: boolean, userId: number) =>
   prisma.exam.update({
     where: { id: examId },
+    // Reopening means marks may change, so the class teacher has to confirm them again.
     data: locked
       ? { isLocked: true, lockedAt: new Date(), lockedByUserId: userId }
-      : { isLocked: false, lockedAt: null, lockedByUserId: null },
+      : { isLocked: false, lockedAt: null, lockedByUserId: null, readyAt: null, readyByUserId: null },
     include: { session: true, classSection: true, lockedByUser: { select: { id: true, name: true } } },
   });
 

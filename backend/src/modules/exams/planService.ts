@@ -6,6 +6,7 @@ import { isClassTeacherOfSection } from "../classSections/service";
 import { isTeacherAssignedToSubject } from "../subjects/service";
 import { assertCoordinator, isCoordinator } from "./permissions";
 import { schemeForClass } from "./schemeService";
+import { assertExamTermOpen } from "./resultService";
 
 // Exam planning. The exam coordinator sets up a term exam or periodic test once for many
 // classes (one Exam row per class, sharing groupKey), with max marks per subject. Subject
@@ -66,6 +67,26 @@ const seedSubjects = async (tx: any, examId: number, classSectionId: number, cla
   if (subjects.length) await tx.examSubject.createMany({ data: subjects.map((s: { id: number }) => ({ examId, subjectId: s.id, maxMarks })), skipDuplicates: true });
 };
 
+const classText = (c: { className: string; section: string }) => `${c.className}-${c.section}`;
+
+// The term result reads one term exam per term (the "80"), so a second one in the same term
+// would silently merge with the first.
+const assertTermExamFree = async (classSectionIds: number[], term: number, exceptGroup?: string) => {
+  const taken = await prisma.exam.findMany({
+    where: { classSectionId: { in: classSectionIds }, type: "TERM_EXAM", term, ...(exceptGroup ? { NOT: { groupKey: exceptGroup } } : {}) },
+    select: { name: true, classSection: { select: { className: true, section: true } } },
+  });
+  if (taken.length) throw httpError(409, `Term ${term} already has a term exam: ${taken.map((e) => `${e.name} (${classText(e.classSection)})`).join(", ")}`);
+};
+
+const assertNameFree = async (classSectionIds: number[], name: string, exceptGroup?: string) => {
+  const clash = await prisma.exam.findMany({
+    where: { classSectionId: { in: classSectionIds }, name: { equals: name, mode: "insensitive" }, ...(exceptGroup ? { NOT: { groupKey: exceptGroup } } : {}) },
+    select: { classSection: { select: { className: true, section: true } } },
+  });
+  if (clash.length) throw httpError(409, `"${name}" already exists for ${clash.map((c) => classText(c.classSection)).join(", ")}`);
+};
+
 export const createPlannedExam = async (actor: Actor, body: any) => {
   await assertCoordinator(actor);
   const name = String(body?.name ?? "").trim();
@@ -77,11 +98,8 @@ export const createPlannedExam = async (actor: Actor, body: any) => {
   const classes = await prisma.classSection.findMany({ where: { id: { in: ids } }, select: { id: true, className: true, section: true, sessionId: true } });
   if (classes.length !== ids.length) throw httpError(404, "A selected class wasn't found");
   if (new Set(classes.map((c) => c.sessionId)).size > 1) throw httpError(400, "Pick classes from one session");
-  const clash = await prisma.exam.findMany({
-    where: { classSectionId: { in: ids }, name: { equals: name, mode: "insensitive" } },
-    select: { classSection: { select: { className: true, section: true } } },
-  });
-  if (clash.length) throw httpError(409, `"${name}" already exists for ${clash.map((c) => `${c.classSection.className}-${c.classSection.section}`).join(", ")}`);
+  await assertNameFree(ids, name);
+  if (type === "TERM_EXAM") await assertTermExamFree(ids, term);
 
   const groupKey = randomUUID();
   const admitCard = typeof body?.admitCard === "boolean" ? body.admitCard : type === "TERM_EXAM";
@@ -112,12 +130,27 @@ export const updatePlannedExam = async (actor: Actor, groupKey: string, body: an
   if (typeof body?.admitCard === "boolean") data.admitCard = body.admitCard;
   const deadline = deadlineOf(body?.marksDeadline);
   if (deadline !== undefined) data.marksDeadline = deadline;
-  if (Object.keys(data).length) await prisma.exam.updateMany({ where: { groupKey }, data });
 
-  const add: number[] = (Array.isArray(body?.addClassSectionIds) ? body.addClassSectionIds : []).map(Number).filter((id: number) => !exams.some((e) => e.classSectionId === id));
-  if (add.length) {
-    const first = { ...exams[0], ...data } as any;
-    const classes = await prisma.classSection.findMany({ where: { id: { in: add }, sessionId: first.sessionId }, select: { id: true, className: true } });
+  const ownClasses = exams.map((e) => e.classSectionId);
+  if (data.name && String(data.name).toLowerCase() !== exams[0].name.toLowerCase()) await assertNameFree(ownClasses, String(data.name), groupKey);
+  // Moving an exam to another term moves its marks with it, so results must be still open.
+  if (data.term !== undefined && data.term !== exams[0].term) {
+    if (exams.some((e) => e.resultsPublished)) throw httpError(409, "Some classes have published marks for this exam. Unpublish them before changing its term.");
+    for (const e of exams) await assertExamTermOpen(e);
+    if (exams[0].type === "TERM_EXAM") await assertTermExamFree(ownClasses, data.term as number, groupKey);
+  }
+
+  const first = { ...exams[0], ...data } as any;
+  const add: number[] = [...new Set<number>((Array.isArray(body?.addClassSectionIds) ? body.addClassSectionIds : []).map(Number))].filter((id) => !ownClasses.includes(id));
+  const classes = add.length ? await prisma.classSection.findMany({ where: { id: { in: add }, sessionId: first.sessionId }, select: { id: true, className: true } }) : [];
+  if (classes.length !== add.length) throw httpError(400, "Add classes from this exam's session only");
+  if (classes.length) {
+    await assertNameFree(add, first.name);
+    if (first.type === "TERM_EXAM") await assertTermExamFree(add, first.term);
+  }
+
+  if (Object.keys(data).length) await prisma.exam.updateMany({ where: { groupKey }, data });
+  if (classes.length) {
     await prisma.$transaction(async (tx: any) => {
       for (const c of classes) {
         const exam = await tx.exam.create({
@@ -130,7 +163,7 @@ export const updatePlannedExam = async (actor: Actor, groupKey: string, body: an
       }
     });
   }
-  return { updated: exams.length, added: add.length };
+  return { updated: exams.length, added: classes.length };
 };
 
 // An exam for one class can be removed while no marks have been entered.
@@ -142,6 +175,7 @@ export const deleteExam = async (actor: Actor, examId: number) => {
     if (!(exam.createdByUserId === actor.id || (staff && exam.subjectId && (await isTeacherAssignedToSubject(staff.id, exam.subjectId))) || (await isCoordinator(actor))))
       throw httpError(403, "Only the subject teacher can delete this class test");
   } else await assertCoordinator(actor);
+  if (exam.resultsPublished) throw httpError(409, "This exam's marks are published, so it can't be deleted");
   if (exam._count.results > 0 && exam.type !== "CLASS_TEST") throw httpError(409, "Marks have already been entered for this exam, so it can't be deleted");
   await prisma.$transaction([
     prisma.examResultAudit.deleteMany({ where: { examId } }),
@@ -175,7 +209,7 @@ export const getExamSubjects = async (actor: Actor, examId: number): Promise<Exa
     subjectId: s.id,
     name: s.name,
     maxMarks: max.get(s.id) ?? null, // null: no paper in this exam
-    canEdit: !exam.resultsPublished && (coordinator || (exam.type !== "TERM_EXAM" && mine.has(s.id))),
+    canEdit: !exam.resultsPublished && !exam.isLocked && (coordinator || (exam.type !== "TERM_EXAM" && mine.has(s.id))),
   }));
 };
 
@@ -183,8 +217,12 @@ export const saveExamSubjects = async (actor: Actor, examId: number, rows: unkno
   const exam = await prisma.exam.findUnique({ where: { id: examId } });
   if (!exam) throw httpError(404, "Exam not found");
   if (exam.resultsPublished) throw httpError(409, "Results are published; unpublish first to change max marks");
+  if (exam.isLocked) throw httpError(409, "Marks are locked; unlock the exam first to change max marks");
+  await assertExamTermOpen(exam);
   if (!Array.isArray(rows)) throw httpError(400, "subjects must be a list");
   const allowed = new Map((await getExamSubjects(actor, examId)).map((s) => [s.subjectId, s] as const));
+  // Check everything first so a bad row doesn't leave some subjects changed and others not.
+  const writes: any[] = [];
   for (const r of rows as any[]) {
     const subjectId = Number(r?.subjectId);
     const s = allowed.get(subjectId);
@@ -192,19 +230,60 @@ export const saveExamSubjects = async (actor: Actor, examId: number, rows: unkno
     if (!s.canEdit) throw httpError(403, `You can't change the marks for ${s.name}`);
     if (r.maxMarks === null || r.maxMarks === "") {
       if (await prisma.examResult.count({ where: { examId, subjectId } })) throw httpError(409, `${s.name} already has marks, so it can't be removed from the exam`);
-      await prisma.examSubject.deleteMany({ where: { examId, subjectId } });
+      writes.push(prisma.examSubject.deleteMany({ where: { examId, subjectId } }));
       continue;
     }
     const maxMarks = Number(r.maxMarks);
     if (!Number.isFinite(maxMarks) || maxMarks <= 0 || maxMarks > 500) throw httpError(400, `Max marks for ${s.name} must be between 1 and 500`);
     const over = await prisma.examResult.findFirst({ where: { examId, subjectId, marksObtained: { gt: maxMarks } } });
     if (over) throw httpError(409, `${s.name}: a student already has ${over.marksObtained}, more than ${maxMarks}`);
-    await prisma.$transaction([
+    writes.push(
       prisma.examSubject.upsert({ where: { examId_subjectId: { examId, subjectId } }, create: { examId, subjectId, maxMarks }, update: { maxMarks } }),
-      prisma.examResult.updateMany({ where: { examId, subjectId }, data: { maxMarks } }),
-    ]);
+      prisma.examResult.updateMany({ where: { examId, subjectId }, data: { maxMarks } })
+    );
   }
+  await prisma.$transaction(writes);
   return getExamSubjects(actor, examId);
+};
+
+const lowerName = (s: { name: string }) => s.name.trim().toLowerCase();
+
+// The other classes of a planned exam that can still take changes.
+export const openSiblings = (exam: { id: number; groupKey: string | null }) =>
+  exam.groupKey ? prisma.exam.findMany({ where: { groupKey: exam.groupKey, id: { not: exam.id }, isLocked: false, resultsPublished: false } }) : Promise.resolve([]);
+
+// Coordinator: use this class's max marks for every other class of the exam. Subjects match by
+// name (each class has its own subject rows); a class that has marks above the new max keeps
+// what it had, and is reported.
+export const copyExamSubjects = async (actor: Actor, examId: number) => {
+  await assertCoordinator(actor);
+  const exam = await prisma.exam.findUnique({ where: { id: examId }, include: { subjects: { include: { subject: { select: { name: true } } } } } });
+  if (!exam) throw httpError(404, "Exam not found");
+  const maxByName = new Map(exam.subjects.map((s) => [lowerName(s.subject), s.maxMarks] as const));
+  const siblings = await openSiblings(exam);
+  const skipped: string[] = [];
+  for (const sibling of siblings) {
+    const [own, cs] = await Promise.all([
+      prisma.subject.findMany({ where: { classSectionId: sibling.classSectionId }, select: { id: true, name: true } }),
+      prisma.classSection.findUnique({ where: { id: sibling.classSectionId }, select: { className: true, section: true } }),
+    ]);
+    const writes: any[] = [];
+    for (const s of own) {
+      const maxMarks = maxByName.get(lowerName(s));
+      if (maxMarks === undefined) continue;
+      const over = await prisma.examResult.findFirst({ where: { examId: sibling.id, subjectId: s.id, marksObtained: { gt: maxMarks } }, select: { id: true } });
+      if (over) {
+        skipped.push(`${s.name} (${cs ? classText(cs) : sibling.classSectionId})`);
+        continue;
+      }
+      writes.push(
+        prisma.examSubject.upsert({ where: { examId_subjectId: { examId: sibling.id, subjectId: s.id } }, create: { examId: sibling.id, subjectId: s.id, maxMarks }, update: { maxMarks } }),
+        prisma.examResult.updateMany({ where: { examId: sibling.id, subjectId: s.id }, data: { maxMarks } })
+      );
+    }
+    if (writes.length) await prisma.$transaction(writes);
+  }
+  return { classes: siblings.length, skipped };
 };
 
 // A subject teacher's own test for one subject and class: progress only, marks visible at once.
@@ -238,5 +317,16 @@ export const setExamReady = async (actor: Actor, examId: number, ready: boolean)
   const staff = actor.role === "TEACHER" ? await findStaffByUserId(actor.id) : null;
   if (!staff || !(await isClassTeacherOfSection(staff.id, exam.classSectionId))) throw httpError(403, "Only the class teacher can mark the class ready");
   if (exam.isLocked) throw httpError(409, "Marks are already locked");
+  if (exam.type === "CLASS_TEST") throw httpError(400, "Class tests don't need this step");
+  if (ready) {
+    const [papers, students, counts] = await Promise.all([
+      prisma.examSubject.findMany({ where: { examId }, include: { subject: { select: { name: true } } } }),
+      prisma.student.count({ where: { classSectionId: exam.classSectionId, isActive: true } }),
+      prisma.examResult.groupBy({ by: ["subjectId"], where: { examId, student: { classSectionId: exam.classSectionId, isActive: true } }, _count: { _all: true } }),
+    ]);
+    const entered = new Map<number, number>(counts.map((c: any) => [c.subjectId, c._count._all]));
+    const short = papers.filter((p) => (entered.get(p.subjectId) ?? 0) < students);
+    if (short.length) throw httpError(409, `Marks are still missing in ${short.map((p) => `${p.subject.name} (${students - (entered.get(p.subjectId) ?? 0)})`).join(", ")}`);
+  }
   return prisma.exam.update({ where: { id: examId }, data: ready ? { readyAt: new Date(), readyByUserId: actor.id } : { readyAt: null, readyByUserId: null } });
 };

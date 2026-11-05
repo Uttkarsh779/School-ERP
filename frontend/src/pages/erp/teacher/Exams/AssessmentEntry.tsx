@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "react-toastify";
-import { Button, EmptyState, Icon, Spinner } from "../../../../components/ui";
+import { Button, ConfirmDialog, EmptyState, Icon, Spinner } from "../../../../components/ui";
 import { useGetAssessmentSheetQuery, useSaveAdjustmentsMutation, useSaveAssessmentMarksMutation } from "../../../../store/api/examPlan.api";
 import styles from "./TeacherExams.module.css";
 
@@ -10,6 +10,12 @@ import styles from "./TeacherExams.module.css";
 // until the result is published.
 
 const n = (v: number | null | undefined) => (v === null || v === undefined ? "—" : String(Math.round(v * 10) / 10));
+// A box is fine when it's empty, or a number from 0 to the part's max.
+const isBad = (v: string | undefined, max: number) => {
+  if (!v) return false;
+  const x = Number(v);
+  return !Number.isFinite(x) || x < 0 || x > max;
+};
 
 const AssessmentEntry = ({ classSectionId, subject, terms, onBack }: { classSectionId: number; subject: { id: number; name: string }; terms: number; onBack: () => void }) => {
   const [term, setTerm] = useState(1);
@@ -19,6 +25,7 @@ const AssessmentEntry = ({ classSectionId, subject, terms, onBack }: { classSect
   const [marks, setMarks] = useState<Record<string, string>>({});
   const [adj, setAdj] = useState<Record<number, string>>({});
   const [dirty, setDirty] = useState(false);
+  const [leaving, setLeaving] = useState(false);
 
   const entered = (data?.scheme.paComponents ?? []).filter((c) => c.source === "MARKS");
   useEffect(() => {
@@ -35,8 +42,13 @@ const AssessmentEntry = ({ classSectionId, subject, terms, onBack }: { classSect
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
 
+  const badCount = data
+    ? data.students.reduce((sum, s) => sum + entered.filter((c) => isBad(marks[`${s.student.id}:${c.key}`], c.max)).length + (isBad(adj[s.student.id], data.scheme.paMax) ? 1 : 0), 0)
+    : 0;
+
   const save = async () => {
     if (!data) return;
+    if (badCount) return void toast.error(`Fix the ${badCount} highlighted mark${badCount === 1 ? "" : "s"} first`);
     const markRows = data.students.flatMap((s) =>
       entered
         .filter((c) => (marks[`${s.student.id}:${c.key}`] ?? "") !== (s.components.find((x) => x.key === c.key)?.score?.toString() ?? ""))
@@ -60,10 +72,7 @@ const AssessmentEntry = ({ classSectionId, subject, terms, onBack }: { classSect
       <button
         type="button"
         className={styles.backBtn}
-        onClick={() => {
-          if (dirty && !window.confirm("You have unsaved changes. Leave without saving?")) return;
-          onBack();
-        }}
+        onClick={() => (dirty ? setLeaving(true) : onBack())}
       >
         <Icon name="arrowLeft" size={16} /> Exams
       </button>
@@ -72,7 +81,7 @@ const AssessmentEntry = ({ classSectionId, subject, terms, onBack }: { classSect
         {terms === 2 && (
           <div className={styles.pills} role="tablist" aria-label="Term" style={{ marginTop: "0.6rem" }}>
             {[1, 2].map((t) => (
-              <button key={t} type="button" role="tab" aria-selected={term === t} className={`${styles.pill} ${term === t ? styles.pillOn : ""}`} onClick={() => setTerm(t)}>
+              <button key={t} type="button" role="tab" aria-selected={term === t} className={`${styles.pill} ${term === t ? styles.pillOn : ""}`} disabled={dirty && term !== t} title={dirty && term !== t ? "Save first" : undefined} onClick={() => setTerm(t)}>
                 Term {t}
               </button>
             ))}
@@ -119,7 +128,7 @@ const AssessmentEntry = ({ classSectionId, subject, terms, onBack }: { classSect
                       entered.some((e) => e.key === c.key) ? (
                         <td key={c.key}>
                           <input
-                            className={styles.paInput}
+                            className={`${styles.paInput} ${isBad(marks[`${s.student.id}:${c.key}`], c.max) ? styles.markBad : ""}`}
                             inputMode="decimal"
                             value={marks[`${s.student.id}:${c.key}`] ?? ""}
                             disabled={!data.canEdit}
@@ -137,7 +146,7 @@ const AssessmentEntry = ({ classSectionId, subject, terms, onBack }: { classSect
                     <td>{n(s.paSuggested)}</td>
                     <td>
                       <input
-                        className={styles.paInput}
+                        className={`${styles.paInput} ${isBad(adj[s.student.id], data.scheme.paMax) ? styles.markBad : ""}`}
                         inputMode="decimal"
                         placeholder={n(s.paSuggested)}
                         value={adj[s.student.id] ?? ""}
@@ -160,13 +169,24 @@ const AssessmentEntry = ({ classSectionId, subject, terms, onBack }: { classSect
           </section>
           {data.canEdit && (
             <div className={styles.saveBar}>
-              <span>{dirty ? "Unsaved changes" : "All saved"}</span>
+              <span>{badCount ? `${badCount} to fix` : dirty ? "Unsaved changes" : "All saved"}</span>
               <Button onClick={save} isLoading={savingMarks || savingAdj} disabled={!dirty}>
                 Save
               </Button>
             </div>
           )}
         </>
+      )}
+
+      {leaving && (
+        <ConfirmDialog
+          title="Leave without saving?"
+          message="The changes you've made since your last save will be lost."
+          confirmLabel="Leave"
+          cancelLabel="Keep editing"
+          onCancel={() => setLeaving(false)}
+          onConfirm={onBack}
+        />
       )}
     </div>
   );

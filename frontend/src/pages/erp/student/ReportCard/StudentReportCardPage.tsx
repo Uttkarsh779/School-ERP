@@ -31,13 +31,15 @@ const StudentReportCardPage = () => {
   const [examId, setExamId] = useState<string>("");
   const { data: myResults } = useGetMyResultsQuery();
   const [resultIdx, setResultIdx] = useState(0);
-  const shownResult = myResults?.[resultIdx];
+  const shownResult = myResults?.[resultIdx] ?? myResults?.[0];
 
   const { data: profile, isLoading: profileLoading, isError: profileError } = useGetMyStudentProfileQuery();
-  const { data: exams, isLoading: examsLoading } = useGetExamsQuery({ classSectionId: profile?.classSectionId ?? 0 }, { skip: !profile });
+  // Every class the student has been in, so last year's marks stay after promotion.
+  const { data: exams, isLoading: examsLoading } = useGetExamsQuery(undefined, { skip: !profile });
 
   const published = useMemo(() => (exams ?? []).filter((e) => e.resultsPublished || e.type === "CLASS_TEST"), [exams]);
-  const unpublishedCount = (exams ?? []).length - published.length;
+  const unpublishedCount = (exams ?? []).filter((e) => e.classSectionId === profile?.classSectionId && !published.includes(e)).length;
+  const otherYear = (e: IExam) => e.classSectionId !== profile?.classSectionId;
 
   // Open the most recent published exam by default.
   useEffect(() => {
@@ -83,8 +85,8 @@ const StudentReportCardPage = () => {
                 key={`${r.classSectionId}:${r.term}`}
                 type="button"
                 role="tab"
-                aria-selected={i === resultIdx}
-                className={`${styles.examTab} ${i === resultIdx ? styles.examTabActive : ""}`}
+                aria-selected={r === shownResult}
+                className={`${styles.examTab} ${r === shownResult ? styles.examTabActive : ""}`}
                 onClick={() => setResultIdx(i)}
               >
                 {resultLabel(r)} · {r.session}
@@ -110,6 +112,7 @@ const StudentReportCardPage = () => {
             >
               {e.name}
               {e.type === "CLASS_TEST" && <small className={styles.tabTag}> · {EXAM_TYPE_LABEL.CLASS_TEST}</small>}
+              {otherYear(e) && e.session?.name && <small className={styles.tabTag}> · {e.session.name}</small>}
             </button>
           ))}
         </div>

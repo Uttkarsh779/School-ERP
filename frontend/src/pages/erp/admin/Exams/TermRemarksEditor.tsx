@@ -27,6 +27,9 @@ const TermRemarksEditor = ({ classSectionId, term, onClose }: { classSectionId: 
   }, [data]);
 
   const set = (id: number, k: string, v: string) => setRows((r) => ({ ...r, [id]: { ...r[id], [k]: v } }));
+  // Most students get the same grade; fill the empty boxes, then change the few that differ.
+  const fillBlank = (grade: string) =>
+    setRows((r) => Object.fromEntries(Object.entries(r).map(([id, row]) => [id, { ...row, ...Object.fromEntries(AREAS.filter(([k]) => !row[k]).map(([k]) => [k, grade])) }])));
   const onSave = async () => {
     try {
       await save({ classSectionId, term, rows: Object.entries(rows).map(([studentId, r]) => ({ studentId: Number(studentId), ...r })) }).unwrap();
@@ -38,7 +41,7 @@ const TermRemarksEditor = ({ classSectionId, term, onClose }: { classSectionId: 
   };
 
   return (
-    <Modal title={data ? `Remarks & co-scholastic — ${data.classSection.className} - ${data.classSection.section}, ${term === 1 ? "Term 1" : "Term 2"}` : "Remarks"} onClose={onClose} size="xl">
+    <Modal title={data ? `Remarks & co-scholastic — ${data.classSection.className} - ${data.classSection.section}${data.terms === 1 ? "" : `, Term ${term}`}` : "Remarks"} onClose={onClose} size="xl">
       {isLoading ? (
         <Spinner />
       ) : isError || !data ? (
@@ -49,6 +52,16 @@ const TermRemarksEditor = ({ classSectionId, term, onClose }: { classSectionId: 
             Grades: {data.grades.join(", ")} ({data.coScale === 5 ? "5-point scale" : "A Outstanding, B Very good, C Fair"}).
             {!data.canEdit && " Only the class teacher can change these, and only until the result is published."}
           </p>
+          {data.canEdit && (
+            <div className={styles.fillRow}>
+              <span>Fill empty grades with</span>
+              {data.grades.map((g) => (
+                <button key={g} type="button" className={styles.quietBtn} onClick={() => fillBlank(g)}>
+                  {g}
+                </button>
+              ))}
+            </div>
+          )}
           <div className={styles.admitTableWrap}>
             <table className={styles.admitTable}>
               <thead>

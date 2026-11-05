@@ -14,6 +14,8 @@ import {
   listExamResultAudit,
   listExamsForClassSection,
   listExamsForClassSections,
+  listExamsForSession,
+  removeExamResultWithAudit,
   saveExamResultWithAudit,
   setExamLock,
 } from "./service";
@@ -22,8 +24,10 @@ import { getPrintableReportCards } from "./printService";
 import { getRemarksSheet, getStudentRemark, saveRemarks, setResultsPublished } from "./remarksService";
 import { onResultsPublished } from "../notifications/events";
 import { createPlannedExam } from "./planService";
+import { assertExamTermOpen } from "./resultService";
 import { listDateSheets } from "./admitCardService";
 import { assertCoordinator, assertPublisher, isCoordinator } from "./permissions";
+import { isSchoolWide } from "../../config/permissions";
 
 // What part of a class's marks the caller may SEE:
 //   FULL    - admins, and the class teacher (all subjects of their class)
@@ -33,8 +37,10 @@ type ExamScope = { mode: "FULL" } | { mode: "SUBJECT"; subjectIds: number[] } | 
 
 const getExamScope = async (req: CustomRequest, classSectionId: number): Promise<ExamScope> => {
   const role = req.user?.role;
-  if (role === "SUPER_ADMIN" || role === "ADMIN") return { mode: "FULL" };
+  if (isSchoolWide(role)) return { mode: "FULL" };
   if (role !== "TEACHER" || !req.user) return null;
+  // A teacher ticked as exam coordinator looks after every class, not only their own.
+  if (await isCoordinator(req.user)) return { mode: "FULL" };
   const staff = await findStaffByUserId(req.user.id);
   if (!staff || !(await isTeacherLinkedToClassSection(staff.id, classSectionId))) return null;
   if (await isClassTeacherOfSection(staff.id, classSectionId)) return { mode: "FULL" };
@@ -54,10 +60,11 @@ const classIdsOfStudents = async (students: Array<{ id: number; classSectionId: 
 
 const canViewClassExams = async (req: CustomRequest, classSectionId: number): Promise<boolean> => {
   const role = req.user?.role;
-  if (role === "SUPER_ADMIN" || role === "ADMIN") return true;
+  if (isSchoolWide(role)) return true;
   if (!req.user) return false;
 
   if (role === "TEACHER") {
+    if (await isCoordinator(req.user)) return true;
     const staff = await findStaffByUserId(req.user.id);
     return !!staff && (await isTeacherLinkedToClassSection(staff.id, classSectionId));
   }
@@ -77,7 +84,7 @@ const canViewClassExams = async (req: CustomRequest, classSectionId: number): Pr
 // asks about themselves/their own linked child).
 const canViewStudentExamResult = async (req: CustomRequest, studentId: number): Promise<boolean> => {
   const role = req.user?.role;
-  if (role === "SUPER_ADMIN" || role === "ADMIN") return true;
+  if (isSchoolWide(role)) return true;
   if (!req.user) return false;
 
   if (role === "STUDENT") {
@@ -90,6 +97,7 @@ const canViewStudentExamResult = async (req: CustomRequest, studentId: number): 
   }
   // A full report card spans every subject, so among teachers only the class teacher sees it.
   if (role === "TEACHER") {
+    if (await isCoordinator(req.user)) return true;
     const student = await getStudentById(studentId);
     if (!student) return false;
     const staff = await findStaffByUserId(req.user.id);
@@ -101,9 +109,10 @@ const canViewStudentExamResult = async (req: CustomRequest, studentId: number): 
 // Class sections whose exams the caller may list (same rules as canViewClassExams).
 const viewableClassSectionIds = async (req: CustomRequest): Promise<number[] | "ALL"> => {
   const role = req.user?.role;
-  if (role === "SUPER_ADMIN" || role === "ADMIN") return "ALL";
+  if (isSchoolWide(role)) return "ALL";
   if (!req.user) return [];
   if (role === "TEACHER") {
+    if (await isCoordinator(req.user)) return "ALL";
     const staff = await findStaffByUserId(req.user.id);
     return staff ? (await listClassSectionsForTeacher(staff.id)).map((cs: any) => cs.id) : [];
   }
@@ -131,9 +140,10 @@ export const getExams = async (req: CustomRequest, res: Response): Promise<void>
     return;
   }
 
-  // No class given: admins see every exam, everyone else only the classes they belong to.
+  // No class given: the coordinator's page gets one session's exams (the current one unless
+  // ?sessionId= says otherwise), everyone else the classes they belong to.
   const ids = await viewableClassSectionIds(req);
-  const exams = ids === "ALL" ? await listExamsForClassSection() : await listExamsForClassSections(ids);
+  const exams = ids === "ALL" ? await listExamsForSession(req.query.sessionId ? Number(req.query.sessionId) : undefined) : await listExamsForClassSections(ids);
   res.status(200).json({ success: true, data: exams });
 };
 
@@ -176,14 +186,16 @@ export const getExamProgress = async (req: CustomRequest, res: Response): Promis
     return;
   }
   const staff = req.user?.role === "TEACHER" ? await findStaffByUserId(req.user.id) : null;
+  // Only subjects with a paper in this exam: the rest have nothing to enter and would hold
+  // the "subjects done" count below 100% for ever.
   const [subjects, totalStudents, counts] = await Promise.all([
     prisma.subject.findMany({
-      where: { classSectionId: exam.classSectionId, ...(scope.mode === "SUBJECT" ? { id: { in: scope.subjectIds } } : {}) },
+      where: { classSectionId: exam.classSectionId, examSubjects: { some: { examId: exam.id } }, ...(scope.mode === "SUBJECT" ? { id: { in: scope.subjectIds } } : {}) },
       include: { teacherSubjects: { include: { staff: { select: { id: true, user: { select: { name: true } } } } } } },
       orderBy: { name: "asc" },
     }),
     prisma.student.count({ where: { classSectionId: exam.classSectionId, isActive: true } }),
-    prisma.examResult.groupBy({ by: ["subjectId"], where: { examId: exam.id, student: { isActive: true } }, _count: { _all: true } }),
+    prisma.examResult.groupBy({ by: ["subjectId"], where: { examId: exam.id, student: { classSectionId: exam.classSectionId, isActive: true } }, _count: { _all: true } }),
   ]);
   const entered = new Map<number, number>(counts.map((c: any) => [c.subjectId, c._count._all]));
   res.json({
@@ -242,20 +254,6 @@ export const postExamResults = async (req: CustomRequest, res: Response): Promis
     return;
   }
 
-  if (exam.isLocked) {
-    res.status(409).json({
-      success: false,
-      message: "Marks for this exam are locked. Ask the exam coordinator to unlock it to make corrections.",
-    });
-    return;
-  }
-  if (exam.marksDeadline && exam.marksDeadline < new Date() && !(await isCoordinator(req.user!))) {
-    res.status(409).json({ success: false, message: "The marks-entry deadline for this exam has passed. Ask the exam coordinator to extend it." });
-    return;
-  }
-  // Max marks are set per subject for the exam (not typed per student).
-  const examSubjects = new Map<number, number>((await prisma.examSubject.findMany({ where: { examId } })).map((s: any) => [s.subjectId, s.maxMarks]));
-
   const role = req.user!.role;
   if (role !== "TEACHER") {
     res.status(403).json({
@@ -264,6 +262,30 @@ export const postExamResults = async (req: CustomRequest, res: Response): Promis
     });
     return;
   }
+
+  if (exam.isLocked) {
+    res.status(409).json({
+      success: false,
+      message: "Marks for this exam are locked. Ask the exam coordinator to unlock it to make corrections.",
+    });
+    return;
+  }
+  await assertExamTermOpen(exam);
+  if (exam.marksDeadline && exam.marksDeadline < new Date() && !(await isCoordinator(req.user!))) {
+    res.status(409).json({ success: false, message: "The marks-entry deadline for this exam has passed. Ask the exam coordinator to extend it." });
+    return;
+  }
+  // Max marks are set per subject for the exam (not typed per student).
+  const examSubjects = new Map<number, number>((await prisma.examSubject.findMany({ where: { examId } })).map((s: any) => [s.subjectId, s.maxMarks]));
+  // Marks can only go to this class's students (or ones who have since moved out of it).
+  const classStudents = new Set<number>(
+    (
+      await prisma.student.findMany({
+        where: { OR: [{ classSectionId: exam.classSectionId }, { enrollments: { some: { classSectionId: exam.classSectionId } } }] },
+        select: { id: true },
+      })
+    ).map((s: any) => s.id)
+  );
 
   const staff = await findStaffByUserId(req.user!.id);
   if (!staff) {
@@ -286,11 +308,16 @@ export const postExamResults = async (req: CustomRequest, res: Response): Promis
     marksObtained: number;
     maxMarks: number;
     isAbsent?: boolean;
+    clear?: boolean; // take back a saved mark (the box was emptied)
   }>;
   const outcomes: Array<{ studentId: number; subjectId: number; success: boolean; message: string }> = [];
 
   for (const row of rows) {
     try {
+      if (!classStudents.has(Number(row.studentId))) {
+        outcomes.push({ studentId: row.studentId, subjectId: row.subjectId, success: false, message: "This student isn't in this class" });
+        continue;
+      }
       // An absent row is stored with marksObtained = 0. Max marks come from the exam.
       if (row.isAbsent) row.marksObtained = 0;
       const subjectMax = examSubjects.get(Number(row.subjectId));
@@ -299,6 +326,15 @@ export const postExamResults = async (req: CustomRequest, res: Response): Promis
         continue;
       }
       row.maxMarks = subjectMax;
+      if (row.clear) {
+        if (!(await isTeacherAssignedToSubject(staffId, Number(row.subjectId)))) {
+          outcomes.push({ studentId: row.studentId, subjectId: row.subjectId, success: false, message: "You aren't the allocated teacher for this subject" });
+          continue;
+        }
+        await removeExamResultWithAudit({ examId, studentId: Number(row.studentId), subjectId: Number(row.subjectId), changedByUserId: enteredByUserId });
+        outcomes.push({ studentId: row.studentId, subjectId: row.subjectId, success: true, message: "Removed" });
+        continue;
+      }
       if (row.marksObtained == null || row.maxMarks == null || !row.subjectId) {
         outcomes.push({
           studentId: row.studentId,
@@ -489,8 +525,14 @@ export const patchExamLock = async (req: CustomRequest, res: Response): Promise<
     return;
   }
   await assertCoordinator(req.user!);
-  // After publishing, only the publisher (Super Admin / Principal) can reopen marks.
-  if (!locked && exam.resultsPublished) await assertPublisher(req.user!);
+  // Published marks are final: they reopen only after the result is taken back.
+  if (!locked) {
+    if (exam.resultsPublished) {
+      res.status(409).json({ success: false, message: "These marks are published. The Super Admin or Principal must unpublish them first." });
+      return;
+    }
+    await assertExamTermOpen(exam);
+  }
   const updated = await setExamLock(exam.id, locked, req.user!.id);
   res.status(200).json({ success: true, message: locked ? "Marks locked" : "Marks unlocked", data: updated });
 };
@@ -527,7 +569,18 @@ export const patchExamPublish = async (req: CustomRequest, res: Response): Promi
     return;
   }
   await assertPublisher(req.user!);
-  const exam = await setResultsPublished(req.user!, Number(req.params.id), req.body.published);
+  const current = await getExamById(Number(req.params.id));
+  if (!current) {
+    res.status(404).json({ success: false, message: "Exam not found" });
+    return;
+  }
+  if (req.body.published && !(await prisma.examResult.count({ where: { examId: current.id } }))) {
+    res.status(409).json({ success: false, message: "No marks have been entered for this exam yet." });
+    return;
+  }
+  // A published term shows these marks on its report card, so they go back together.
+  if (!req.body.published) await assertExamTermOpen(current);
+  const exam = await setResultsPublished(req.user!, current.id, req.body.published);
   if (req.body.published) onResultsPublished(exam.id);
   res.json({ success: true, message: req.body.published ? "Results published" : "Results unpublished", data: exam });
 };

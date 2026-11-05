@@ -4,7 +4,7 @@ import { findStaffByUserId } from "../staff/service";
 import { isClassTeacherOfSection } from "../classSections/service";
 import { isTeacherAssignedToSubject } from "../subjects/service";
 import { assertPublisher, canPublish, isCoordinator } from "./permissions";
-import { FALLBACK_SCHEME, gradeFor, listSchemes, schemeForClass, type PaComponent, type Scheme } from "./schemeService";
+import { FALLBACK_SCHEME, gradeFor, listSchemes, passedFor, schemeForClass, type PaComponent, type Scheme } from "./schemeService";
 import { onTermResultPublished } from "../notifications/events";
 
 // Term and final results, following the class's assessment scheme:
@@ -14,6 +14,8 @@ import { onTermResultPublished } from "../notifications/events";
 //   the subject teacher can adjust the final figure until the result is published.
 //   final result (two-term schemes) = term percentages combined by the weightage chosen when
 //   publishing. Class tests never count. Published results are frozen as snapshots.
+// Publishing a term also locks and releases the exams that feed it, so students see the same
+// marks on the report card and under their exams. The final can only follow both terms.
 // One-term schemes (Class 10): the latest term's term exam is the exam (the 80); term exams
 // of earlier terms (Half Yearly) count as periodic tests, as CBSE schools usually do.
 
@@ -55,6 +57,18 @@ const publication = (classSectionId: number, term: number) =>
 const assertNotPublished = async (classSectionId: number, term: number) => {
   if (await publication(classSectionId, term)) throw httpError(409, "This term's result is published. The Super Admin or Principal must unpublish it before marks can change.");
   if (await publication(classSectionId, 0)) throw httpError(409, "The final result is published. The Super Admin or Principal must unpublish it before marks can change.");
+};
+
+// Marks, max marks and locks of an exam can't change while the result it feeds is published.
+// One-result schemes (Class 10) have a single publication: every exam feeds term 1.
+export const assertExamTermOpen = async (exam: { classSectionId: number; term: number; type: string }) => {
+  if (exam.type === "CLASS_TEST") return;
+  const scheme = await schemeForClass((await loadClass(exam.classSectionId)).className);
+  await assertNotPublished(exam.classSectionId, scheme.terms === 1 ? 1 : exam.term);
+};
+
+const assertTerm = (scheme: Scheme, term: number) => {
+  if (!Number.isInteger(term) || term < 1 || term > scheme.terms) throw httpError(400, "Pick a valid term");
 };
 
 // --- Calculation -------------------------------------------------------------------------
@@ -127,10 +141,15 @@ export const computeTerm = async (classSectionId: number, term: number) => {
       const suggested = r1(components.reduce((a, c) => a + (c.score ?? 0), 0));
       const adjusted = adjOf.get(`${s.id}:${sub.id}`);
       const pa = scheme.paMax > 0 ? (adjusted ?? suggested) : 0;
+      // A part is missing when it could be filled but isn't. A subject with no periodic test
+      // this term has nothing to wait for, and a final mark typed by the teacher settles all parts.
+      const hasTests = tests.some((t) => t.subjects.has(sub.id));
+      const missingParts = adjusted !== undefined || scheme.paMax === 0 ? [] : components.filter((c, i) => c.score === null && (scheme.paComponents[i].source === "MARKS" || hasTests)).map((c) => c.label);
 
       const papers = termExams.filter((e) => e.subjects.has(sub.id));
       const entered = papers.map((e) => resultOf.get(`${e.id}:${s.id}:${sub.id}`)).filter(Boolean);
       const absent = entered.length > 0 && entered.every((r) => r!.isAbsent);
+      const examDone = papers.length > 0 && entered.length === papers.length;
       const exam =
         entered.length === 0 ? null : r1(ratio(entered.reduce((a, r) => a + (r!.isAbsent ? 0 : r!.marksObtained), 0), entered.reduce((a, r) => a + r!.maxMarks, 0)) * scheme.examMax);
       const max = scheme.paMax + scheme.examMax;
@@ -150,8 +169,9 @@ export const computeTerm = async (classSectionId: number, term: number) => {
         max,
         percentage,
         grade: percentage === null ? null : gradeFor(scheme, percentage),
-        passed: percentage === null ? null : percentage >= scheme.passPercentage,
-        complete: exam !== null && components.every((c) => c.score !== null),
+        passed: percentage === null ? null : passedFor(scheme, percentage),
+        complete: examDone && missingParts.length === 0,
+        missing: [...(papers.length && !examDone ? ["Exam"] : []), ...(papers.length ? missingParts : [])],
       };
     });
     const counted = subjectRows.filter((x) => x.hasPaper);
@@ -198,10 +218,10 @@ export const computeFinal = async (classSectionId: number, weightsIn?: number[])
   const scheme = await schemeForClass(cs.className);
   if (scheme.terms === 1) {
     const t = await computeTerm(classSectionId, 1);
-    return { ...t, kind: "FINAL" as const, weights: [100], terms: [t] };
+    return { ...t, kind: "FINAL" as const, weights: [100] };
   }
   const weights = weightsIn && weightsIn.length === 2 ? weightsIn : scheme.finalWeights;
-  if (weights.some((w) => !Number.isFinite(w) || w < 0) || weights[0] + weights[1] !== 100) throw httpError(400, "Term 1 and Term 2 weightage must add up to 100");
+  if (weights.some((w) => !Number.isInteger(w) || w < 0) || weights[0] + weights[1] !== 100) throw httpError(400, "Term 1 and Term 2 weightage must be whole numbers adding up to 100");
   // A published term is used as published, otherwise the live calculation.
   const termData = async (term: number): Promise<TermResult> => ((await publication(classSectionId, term))?.snapshot as any) ?? computeTerm(classSectionId, term);
   const [t1, t2] = await Promise.all([termData(1), termData(2)]);
@@ -225,8 +245,9 @@ export const computeFinal = async (classSectionId: number, weightsIn?: number[])
         term2: b ? { total: b.total, max: b.max, percentage: b.percentage, grade: b.grade } : null,
         percentage,
         grade: percentage === null ? null : gradeFor(scheme, percentage),
-        passed: percentage === null ? null : percentage >= scheme.passPercentage,
-        complete: parts.length === 2,
+        passed: percentage === null ? null : passedFor(scheme, percentage),
+        // Only terms that had a paper in this subject can be waited for.
+        complete: (!a?.hasPaper || a.percentage !== null) && (!b?.hasPaper || b.percentage !== null),
       };
     });
     const done = subjects.filter((x) => x.percentage !== null);
@@ -279,41 +300,85 @@ export const getClassResult = async (actor: Actor, classSectionId: number, term:
   const pub = await publication(classSectionId, term);
   const data = pub ? (pub.snapshot as any) : term === 0 ? await computeFinal(classSectionId, weights) : await computeTerm(classSectionId, term);
   const scheme = await schemeForClass((await loadClass(classSectionId)).className);
+  const publishedTerms = (await prisma.resultPublication.findMany({ where: { classSectionId }, select: { term: true } })).map((p) => p.term);
   return {
     ...data,
+    attendance: data.attendance ?? (await attendanceFor(classSectionId)),
     termsInScheme: scheme.terms,
     defaultWeights: scheme.finalWeights,
+    publishedTerms,
     published: pub ? { at: pub.publishedAt, weights: pub.weights } : null,
     canPublish: await canPublish(actor),
   };
 };
 
+// The exams whose marks a term's result is built from.
+const feederExamIds = async (classSectionId: number, term: number, scheme: Scheme) => {
+  const rows = await prisma.exam.findMany({ where: { classSectionId }, select: { id: true, name: true, type: true, term: true } });
+  const { termExams, tests } = examsForTerm(scheme, rows.map((e) => ({ ...e, subjects: new Map() })), term);
+  return [...termExams, ...tests].map((e) => e.id);
+};
+
+// Why this class can't publish this term/final right now, or null when it can.
+const publishBlock = async (classSectionId: number, term: number, students: { result: string }[]) => {
+  if (await publication(classSectionId, term)) return "already published (unpublish it first to publish again)";
+  if (term === 0 && (!(await publication(classSectionId, 1)) || !(await publication(classSectionId, 2)))) return "publish Term 1 and Term 2 first";
+  if (!students.length) return "no students in this class";
+  if (students.every((s) => s.result === "PENDING")) return "no marks have been entered yet";
+  return null;
+};
+
 export const publishResult = async (actor: Actor, body: any) => {
   await assertPublisher(actor);
-  const term = Number(body?.term);
-  if (![0, 1, 2].includes(term)) throw httpError(400, "Pick a term or the final result");
-  const ids: number[] = (Array.isArray(body?.classSectionIds) ? body.classSectionIds : [body?.classSectionId]).map(Number).filter(Number.isInteger);
+  const requested = Number(body?.term);
+  if (![0, 1, 2].includes(requested)) throw httpError(400, "Pick a term or the final result");
+  const ids: number[] = [...new Set<number>((Array.isArray(body?.classSectionIds) ? body.classSectionIds : [body?.classSectionId]).map(Number).filter(Number.isInteger))];
   if (!ids.length) throw httpError(400, "Pick a class");
   const weights = Array.isArray(body?.weights) ? body.weights.map(Number) : undefined;
   const done: number[] = [];
+  const skipped: { classSectionId: number; label: string; reason: string }[] = [];
   for (const classSectionId of ids) {
+    const cs = await loadClass(classSectionId);
+    const scheme = await schemeForClass(cs.className);
+    const label = `${cs.className} - ${cs.section}`;
+    // A one-result class has a single publication: its "final" is term 1.
+    const term = scheme.terms === 1 && requested === 0 ? 1 : requested;
+    if (term > scheme.terms) {
+      skipped.push({ classSectionId, label, reason: "has one result for the year" });
+      continue;
+    }
     const snapshot: any = term === 0 ? await computeFinal(classSectionId, weights) : await computeTerm(classSectionId, term);
+    const block = await publishBlock(classSectionId, term, snapshot.students);
+    if (block) {
+      skipped.push({ classSectionId, label, reason: block });
+      continue;
+    }
     snapshot.attendance = await attendanceFor(classSectionId);
-    await prisma.resultPublication.upsert({
-      where: { classSectionId_term: { classSectionId, term } },
-      create: { classSectionId, term, weights: snapshot.weights ?? [], snapshot, publishedByUserId: actor.id },
-      update: { weights: snapshot.weights ?? [], snapshot, publishedByUserId: actor.id, publishedAt: new Date() },
-    });
+    const examIds = term === 0 ? [] : await feederExamIds(classSectionId, term, scheme);
+    const now = new Date();
+    await prisma.$transaction([
+      prisma.resultPublication.create({ data: { classSectionId, term, weights: snapshot.weights ?? [], snapshot, publishedByUserId: actor.id } }),
+      prisma.exam.updateMany({ where: { id: { in: examIds }, isLocked: false }, data: { isLocked: true, lockedAt: now, lockedByUserId: actor.id } }),
+      prisma.exam.updateMany({ where: { id: { in: examIds }, resultsPublished: false, results: { some: {} } }, data: { resultsPublished: true, publishedAt: now } }),
+    ]);
     done.push(classSectionId);
-    onTermResultPublished(classSectionId, term);
+    onTermResultPublished(classSectionId, term, scheme.terms === 1);
   }
-  return { published: done.length };
+  // Nothing went out: say why instead of reporting a quiet success.
+  if (!done.length) throw httpError(409, skipped.map((s) => `${s.label}: ${s.reason}`).join("; "));
+  return { published: done.length, skipped };
 };
 
 export const unpublishResult = async (actor: Actor, classSectionId: number, term: number) => {
   await assertPublisher(actor);
   if (term !== 0 && (await publication(classSectionId, 0))) throw httpError(409, "Unpublish the final result first");
-  await prisma.resultPublication.deleteMany({ where: { classSectionId, term } });
+  const scheme = await schemeForClass((await loadClass(classSectionId)).className);
+  const examIds = term === 0 ? [] : await feederExamIds(classSectionId, term, scheme);
+  // The exams go back with it; they stay locked until the coordinator reopens them.
+  await prisma.$transaction([
+    prisma.resultPublication.deleteMany({ where: { classSectionId, term } }),
+    prisma.exam.updateMany({ where: { id: { in: examIds } }, data: { resultsPublished: false, publishedAt: null } }),
+  ]);
 };
 
 // Every class's publication status for the coordinator's overview.
@@ -321,7 +386,11 @@ export const listPublications = async (actor: Actor, sessionId?: number) => {
   if (!(await isCoordinator(actor)) && !(await canPublish(actor))) throw httpError(403, "Forbidden");
   const session = sessionId ?? (await prisma.academicSession.findFirst({ where: { isCurrent: true }, select: { id: true } }))?.id;
   const classes = await prisma.classSection.findMany({ where: { sessionId: session }, select: { id: true, className: true, section: true }, orderBy: [{ className: "asc" }, { section: "asc" }] });
-  const pubs = await prisma.resultPublication.findMany({ where: { classSectionId: { in: classes.map((c) => c.id) } }, select: { classSectionId: true, term: true, publishedAt: true } });
+  const classIds = classes.map((c) => c.id);
+  const [pubs, examRows] = await Promise.all([
+    prisma.resultPublication.findMany({ where: { classSectionId: { in: classIds } }, select: { classSectionId: true, term: true, publishedAt: true } }),
+    prisma.exam.findMany({ where: { classSectionId: { in: classIds }, type: { not: "CLASS_TEST" } }, select: { classSectionId: true, term: true, isLocked: true } }),
+  ]);
   // School order: Nursery, LKG, UKG, then Class 1, 2 … 10 (not "1, 10, 2").
   const PRE = ["nursery", "lkg", "ukg"];
   const order = (name: string) => {
@@ -333,7 +402,13 @@ export const listPublications = async (actor: Actor, sessionId?: number) => {
   const schemes = await listSchemes(); // one query, matched by class name below
   for (const c of classes) {
     const scheme = schemes.find((s) => s.classNames.includes(c.className)) ?? FALLBACK_SCHEME;
-    out.push({ ...c, scheme: scheme.name, terms: scheme.terms, published: pubs.filter((p) => p.classSectionId === c.id).map((p) => ({ term: p.term, at: p.publishedAt })) });
+    // How far along each term's exams are, so the publisher can see what's ready at a glance.
+    const own = examRows.filter((e) => e.classSectionId === c.id);
+    const examStatus = (scheme.terms === 1 ? [1] : [1, 2]).map((term) => {
+      const list = scheme.terms === 1 ? own : own.filter((e) => e.term === term);
+      return { term, exams: list.length, locked: list.filter((e) => e.isLocked).length };
+    });
+    out.push({ ...c, scheme: scheme.name, terms: scheme.terms, examStatus, published: pubs.filter((p) => p.classSectionId === c.id).map((p) => ({ term: p.term, at: p.publishedAt })) });
   }
   return out;
 };
@@ -380,6 +455,7 @@ export const getAssessmentSheet = async (actor: Actor, classSectionId: number, t
   }
   const result = await computeTerm(classSectionId, term);
   const published = !!(await publication(classSectionId, term)) || !!(await publication(classSectionId, 0));
+  const staff = await staffFor(actor);
   return {
     term,
     classSection: result.classSection,
@@ -387,7 +463,7 @@ export const getAssessmentSheet = async (actor: Actor, classSectionId: number, t
     scheme: result.scheme,
     exams: result.exams,
     published,
-    canEdit: !published && actor.role === "TEACHER" && !!(await staffFor(actor)) && (await isTeacherAssignedToSubject((await staffFor(actor))!.id, subjectId)),
+    canEdit: !published && !!staff && (await isTeacherAssignedToSubject(staff.id, subjectId)),
     students: result.students.map((s) => {
       const sub = s.subjects.find((x) => x.subjectId === subjectId)!;
       return { student: { id: s.student.id, name: s.student.name, rollNo: s.student.rollNo }, components: sub.components, paSuggested: sub.paSuggested, paAdjusted: sub.paAdjusted, pa: sub.pa, exam: sub.exam, total: sub.total, grade: sub.grade };
@@ -395,22 +471,39 @@ export const getAssessmentSheet = async (actor: Actor, classSectionId: number, t
   };
 };
 
-// Marks for the scheme's entered parts (notebook, enrichment...), each out of the part's max.
-export const saveAssessmentMarks = async (actor: Actor, body: any) => {
+// What both periodic-assessment saves need, with the checks they share.
+const assessmentContext = async (actor: Actor, body: any) => {
   const classSectionId = Number(body?.classSectionId);
   const term = Number(body?.term);
   const subjectId = Number(body?.subjectId);
   await assertSubjectTeacher(actor, subjectId);
-  await assertNotPublished(classSectionId, term);
   const cs = await loadClass(classSectionId);
+  const subject = await prisma.subject.findUnique({ where: { id: subjectId }, select: { classSectionId: true } });
+  if (subject?.classSectionId !== classSectionId) throw httpError(400, "That subject isn't taught in this class");
   const scheme = await schemeForClass(cs.className);
-  const parts = new Map(scheme.paComponents.filter((c) => c.source === "MARKS").map((c) => [c.key, c]));
+  assertTerm(scheme, term);
+  await assertNotPublished(classSectionId, term);
   const studentIds = new Set((await prisma.student.findMany({ where: { classSectionId }, select: { id: true } })).map((s) => s.id));
-  let saved = 0;
-  for (const r of Array.isArray(body?.rows) ? body.rows : []) {
-    const studentId = Number(r?.studentId);
+  const rows: any[] = Array.isArray(body?.rows) ? body.rows : [];
+  return { classSectionId, term, subjectId, scheme, studentIds, rows };
+};
+
+// Marks for the scheme's entered parts (notebook, enrichment...), each out of the part's max.
+export const saveAssessmentMarks = async (actor: Actor, body: any) => {
+  const { classSectionId, term, subjectId, scheme, studentIds, rows } = await assessmentContext(actor, body);
+  const parts = new Map(scheme.paComponents.filter((c) => c.source === "MARKS").map((c) => [c.key, c]));
+  // Check every row first: one bad mark must not leave the sheet half saved.
+  for (const r of rows) {
     const part = parts.get(String(r?.component));
-    if (!studentIds.has(studentId) || !part) throw httpError(400, "A row doesn't match this class or scheme");
+    if (!studentIds.has(Number(r?.studentId)) || !part) throw httpError(400, "A row doesn't match this class or scheme");
+    if (r.marks === null || r.marks === "") continue;
+    const marks = Number(r.marks);
+    if (!Number.isFinite(marks) || marks < 0 || marks > part.max) throw httpError(400, `${part.label} marks must be between 0 and ${part.max}`);
+  }
+  let saved = 0;
+  for (const r of rows) {
+    const studentId = Number(r?.studentId);
+    const part = parts.get(String(r?.component))!;
     const key = { studentId_subjectId_term_component: { studentId, subjectId, term, component: part.key } };
     const old = await prisma.assessmentMark.findUnique({ where: key });
     if (r.marks === null || r.marks === "") {
@@ -421,7 +514,6 @@ export const saveAssessmentMarks = async (actor: Actor, body: any) => {
       continue;
     }
     const marks = Number(r.marks);
-    if (!Number.isFinite(marks) || marks < 0 || marks > part.max) throw httpError(400, `${part.label} marks must be between 0 and ${part.max}`);
     if (old?.marks === marks) continue;
     await prisma.assessmentMark.upsert({ where: key, create: { classSectionId, studentId, subjectId, term, component: part.key, marks, updatedByUserId: actor.id }, update: { marks, updatedByUserId: actor.id, updatedAt: new Date() } });
     await prisma.assessmentAudit.create({ data: { kind: "MARK", classSectionId, studentId, subjectId, term, component: part.key, oldMarks: old?.marks ?? null, newMarks: marks, changedByUserId: actor.id } });
@@ -432,17 +524,16 @@ export const saveAssessmentMarks = async (actor: Actor, body: any) => {
 
 // The subject teacher's final periodic-assessment mark (null = use the calculated one).
 export const saveAdjustments = async (actor: Actor, body: any) => {
-  const classSectionId = Number(body?.classSectionId);
-  const term = Number(body?.term);
-  const subjectId = Number(body?.subjectId);
-  await assertSubjectTeacher(actor, subjectId);
-  await assertNotPublished(classSectionId, term);
-  const scheme = await schemeForClass((await loadClass(classSectionId)).className);
-  const studentIds = new Set((await prisma.student.findMany({ where: { classSectionId }, select: { id: true } })).map((s) => s.id));
+  const { classSectionId, term, subjectId, scheme, studentIds, rows } = await assessmentContext(actor, body);
+  for (const r of rows) {
+    if (!studentIds.has(Number(r?.studentId))) throw httpError(400, "A student isn't in this class");
+    if (r.marks === null || r.marks === "") continue;
+    const marks = Number(r.marks);
+    if (!Number.isFinite(marks) || marks < 0 || marks > scheme.paMax) throw httpError(400, `Periodic assessment must be between 0 and ${scheme.paMax}`);
+  }
   let saved = 0;
-  for (const r of Array.isArray(body?.rows) ? body.rows : []) {
+  for (const r of rows) {
     const studentId = Number(r?.studentId);
-    if (!studentIds.has(studentId)) throw httpError(400, "A student isn't in this class");
     const key = { studentId_subjectId_term: { studentId, subjectId, term } };
     const old = await prisma.periodicAdjustment.findUnique({ where: key });
     if (r.marks === null || r.marks === "") {
@@ -453,7 +544,6 @@ export const saveAdjustments = async (actor: Actor, body: any) => {
       continue;
     }
     const marks = Number(r.marks);
-    if (!Number.isFinite(marks) || marks < 0 || marks > scheme.paMax) throw httpError(400, `Periodic assessment must be between 0 and ${scheme.paMax}`);
     if (old?.marks === marks) continue;
     await prisma.periodicAdjustment.upsert({ where: key, create: { classSectionId, studentId, subjectId, term, marks, updatedByUserId: actor.id }, update: { marks, updatedByUserId: actor.id, updatedAt: new Date() } });
     await prisma.assessmentAudit.create({ data: { kind: "ADJUSTMENT", classSectionId, studentId, subjectId, term, oldMarks: old?.marks ?? null, newMarks: marks, changedByUserId: actor.id } });
@@ -473,6 +563,7 @@ export const getTermRemarks = async (actor: Actor, classSectionId: number, term:
   await assertCanViewClassResults(actor, classSectionId);
   const cs = await loadClass(classSectionId);
   const scheme = await schemeForClass(cs.className);
+  assertTerm(scheme, term);
   const [students, remarks, enrollments] = await Promise.all([
     prisma.student.findMany({ where: { classSectionId, isActive: true }, select: { id: true, name: true, rollNo: true } }),
     prisma.termRemark.findMany({ where: { classSectionId, term } }),
@@ -486,7 +577,8 @@ export const getTermRemarks = async (actor: Actor, classSectionId: number, term:
     classSection: { id: cs.id, className: cs.className, section: cs.section },
     coScale: scheme.coScale,
     grades: scheme.coScale === 5 ? ["A", "B", "C", "D", "E"] : ["A", "B", "C"],
-    canEdit: !!staff && (await isClassTeacherOfSection(staff.id, classSectionId)) && !(await publication(classSectionId, term)),
+    terms: scheme.terms,
+    canEdit: !!staff && (await isClassTeacherOfSection(staff.id, classSectionId)) && !(await publication(classSectionId, term)) && !(await publication(classSectionId, 0)),
     students: students
       .map((s) => {
         const r = byStudent.get(s.id);
@@ -500,10 +592,12 @@ export const saveTermRemarks = async (actor: Actor, body: any) => {
   const classSectionId = Number(body?.classSectionId);
   const term = Number(body?.term);
   await assertClassTeacher(actor, classSectionId);
-  if (await publication(classSectionId, term)) throw httpError(409, "This term's result is published; remarks can't change now");
   const scheme = await schemeForClass((await loadClass(classSectionId)).className);
+  assertTerm(scheme, term);
+  if ((await publication(classSectionId, term)) || (await publication(classSectionId, 0))) throw httpError(409, "This result is published; remarks can't change now");
   const allowed = new Set(scheme.coScale === 5 ? ["A", "B", "C", "D", "E"] : ["A", "B", "C"]);
   const studentIds = new Set((await prisma.student.findMany({ where: { classSectionId }, select: { id: true } })).map((s) => s.id));
+  const writes: any[] = [];
   for (const r of Array.isArray(body?.rows) ? body.rows : []) {
     const studentId = Number(r?.studentId);
     if (!studentIds.has(studentId)) throw httpError(400, "A student isn't in this class");
@@ -514,11 +608,14 @@ export const saveTermRemarks = async (actor: Actor, body: any) => {
       if (v && !allowed.has(v)) throw httpError(400, `Co-scholastic grades must be ${[...allowed].join(", ")}`);
       grades[k] = v;
     }
-    await prisma.termRemark.upsert({
-      where: { classSectionId_studentId_term: { classSectionId, studentId, term } },
-      create: { classSectionId, studentId, term, remark, ...grades, updatedByUserId: actor.id },
-      update: { remark, ...grades, updatedByUserId: actor.id, updatedAt: new Date() },
-    });
+    writes.push(
+      prisma.termRemark.upsert({
+        where: { classSectionId_studentId_term: { classSectionId, studentId, term } },
+        create: { classSectionId, studentId, term, remark, ...grades, updatedByUserId: actor.id },
+        update: { remark, ...grades, updatedByUserId: actor.id, updatedAt: new Date() },
+      })
+    );
   }
+  await prisma.$transaction(writes);
   return { saved: true };
 };

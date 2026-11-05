@@ -2,7 +2,10 @@ import { prisma } from "../../config/prisma";
 import { httpError } from "../../utils/httpError";
 import { getDefaultersReport } from "../fees/ledgerService";
 import { getExamSettings } from "./schemeService";
-import { onDateSheetPublished } from "../notifications/events";
+import { onDateSheetChanged, onDateSheetPublished } from "../notifications/events";
+import { offDays } from "../calendar/service";
+import { assertCoordinator } from "./permissions";
+import { openSiblings } from "./planService";
 
 // Exam admit cards: the exam's date sheet (date and time of each subject's paper, plus
 // instructions for students) is saved on the exam, and printed on one admit card per
@@ -23,7 +26,8 @@ export interface DateSheet {
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
-export const parseDateSheet = (body: any, subjectIds: number[]): DateSheet => {
+export const parseDateSheet = (body: any, subjectIds: number[], names: Map<number, string> = new Map()): DateSheet => {
+  const nameOf = (id: number) => names.get(id) ?? "A subject";
   if (!Array.isArray(body?.entries)) throw httpError(400, "entries must be a list");
   const entries: DateSheetEntry[] = [];
   const seen = new Set<number>();
@@ -36,26 +40,75 @@ export const parseDateSheet = (body: any, subjectIds: number[]): DateSheet => {
     const start = String(e?.start ?? "");
     const end = String(e?.end ?? "");
     if (!date && !start && !end) continue; // subject without a paper in this exam
-    if (!DATE_RE.test(date)) throw httpError(400, "Pick a date for every subject with a paper");
-    if (!TIME_RE.test(start) || !TIME_RE.test(end)) throw httpError(400, "Enter start and end times like 09:00");
-    if (end <= start) throw httpError(400, "A paper's end time must be after its start time");
+    if (!DATE_RE.test(date)) throw httpError(400, `${nameOf(subjectId)}: pick a date, or leave its row empty if there's no paper`);
+    if (!TIME_RE.test(start) || !TIME_RE.test(end)) throw httpError(400, `${nameOf(subjectId)}: enter the start and end time`);
+    if (end <= start) throw httpError(400, `${nameOf(subjectId)}: the paper must end after it starts`);
     entries.push({ subjectId, date, start, end });
   }
   entries.sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
+  // A student sits every paper of the class, so two can't run at once.
+  for (let i = 1; i < entries.length; i++) {
+    const [a, b] = [entries[i - 1], entries[i]];
+    if (a.date === b.date && b.start < a.end) throw httpError(400, `${nameOf(a.subjectId)} and ${nameOf(b.subjectId)} overlap on ${a.date}`);
+  }
   const instructions = typeof body?.instructions === "string" && body.instructions.trim() ? body.instructions.trim().slice(0, 2000) : null;
   return { entries, instructions };
+};
+
+// Papers set on a Sunday, a weekly off or a holiday: allowed (schools do sometimes), but the
+// coordinator should see it.
+const dayOffWarnings = async (entries: DateSheetEntry[]) => {
+  if (!entries.length) return [];
+  const dates = entries.map((e) => e.date).sort();
+  const off = await offDays(new Date(`${dates[0]}T00:00:00.000Z`), new Date(`${dates[dates.length - 1]}T00:00:00.000Z`), "STUDENTS");
+  return [...new Set(dates)].filter((d) => off.has(d)).map((d) => `${d} is a day off (${off.get(d)})`);
+};
+
+// Students hear about a new date sheet, and about any change to one they've already seen.
+const announce = (examId: number, before: DateSheet | null, after: DateSheet) => {
+  const key = (s: DateSheet | null) => JSON.stringify(s?.entries ?? []);
+  if (!(before?.entries ?? []).length) {
+    if (after.entries.length) onDateSheetPublished(examId);
+  } else if (key(before) !== key(after)) onDateSheetChanged(examId);
 };
 
 export const saveDateSheet = async (examId: number, body: unknown) => {
   const exam = await prisma.exam.findUnique({ where: { id: examId }, select: { classSectionId: true, dateSheet: true } });
   if (!exam) throw httpError(404, "Exam not found");
-  const subjects = await prisma.subject.findMany({ where: { classSectionId: exam.classSectionId }, select: { id: true } });
-  const sheet = parseDateSheet(body, subjects.map((s) => s.id));
+  const subjects = await prisma.subject.findMany({ where: { classSectionId: exam.classSectionId }, select: { id: true, name: true } });
+  const sheet = parseDateSheet(body, subjects.map((s) => s.id), new Map(subjects.map((s) => [s.id, s.name])));
   await prisma.exam.update({ where: { id: examId }, data: { dateSheet: sheet as any } });
-  // Students hear about it the first time a date sheet with papers is saved.
-  const hadPapers = ((exam.dateSheet as DateSheet | null)?.entries ?? []).length > 0;
-  if (!hadPapers && sheet.entries.length > 0) onDateSheetPublished(examId);
-  return sheet;
+  announce(examId, exam.dateSheet as DateSheet | null, sheet);
+  return { ...sheet, warnings: await dayOffWarnings(sheet.entries) };
+};
+
+// Coordinator: use this class's date sheet for every other class of the exam. Subjects match by
+// name; a subject with no paper in the other class is left out and reported.
+export const copyDateSheet = async (actor: { id: number; role: string }, examId: number) => {
+  await assertCoordinator(actor);
+  const exam = await prisma.exam.findUnique({ where: { id: examId } });
+  if (!exam) throw httpError(404, "Exam not found");
+  const sheet = (exam.dateSheet as DateSheet | null) ?? { entries: [], instructions: null };
+  if (!sheet.entries.length) throw httpError(400, "Save this class's date sheet first");
+  const names = new Map<number, string>((await prisma.subject.findMany({ where: { classSectionId: exam.classSectionId }, select: { id: true, name: true } })).map((s: { id: number; name: string }) => [s.id, s.name.trim().toLowerCase()]));
+  const siblings = await openSiblings(exam);
+  let classes = 0;
+  const notMatched = new Set<string>();
+  for (const sibling of siblings) {
+    const own = await prisma.subject.findMany({ where: { classSectionId: sibling.classSectionId, examSubjects: { some: { examId: sibling.id } } }, select: { id: true, name: true } });
+    const idByName = new Map<string, number>(own.map((s: { id: number; name: string }) => [s.name.trim().toLowerCase(), s.id]));
+    const entries = sheet.entries.flatMap((e): DateSheetEntry[] => {
+      const id = idByName.get(names.get(e.subjectId) ?? "");
+      return id ? [{ ...e, subjectId: id }] : [];
+    });
+    for (const s of own) if (!entries.some((e) => e.subjectId === s.id)) notMatched.add(s.name);
+    if (!entries.length) continue;
+    const next: DateSheet = { entries, instructions: sheet.instructions };
+    await prisma.exam.update({ where: { id: sibling.id }, data: { dateSheet: next as any } });
+    announce(sibling.id, sibling.dateSheet as DateSheet | null, next);
+    classes++;
+  }
+  return { classes, notMatched: [...notMatched] };
 };
 
 // Date sheets students and staff can see: the term exams and periodic tests of the given

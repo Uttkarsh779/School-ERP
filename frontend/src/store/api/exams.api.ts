@@ -12,6 +12,7 @@ export interface EnterExamResultInput {
   marksObtained: number;
   maxMarks: number;
   isAbsent?: boolean;
+  clear?: boolean; // take back a saved mark (its box was emptied)
 }
 
 export type ExamResultStatus = "PASS" | "FAIL" | "ABSENT" | "PENDING" | "NOT_ENTERED";
@@ -58,7 +59,7 @@ export interface ExamAuditEntry {
   studentName: string;
   rollNo: string | null;
   subjectName: string;
-  action: "CREATE" | "UPDATE";
+  action: "CREATE" | "UPDATE" | "DELETE";
   oldMarks: number | null;
   oldMaxMarks: number | null;
   oldIsAbsent: boolean | null;
@@ -163,6 +164,7 @@ export interface DateSheetEntry {
 export interface DateSheet {
   entries: DateSheetEntry[];
   instructions: string | null;
+  warnings?: string[]; // papers set on a day off
 }
 export interface AdmitCardSet {
   exam: { id: number; name: string; session: string | null };
@@ -179,7 +181,7 @@ export interface AdmitCardSet {
 
 export const examsApi = erpApi.injectEndpoints({
   endpoints: (builder) => ({
-    getExams: builder.query<IExam[], { classSectionId?: number } | void>({
+    getExams: builder.query<IExam[], { classSectionId?: number; sessionId?: number } | void>({
       query: (params) => ({ url: "exams", params: params ?? undefined }),
       transformResponse: (res: ApiEnvelope<IExam[]>) => res.data,
       providesTags: ["Exam"],
@@ -187,7 +189,7 @@ export const examsApi = erpApi.injectEndpoints({
     enterExamResults: builder.mutation<IExamResultOutcome[], { examId: number; results: EnterExamResultInput[] }>({
       query: ({ examId, results }) => ({ url: `exams/${examId}/results`, method: "POST", body: { results } }),
       transformResponse: (res: ApiEnvelope<IExamResultOutcome[]>) => res.data,
-      invalidatesTags: ["Exam"],
+      invalidatesTags: ["Exam", "ExamResult", "Dashboard"],
     }),
     getExamResults: builder.query<IExamResult[], number>({
       query: (examId) => `exams/${examId}/results`,
@@ -212,12 +214,12 @@ export const examsApi = erpApi.injectEndpoints({
     setExamLock: builder.mutation<IExam, { examId: number; locked: boolean }>({
       query: ({ examId, locked }) => ({ url: `exams/${examId}/lock`, method: "PATCH", body: { locked } }),
       transformResponse: (res: ApiEnvelope<IExam>) => res.data,
-      invalidatesTags: ["Exam"],
+      invalidatesTags: ["Exam", "ExamResult"],
     }),
     setResultsPublished: builder.mutation<IExam, { examId: number; published: boolean }>({
       query: ({ examId, published }) => ({ url: `exams/${examId}/publish`, method: "PATCH", body: { published } }),
       transformResponse: (res: ApiEnvelope<IExam>) => res.data,
-      invalidatesTags: ["Exam", "Remarks", "Dashboard"],
+      invalidatesTags: ["Exam", "ExamResult", "Remarks", "Dashboard"],
     }),
     getReportCard: builder.query<IReportCard, { examId: number; studentId: number }>({
       query: ({ examId, studentId }) => `exams/${examId}/report-card/${studentId}`,
