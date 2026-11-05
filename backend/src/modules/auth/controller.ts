@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken";
 import { Role } from "../../generated/prisma/enums";
 import { hashPassword, comparePassword } from "../../utils/password";
 import { createUser, findUserByEmail } from "./service";
+import { prisma } from "../../config/prisma";
 import { getStudentByAdmissionNo } from "../students/service";
 
 import { JWT_REFRESH_SECRET, JWT_SECRET } from "../../config/secrets";
@@ -134,29 +135,28 @@ export const refreshToken = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    jwt.verify(token, JWT_REFRESH_SECRET(), (err, decoded: any) => {
-      if (err) {
-        res.status(401).json({ success: false, message: "Invalid or expired refresh token" });
-        return;
-      }
+    let decoded: any;
+    try {
+      decoded = jwt.verify(token, JWT_REFRESH_SECRET());
+    } catch {
+      res.status(401).json({ success: false, message: "Invalid or expired refresh token" });
+      return;
+    }
 
-      const accessToken = jwt.sign(
-        { id: decoded.id, email: decoded.email, role: decoded.role },
-        JWT_SECRET(),
-        { expiresIn: "15m" }
-      );
+    // Read the account again: a deactivated login stops here, and a changed role (e.g. a
+    // teacher made Principal) takes effect without signing out.
+    const user = await prisma.user.findUnique({ where: { id: Number(decoded.id) }, select: { id: true, email: true, role: true, name: true, isActive: true } });
+    if (!user || !user.isActive) {
+      res.status(401).json({ success: false, message: "This account is no longer active" });
+      return;
+    }
 
-      const newRefreshToken = jwt.sign(
-        { id: decoded.id, email: decoded.email, role: decoded.role },
-        JWT_REFRESH_SECRET(),
-        { expiresIn: "7d" }
-      );
-
-      res.status(200).json({
-        success: true,
-        accessToken,
-        refreshToken: newRefreshToken,
-      });
+    const claims = { id: user.id, email: user.email, role: user.role };
+    res.status(200).json({
+      success: true,
+      accessToken: jwt.sign(claims, JWT_SECRET(), { expiresIn: "15m" }),
+      refreshToken: jwt.sign(claims, JWT_REFRESH_SECRET(), { expiresIn: "7d" }),
+      user: { id: user.id, email: user.email, role: user.role, name: user.name },
     });
   } catch (error) {
     res.status(500).json({ success: false, message: "Internal server error" });

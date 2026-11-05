@@ -1,11 +1,12 @@
 import { Router } from "express";
-import { authenticateToken, authorizeRoles } from "../../middleware/auth";
+import { authenticateToken } from "../../middleware/auth";
+import { allow } from "../../config/permissions";
 import { asyncHandler } from "../../utils/asyncHandler";
 import { getAdminDashboard } from "./controller";
 
 const router = Router();
 
-router.use(authenticateToken, authorizeRoles(["SUPER_ADMIN", "ADMIN"]));
+router.use(authenticateToken, allow("dashboard"));
 
 router.get("/admin", asyncHandler(getAdminDashboard));
 

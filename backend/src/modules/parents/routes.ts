@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { authenticateToken, authorizeRoles } from "../../middleware/auth";
+import { allow } from "../../config/permissions";
 import { asyncHandler } from "../../utils/asyncHandler";
 import {
   deleteParentChild,
@@ -16,11 +17,11 @@ const router = Router();
 router.use(authenticateToken);
 
 router.get("/me", authorizeRoles(["PARENT"]), asyncHandler(getMyParentProfile));
-router.get("/", authorizeRoles(["SUPER_ADMIN", "ADMIN"]), asyncHandler(getParents));
-router.get("/:id", authorizeRoles(["SUPER_ADMIN", "ADMIN"]), asyncHandler(getParent));
-router.get("/:id/dues", authorizeRoles(["SUPER_ADMIN", "ADMIN"]), asyncHandler(getParentDuesSummary));
-router.post("/", authorizeRoles(["SUPER_ADMIN", "ADMIN"]), asyncHandler(postParent));
-router.post("/:id/children", authorizeRoles(["SUPER_ADMIN", "ADMIN"]), asyncHandler(postParentChild));
-router.delete("/:id/children/:studentId", authorizeRoles(["SUPER_ADMIN", "ADMIN"]), asyncHandler(deleteParentChild));
+router.get("/", allow("families.view"), asyncHandler(getParents));
+router.get("/:id", allow("families.view"), asyncHandler(getParent));
+router.get("/:id/dues", allow("families.view"), asyncHandler(getParentDuesSummary));
+router.post("/", allow("families.edit"), asyncHandler(postParent));
+router.post("/:id/children", allow("families.edit"), asyncHandler(postParentChild));
+router.delete("/:id/children/:studentId", allow("families.edit"), asyncHandler(deleteParentChild));
 
 export default router;

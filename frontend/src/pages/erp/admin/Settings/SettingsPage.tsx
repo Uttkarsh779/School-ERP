@@ -7,6 +7,7 @@ import { useGetDocumentSettingsQuery, useUpdateDocumentSettingsMutation, type Do
 import SettingsEditor from "../Cms/SettingsEditor";
 import BackupPanel from "./BackupPanel";
 import styles from "./SettingsPage.module.css";
+import { useCan } from "../../../../store/permissions";
 
 // School-wide settings. Module rules stay in their own pages (fee fines in Fees, weekly offs
 // in the calendar...); the Shortcuts tab links to them.
@@ -45,24 +46,28 @@ const PLACES: { key: keyof DocumentSettings; label: string; hint: string }[] = [
 const SHORTCUTS = [
   {
     to: "/admin/fees?tab=settings",
+    perm: "fees.configure",
     icon: "building",
     title: "Fee settings",
     text: "Late fine, monthly bill date, transport due day",
   },
   {
     to: "/admin/calendar",
+    perm: "calendar",
     icon: "calendar",
     title: "Weekly offs & holidays",
     text: "Sundays, off Saturdays and the holiday list",
   },
   {
     to: "/admin/sessions",
+    perm: "academics.view",
     icon: "layers",
     title: "Academic sessions",
     text: "Current session and moving to the next one",
   },
   {
     to: "/admin/cms",
+    perm: "website",
     icon: "globe",
     title: "Website",
     text: "Home page, about, gallery, notices, social links",
@@ -174,6 +179,7 @@ const DocumentSettingsPanel = ({ canEdit }: { canEdit: boolean }) => {
 };
 
 const SettingsPage = () => {
+  const can = useCan();
   const isSuperAdmin = useAppSelector((s) => s.auth.user?.role) === "SUPER_ADMIN";
   const [params, setParams] = useSearchParams();
   const tabs = TABS.filter((t) => t.key !== "backup" || isSuperAdmin);
@@ -210,7 +216,7 @@ const SettingsPage = () => {
         <BackupPanel />
       ) : (
         <div className={styles.shortcuts}>
-          {SHORTCUTS.map((s) => (
+          {SHORTCUTS.filter((s) => can(s.perm)).map((s) => (
             <Link key={s.to} to={s.to} className={styles.shortcut}>
               <span className={styles.shortcutIcon}>
                 <Icon name={s.icon} size={20} />

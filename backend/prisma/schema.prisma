@@ -12,7 +12,9 @@ datasource db {
 
 enum Role {
   SUPER_ADMIN
-  ADMIN
+  ADMIN // office
+  PRINCIPAL
+  ACCOUNTANT
   TEACHER
   STUDENT
   PARENT
@@ -64,6 +66,7 @@ enum StaffCategory {
   SECURITY_STAFF
   OFFICE_STAFF
   ADMIN_STAFF
+  ACCOUNTANT
   SUPPORT_STAFF
   OTHER
 }

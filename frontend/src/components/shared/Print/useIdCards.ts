@@ -13,6 +13,7 @@ const STAFF_TITLES: Record<string, string> = {
   HOUSEKEEPING_STAFF: "Housekeeping Staff",
   OFFICE_STAFF: "Office Staff",
   ADMIN_STAFF: "Admin Staff",
+  ACCOUNTANT: "Accountant",
   SUPPORT_STAFF: "Support Staff",
   OTHER: "Staff",
 };

@@ -183,13 +183,15 @@ const StructuresTab = ({ isSuperAdmin }: { isSuperAdmin: boolean }) => {
               onChange={(e) => setSessionFilter(e.target.value)}
               options={(sessions ?? []).map((s) => ({ label: `Session ${s.name}${s.isCurrent ? " (current)" : ""}`, value: String(s.id) }))}
             />
-            <Button size="sm" onClick={openCreate} disabled={feeHeads.length === 0}>
-              + New structure
-            </Button>
+            {isSuperAdmin && (
+              <Button size="sm" onClick={openCreate} disabled={feeHeads.length === 0}>
+                + New structure
+              </Button>
+            )}
           </div>
         }
       >
-        {feeHeads.length === 0 && (
+        {feeHeads.length === 0 && isSuperAdmin && (
           <div className={`${styles.notice} ${styles.noticeWarn}`} style={{ marginBottom: "1rem" }}>
             Create fee heads (e.g. Tuition, Annual, Exam) in the Settings tab before setting up structures.
           </div>

@@ -2,6 +2,7 @@ import { prisma } from "../../config/prisma";
 import type { Role } from "../../generated/prisma/enums";
 import { httpError } from "../../utils/httpError";
 import { offDays } from "../calendar/service";
+import { can } from "../../config/permissions";
 
 // Leave requests.
 // - Student leave: applied from the student portal; decided by the student's class teacher
@@ -136,12 +137,12 @@ export const listAllLeaves = async (filters: { kind?: string; status?: string })
 export const decideLeave = async (actor: Actor, id: number, approved: boolean, note?: string) => {
   const leave = await prisma.leaveRequest.findUnique({
     where: { id },
-    include: { student: { select: { id: true, classSectionId: true, classSection: { select: { classTeacherId: true } } } }, staff: { select: { userId: true } } },
+    include: { student: { select: { id: true, classSectionId: true, classSection: { select: { classTeacherId: true } } } }, staff: { select: { userId: true, user: { select: { role: true } } } } },
   });
   if (!leave) throw httpError(404, "Leave request not found");
   if (leave.status !== "PENDING") throw httpError(409, "This request has already been decided");
 
-  const isAdmin = actor.role === "SUPER_ADMIN" || actor.role === "ADMIN";
+  const isAdmin = can(actor.role, "leaves.manage");
   if (leave.studentId) {
     if (!isAdmin) {
       const staff = await prisma.staff.findUnique({ where: { userId: actor.id }, select: { id: true } });
@@ -150,8 +151,9 @@ export const decideLeave = async (actor: Actor, id: number, approved: boolean, n
       }
     }
   } else {
-    if (!isAdmin) throw httpError(403, "Staff leave is decided by an admin");
+    if (!isAdmin) throw httpError(403, "Staff leave is decided by the Principal or the office");
     if (leave.staff?.userId === actor.id) throw httpError(403, "You can't decide your own leave request");
+    if (leave.staff?.user.role === "PRINCIPAL" && actor.role !== "SUPER_ADMIN") throw httpError(403, "The Principal's leave is decided by the Super Admin");
   }
 
   const cleanNote = typeof note === "string" && note.trim() ? note.trim().slice(0, 300) : null;

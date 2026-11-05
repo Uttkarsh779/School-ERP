@@ -1,12 +1,13 @@
 import { Router, type Response } from "express";
 import { authenticateToken, authorizeRoles, type CustomRequest } from "../../middleware/auth";
+import { SCHOOL_WIDE } from "../../config/permissions";
 import { asyncHandler } from "../../utils/asyncHandler";
 import { changeMyPassword, getMyProfile, updateMyProfile } from "./service";
 
 // The logged-in user's own account. There is no :id — it always acts on the caller, so
 // nobody can read or change someone else's profile through it. Parents have no portal.
 const router = Router();
-router.use(authenticateToken, authorizeRoles(["SUPER_ADMIN", "ADMIN", "TEACHER", "STUDENT"]));
+router.use(authenticateToken, authorizeRoles([...SCHOOL_WIDE, "TEACHER", "STUDENT"]));
 
 router.get(
   "/me",

@@ -6,8 +6,10 @@ import type { TableColumn } from "../../../../components/ui";
 import { useGetParentsQuery } from "../../../../store/api/parents.api";
 import NewParentModal from "./NewParentModal";
 import styles from "./ParentsPage.module.css";
+import { useCan } from "../../../../store/permissions";
 
 const ParentsPage = () => {
+  const can = useCan();
   const navigate = useNavigate();
   const { data: parents, isLoading, isError } = useGetParentsQuery();
   const [showNewParent, setShowNewParent] = useState(false);
@@ -106,9 +108,11 @@ const ParentsPage = () => {
         title="Parents"
         subtitle="Manage parent/guardian accounts and the children linked to each"
         actions={
-          <Button icon={<Icon name="plus" size={16} />} onClick={() => setShowNewParent(true)}>
-            New parent
-          </Button>
+          can("families.edit") && (
+            <Button icon={<Icon name="plus" size={16} />} onClick={() => setShowNewParent(true)}>
+              New parent
+            </Button>
+          )
         }
       />
 
@@ -128,9 +132,11 @@ const ParentsPage = () => {
           title="No families yet"
           description="Create a parent account and link children to start managing families."
           action={
-            <Button icon={<Icon name="plus" size={16} />} onClick={() => setShowNewParent(true)}>
-              New parent
-            </Button>
+            can("families.edit") && (
+              <Button icon={<Icon name="plus" size={16} />} onClick={() => setShowNewParent(true)}>
+                New parent
+              </Button>
+            )
           }
         />
       ) : (

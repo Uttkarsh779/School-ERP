@@ -73,10 +73,10 @@ app.use("/api/construction", constructionRouter); // SUPER_ADMIN only
 app.use("/api/profile", profileRouter); // the caller's own account
 app.use("/api/teaching", teachingRouter); // TEACHER only
 app.use("/api/leaves", leavesRouter);
-app.use("/api/certificates", certificatesRouter); // ADMIN / SUPER_ADMIN
+app.use("/api/certificates", certificatesRouter); // office and Principal
 app.use("/api/notifications", notificationsRouter); // the caller's own
-app.use("/api/accounts", accountsRouter); // ADMIN / SUPER_ADMIN
-app.use("/api/calendar", calendarRouter); // view: everyone · manage: admins
+app.use("/api/accounts", accountsRouter); // office and Accountant
+app.use("/api/calendar", calendarRouter); // view: everyone · manage: office and Principal
 app.use("/api/settings", settingsRouter); // signature/seal for printouts · change: Super Admin
 app.use("/api/backups", backupRouter); // database backups · Super Admin
 

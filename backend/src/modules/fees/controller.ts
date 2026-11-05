@@ -16,12 +16,13 @@ import { prisma } from "../../config/prisma";
 import { FeeMode, LateFeeType, PaymentStatus } from "../../generated/prisma/enums";
 import { parseSlabs, receiptNumberFor } from "./lateFeeService";
 import { onPaymentReceived } from "../notifications/events";
+import { can, isSchoolWide } from "../../config/permissions";
 
 // For STUDENT/PARENT callers, the student ids they may see financial data for (null =
 // staff, unrestricted). Used to scope list endpoints that are otherwise "all students".
 const ownStudentIds = async (req: CustomRequest): Promise<number[] | null> => {
   const role = req.user?.role;
-  if (role === "SUPER_ADMIN" || role === "ADMIN") return null;
+  if (isSchoolWide(role)) return null;
   if (role === "STUDENT") {
     const s = await prisma.student.findUnique({ where: { userId: req.user!.id }, select: { id: true } });
     return s ? [s.id] : [];
@@ -36,7 +37,7 @@ const ownStudentIds = async (req: CustomRequest): Promise<number[] | null> => {
 // Helper to check ownership for STUDENT or PARENT
 const verifyStudentAccess = async (req: CustomRequest, studentId: number): Promise<boolean> => {
   if (!req.user) return false;
-  if (req.user.role === "SUPER_ADMIN" || req.user.role === "ADMIN") return true;
+  if (isSchoolWide(req.user.role)) return true;
 
   if (req.user.role === "STUDENT") {
     const student = await prisma.student.findUnique({ where: { userId: req.user.id } });
@@ -751,7 +752,9 @@ export const postWaiveLateFee = async (req: CustomRequest, res: Response) => {
 
 export const postWaiveSmallBalance = async (req: CustomRequest, res: Response) => {
   const { feeChargeId, reason, limit } = req.body;
-  const result = await adjustmentService.waiveSmallBalance(Number(feeChargeId), reason, req.user!.id, limit ? Number(limit) : undefined);
+  // The counter is held to the default ₹100 cap; only the Super Admin may waive more this way.
+  const customLimit = limit && can(req.user!.role, "fees.waive") ? Number(limit) : undefined;
+  const result = await adjustmentService.waiveSmallBalance(Number(feeChargeId), reason, req.user!.id, customLimit);
   res.json({ success: true, data: result });
 };
 
@@ -839,10 +842,19 @@ export const getStudentMonthsChart = async (req: CustomRequest, res: Response) =
   }
 };
 
-// Admins and Super Admins can both apply waivers/discounts here (the route allows only
-// those two roles); every waiver is stored with its reason and who applied it.
+// The counter (office / accountant) may waive late fees here; fee-head waivers and an overall
+// discount are the Super Admin's (fees.waive). Every waiver is stored with its reason and who
+// applied it.
 export const postMultiMonthPayment = async (req: CustomRequest, res: Response) => {
   try {
+    const body = req.body ?? {};
+    const discounts =
+      Number(body.lumpSumDiscount?.value) > 0 ||
+      (Array.isArray(body.selectedMonths) && body.selectedMonths.some((m: any) => (m?.headWaivers ?? []).some((w: any) => Number(w?.waiverAmount) > 0)));
+    if (discounts && !can(req.user!.role, "fees.waive")) {
+      res.status(403).json({ success: false, message: "Only the Super Admin can give fee waivers or discounts. Late fees can still be waived." });
+      return;
+    }
     const result = await multiMonthPaymentService.recordMultiMonthPayment(req.body, req.user!.id);
     onPaymentReceived(result.paymentId);
     res.status(201).json({ success: true, data: result });

@@ -4,6 +4,7 @@ import { useAppSelector } from "../../../../store/store";
 import type { AttendanceRegisterStudent } from "../../../../store/api/attendance.api";
 import { STATUS_META, dayKey, formatDayKey, formatPct, monthLabel, pctTone, weekday } from "./attendanceFormat";
 import styles from "./MonthlyReport.module.css";
+import { can } from "../../../../store/permissions";
 
 interface StudentMonthModalProps {
   student: AttendanceRegisterStudent;
@@ -23,7 +24,7 @@ const StudentMonthModal = ({ student, year, month, daysInMonth, workingDays, cla
   const navigate = useNavigate();
   // The student profile page lives under /admin — only link to it for admins.
   const role = useAppSelector((state) => state.auth.user?.role);
-  const canOpenProfile = !hideProfileLink && (role === "SUPER_ADMIN" || role === "ADMIN");
+  const canOpenProfile = !hideProfileLink && can(role, "students.view");
   const working = new Set(workingDays);
   // Monday-first calendar: leading blanks before the 1st.
   const leading = (weekday(year, month, 1) + 6) % 7;

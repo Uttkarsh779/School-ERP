@@ -6,18 +6,12 @@ import { Icon } from "../../components/ui";
 import { useAppSelector } from "../../store/store";
 import { resetTokens } from "../../store/reducers/authReducer";
 import { navByRole, getMobilePrimaryNav, profilePathByRole } from "./navConfig";
+import { ROLE_LABEL } from "../../store/permissions";
 import { useGetMyProfileQuery } from "../../store/api/profile.api";
 import PWAInstallPrompt from "../../components/PWAInstallPrompt/PWAInstallPrompt";
 import NotificationBell from "../../components/Notifications/NotificationBell";
 import EnableNotificationsBanner from "../../components/Notifications/EnableNotificationsBanner";
 
-const roleLabel: Record<string, string> = {
-  SUPER_ADMIN: "Super Admin",
-  ADMIN: "Admin",
-  TEACHER: "Teacher",
-  PARENT: "Parent",
-  STUDENT: "Student",
-};
 
 const AppShell = () => {
   const { user } = useAppSelector((state) => state.auth);
@@ -104,7 +98,7 @@ const AppShell = () => {
             <div className={styles.avatar}>{avatar}</div>
             <div className={styles.userText}>
               <div className={styles.userName}>{displayName}</div>
-              <div className={styles.userRole}>{roleLabel[user?.role ?? ""] ?? user?.role}</div>
+              <div className={styles.userRole}>{ROLE_LABEL[user?.role ?? ""] ?? user?.role}</div>
             </div>
             <Icon name="chevronRight" size={16} className={styles.userChevron} />
           </Link>

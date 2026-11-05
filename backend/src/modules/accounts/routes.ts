@@ -1,5 +1,6 @@
 import { Router, type Response } from "express";
 import { authenticateToken, authorizeRoles, type CustomRequest } from "../../middleware/auth";
+import { allow } from "../../config/permissions";
 import { asyncHandler } from "../../utils/asyncHandler";
 import { httpError } from "../../utils/httpError";
 import { createCategory, createEntry, getSummary, listCategories, listEntries, updateCategory, updateEntry, voidEntry } from "./service";
@@ -7,7 +8,7 @@ import { createCategory, createEntry, getSummary, listCategories, listEntries, u
 // Accounts (income & expense book): admins record and edit; only the Super Admin voids.
 const router = Router();
 router.use(authenticateToken);
-router.use(authorizeRoles(["SUPER_ADMIN", "ADMIN"]));
+router.use(allow("accounts"));
 
 const idParam = (req: CustomRequest) => {
   const id = Number(req.params.id);

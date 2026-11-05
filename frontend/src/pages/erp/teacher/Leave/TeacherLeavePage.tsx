@@ -5,7 +5,7 @@ import { useGetClassLeavesQuery, useGetMyLeavesQuery } from "../../../../store/a
 import tabStyles from "../../admin/Attendance/AdminAttendancePage.module.css";
 
 // Teacher: decide student leave for classes they're class teacher of, and apply for their
-// own leave (decided by an admin).
+// own leave (decided by the Principal or the office).
 const TeacherLeavePage = () => {
   const { data: classLeaves = [], isLoading: classLoading } = useGetClassLeavesQuery();
   const { data: mine = [], isLoading: mineLoading } = useGetMyLeavesQuery();
@@ -34,7 +34,7 @@ const TeacherLeavePage = () => {
         </Card>
       ) : (
         <>
-          <ApplyLeaveCard who="yourself" hint="Your request goes to the school admin." />
+          <ApplyLeaveCard who="yourself" hint="Your request goes to the Principal or the office." />
           <Card title="My requests">{mineLoading ? <Spinner /> : <LeaveTable rows={mine} mode="mine" />}</Card>
         </>
       )}

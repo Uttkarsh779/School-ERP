@@ -27,7 +27,7 @@ type Defaulter = {
 
 // Students with at least one charge past its due date (late fees included, from the
 // configured rule). "Collect" jumps to the payment desk with the student selected.
-const DefaultersTab = ({ onCollect }: { onCollect: (studentId: number) => void }) => {
+const DefaultersTab = ({ onCollect }: { onCollect?: (studentId: number) => void }) => {
   const { data: classSections } = useGetClassSectionsQuery();
   const [classId, setClassId] = useState("");
   const [search, setSearch] = useState("");
@@ -88,11 +88,12 @@ const DefaultersTab = ({ onCollect }: { onCollect: (studentId: number) => void }
     {
       key: "actions",
       label: "",
-      render: (d) => (
-        <Button size="sm" onClick={() => onCollect(d.studentId)}>
-          Collect
-        </Button>
-      ),
+      render: (d) =>
+        onCollect ? (
+          <Button size="sm" onClick={() => onCollect(d.studentId)}>
+            Collect
+          </Button>
+        ) : null,
     },
   ];
 

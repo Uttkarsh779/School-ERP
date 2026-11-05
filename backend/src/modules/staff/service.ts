@@ -32,7 +32,19 @@ export const ACCOUNT_REQUIRED_ROLES = [
   "COORDINATOR",
   "ADMIN_STAFF",
   "OFFICE_STAFF",
+  "ACCOUNTANT",
 ];
+
+// The login role a staff category signs in with (prisma/roles_assign.sql applies the same rule
+// to existing staff). See config/permissions.ts for what each role may do.
+export const loginRoleFor = (category: string): Role =>
+  category === "PRINCIPAL"
+    ? Role.PRINCIPAL
+    : category === "ACCOUNTANT"
+      ? Role.ACCOUNTANT
+      : category === "ADMIN_STAFF" || category === "OFFICE_STAFF"
+        ? Role.ADMIN
+        : Role.TEACHER;
 
 export const isAccountRequiredRole = (role?: string) => {
   if (!role) return true;
@@ -88,7 +100,7 @@ export const createStaff = async (data: {
         create: {
           email,
           passwordHash: data.passwordHash,
-          role: category === "ADMIN_STAFF" ? Role.ADMIN : Role.TEACHER,
+          role: loginRoleFor(category),
           name: data.name,
           isActive: needsAccount,
         },
@@ -118,8 +130,9 @@ export const updateStaff = async (
   if (data.staffCategory) {
     updateData.staffCategory = data.staffCategory;
     // Login access follows the role: a staff member moved to a no-login role loses it.
-    const current = await prisma.staff.findUniqueOrThrow({ where: { id } });
+    const current = await prisma.staff.findUniqueOrThrow({ where: { id }, include: { user: { select: { role: true } } } });
     userUpdate.isActive = current.isActive && isAccountRequiredRole(data.staffCategory);
+    if (current.user.role !== Role.SUPER_ADMIN) userUpdate.role = loginRoleFor(data.staffCategory);
   }
   if (data.name !== undefined) userUpdate.name = data.name;
   if (data.email !== undefined) userUpdate.email = data.email;

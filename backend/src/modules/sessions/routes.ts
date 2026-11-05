@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { authenticateToken, authorizeRoles } from "../../middleware/auth";
+import { allow } from "../../config/permissions";
 import { asyncHandler } from "../../utils/asyncHandler";
 import {
   getPromotionPlan,
@@ -15,7 +16,7 @@ const router = Router();
 
 router.use(authenticateToken);
 
-router.get("/", authorizeRoles(["SUPER_ADMIN", "ADMIN"]), asyncHandler(getSessions));
+router.get("/", allow("academics.view"), asyncHandler(getSessions));
 router.post("/", authorizeRoles(["SUPER_ADMIN"]), asyncHandler(postSession));
 
 // New session setup (copy last year's setup, promote students) — Super Admin only.

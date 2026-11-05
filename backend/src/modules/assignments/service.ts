@@ -1,13 +1,14 @@
 import { prisma } from "../../config/prisma";
 import type { Role } from "../../generated/prisma/enums";
 import { httpError } from "../../utils/httpError";
+import { isSchoolWide } from "../../config/permissions";
 
 // Homework: create/edit/delete (teachers for what they teach, admins for anything),
 // online submissions by students (text and/or a Cloudinary attachment), and teacher review
 // (Checked / Redo with a comment, or "handed in on paper").
 
 type Actor = { id: number; role: Role };
-const isAdmin = (a: Actor) => a.role === "SUPER_ADMIN" || a.role === "ADMIN";
+const isAdmin = (a: Actor) => isSchoolWide(a.role);
 const ATTACHMENT_RE = /^https:\/\/res\.cloudinary\.com\//;
 
 // Only names leave the API — never full user rows (they carry password hashes).

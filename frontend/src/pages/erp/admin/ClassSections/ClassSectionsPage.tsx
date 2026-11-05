@@ -25,6 +25,7 @@ import {
 import { useGetSessionsQuery } from "../../../../store/api/sessions.api";
 import { useGetStaffListQuery } from "../../../../store/api/staff.api";
 import styles from "./ClassSectionsPage.module.css";
+import { useCan } from "../../../../store/permissions";
 
 interface ClassSectionFormInputs {
   className: string;
@@ -42,6 +43,7 @@ const getErrorMessage = (err: unknown, fallback: string) => {
 };
 
 const ClassSectionsPage = () => {
+  const can = useCan();
   // "" = current session (server default); next year's classes can be managed before switching.
   const [sessionFilter, setSessionFilter] = useState("");
   const { data: classSections, isLoading, isError } = useGetClassSectionsQuery(sessionFilter ? { sessionId: Number(sessionFilter) } : undefined);
@@ -163,9 +165,11 @@ const ClassSectionsPage = () => {
           <Button size="sm" variant="outline" onClick={() => openEditModal(row)}>
             Edit
           </Button>
-          <Button size="sm" variant="outline" onClick={() => setPendingDeleteSection(row)}>
-            Delete
-          </Button>
+          {can("classes.delete") && (
+            <Button size="sm" variant="outline" onClick={() => setPendingDeleteSection(row)}>
+              Delete
+            </Button>
+          )}
         </div>
       ),
     },

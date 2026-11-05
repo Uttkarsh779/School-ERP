@@ -1,14 +1,15 @@
 import { Router, type Response } from "express";
-import { authenticateToken, authorizeRoles, type CustomRequest } from "../../middleware/auth";
+import { authenticateToken, type CustomRequest } from "../../middleware/auth";
+import { allow } from "../../config/permissions";
 import { asyncHandler } from "../../utils/asyncHandler";
 import { httpError } from "../../utils/httpError";
 import { copyFromSession, createEvent, deleteEvent, listEvents, updateEvent, updateSettings } from "./service";
 
-// School calendar: everyone signed in can view; admins manage.
+// School calendar: everyone signed in can view; the office and Principal manage.
 const router = Router();
 router.use(authenticateToken);
 
-const admin = authorizeRoles(["SUPER_ADMIN", "ADMIN"]);
+const admin = allow("calendar");
 const idParam = (req: CustomRequest) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id <= 0) throw httpError(400, "Invalid id");

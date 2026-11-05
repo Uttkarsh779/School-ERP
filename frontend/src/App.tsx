@@ -2,7 +2,9 @@ import { Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import Loader from "./components/Loader";
 import Basic from "./components/Layout/basic";
-import ProtectedRoute from "./components/Layout/protectedRoute";
+import ProtectedRoute, { RequirePermission } from "./components/Layout/protectedRoute";
+import { OFFICE_ROLES, useCan } from "./store/permissions";
+import MyLeavePage from "./pages/erp/admin/Leaves/MyLeavePage";
 import PublicRoute from "./components/Layout/publicRoute";
 import Login from "./pages/login/";
 import AppShell from "./layouts/AppShell/AppShell";
@@ -63,6 +65,9 @@ import StudentFeesPage from "./pages/erp/student/Fees/StudentFeesPage";
 import StudentNoticesPage from "./pages/erp/student/Notices/StudentNoticesPage";
 import StudentAssignmentsPage from "./pages/erp/student/Assignments/StudentAssignmentsPage";
 
+// The office calendar: everyone in the office console sees it; managing it needs "calendar".
+const OfficeCalendar = () => <SchoolCalendar canManage={useCan()("calendar")} who="ALL" />;
+
 function App() {
   return (
     <Suspense fallback={<Loader />}>
@@ -93,58 +98,43 @@ function App() {
           <Route path="/admin/login" element={<Login />} />
         </Route>
 
-        {/* Admin */}
+        {/* Office console: Super Admin, Admin, Principal, Accountant — each page needs its permission */}
         <Route
           element={
-            <ProtectedRoute allowedRoles={["SUPER_ADMIN", "ADMIN"]}>
+            <ProtectedRoute allowedRoles={OFFICE_ROLES}>
               <AppShell />
             </ProtectedRoute>
           }
         >
-          <Route path="/admin" element={<DashboardPage />} />
-          <Route path="/admin/sessions" element={<SessionsPage />} />
-          <Route path="/admin/sessions/setup" element={<SessionSetupPage />} />
-          <Route path="/admin/class-sections" element={<ClassSectionsPage />} />
-          <Route path="/admin/staff" element={<StaffPage />} />
-          <Route path="/admin/students" element={<StudentsPage />} />
-          <Route path="/admin/students/:id" element={<StudentDetailPage />} />
-          <Route path="/admin/parents" element={<ParentsPage />} />
-          <Route path="/admin/parents/:id" element={<FamilyProfilePage />} />
-          <Route path="/admin/timetable" element={<AdminTimetablePage />} />
-          <Route path="/admin/attendance" element={<AdminAttendancePage />} />
-          <Route path="/admin/exams" element={<AdminExamsPage />} />
-          <Route path="/admin/fees" element={<AdminFeesPage />} />
-          <Route path="/admin/fees/structures/:id" element={<AdminClassFeeStructureDetailPage />} />
-          <Route path="/admin/fees/concessions" element={<AdminConcessionsPage />} />
-          <Route path="/admin/notices" element={<AdminNoticesPage />} />
-          <Route path="/admin/transport" element={<AdminTransportPage />} />
-          <Route path="/admin/assignments" element={<TeacherAssignmentsPage />} />
-          <Route path="/admin/cms" element={<AdminCmsPage />} />
-          <Route path="/admin/leaves" element={<AdminLeavesPage />} />
-          <Route path="/admin/accounts" element={<AccountsPage />} />
-          <Route path="/admin/calendar" element={<SchoolCalendar canManage who="ALL" />} />
-          <Route path="/admin/settings" element={<SettingsPage />} />
-          <Route path="/admin/certificates" element={<CertificateRegisterPage />} />
+          <Route path="/admin" element={<RequirePermission perm="dashboard"><DashboardPage /></RequirePermission>} />
+          <Route path="/admin/sessions" element={<RequirePermission perm="academics.view"><SessionsPage /></RequirePermission>} />
+          <Route path="/admin/sessions/setup" element={<RequirePermission perm="owner"><SessionSetupPage /></RequirePermission>} />
+          <Route path="/admin/class-sections" element={<RequirePermission perm="academics.edit"><ClassSectionsPage /></RequirePermission>} />
+          <Route path="/admin/staff" element={<RequirePermission perm="staff.view"><StaffPage /></RequirePermission>} />
+          <Route path="/admin/students" element={<RequirePermission perm="students.view"><StudentsPage /></RequirePermission>} />
+          <Route path="/admin/students/:id" element={<RequirePermission perm="students.view"><StudentDetailPage /></RequirePermission>} />
+          <Route path="/admin/parents" element={<RequirePermission perm="families.view"><ParentsPage /></RequirePermission>} />
+          <Route path="/admin/parents/:id" element={<RequirePermission perm="families.view"><FamilyProfilePage /></RequirePermission>} />
+          <Route path="/admin/timetable" element={<RequirePermission perm="academics.edit"><AdminTimetablePage /></RequirePermission>} />
+          <Route path="/admin/attendance" element={<RequirePermission perm="attendance"><AdminAttendancePage /></RequirePermission>} />
+          <Route path="/admin/exams" element={<RequirePermission perm="exams.coordinate"><AdminExamsPage /></RequirePermission>} />
+          <Route path="/admin/fees" element={<RequirePermission perm="fees.view"><AdminFeesPage /></RequirePermission>} />
+          <Route path="/admin/fees/structures/:id" element={<RequirePermission perm="fees.view"><AdminClassFeeStructureDetailPage /></RequirePermission>} />
+          <Route path="/admin/fees/concessions" element={<RequirePermission perm="fees.view"><AdminConcessionsPage /></RequirePermission>} />
+          <Route path="/admin/notices" element={<RequirePermission perm="dashboard"><AdminNoticesPage /></RequirePermission>} />
+          <Route path="/admin/transport" element={<RequirePermission perm="transport.edit"><AdminTransportPage /></RequirePermission>} />
+          <Route path="/admin/assignments" element={<RequirePermission perm="homework"><TeacherAssignmentsPage /></RequirePermission>} />
+          <Route path="/admin/cms" element={<RequirePermission perm="website"><AdminCmsPage /></RequirePermission>} />
+          <Route path="/admin/leaves" element={<RequirePermission perm="leaves.manage"><AdminLeavesPage /></RequirePermission>} />
+          <Route path="/admin/my-leave" element={<RequirePermission perm="leave.own"><MyLeavePage /></RequirePermission>} />
+          <Route path="/admin/accounts" element={<RequirePermission perm="accounts"><AccountsPage /></RequirePermission>} />
+          <Route path="/admin/calendar" element={<RequirePermission perm="dashboard"><OfficeCalendar /></RequirePermission>} />
+          <Route path="/admin/settings" element={<RequirePermission perm="settings"><SettingsPage /></RequirePermission>} />
+          <Route path="/admin/certificates" element={<RequirePermission perm="certificates"><CertificateRegisterPage /></RequirePermission>} />
+          <Route path="/admin/admission-report" element={<RequirePermission perm="owner"><AdmissionReportPage /></RequirePermission>} />
+          <Route path="/admin/construction" element={<RequirePermission perm="owner"><ConstructionExpensePage /></RequirePermission>} />
           <Route path="/admin/profile" element={<MyProfilePage />} />
           <Route path="/admin/account" element={<Navigate to="/admin/profile" replace />} />
-
-          {/* SUPER_ADMIN only — an ADMIN entering these URLs is redirected away */}
-          <Route
-            path="/admin/admission-report"
-            element={
-              <ProtectedRoute allowedRoles={["SUPER_ADMIN"]}>
-                <AdmissionReportPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/construction"
-            element={
-              <ProtectedRoute allowedRoles={["SUPER_ADMIN"]}>
-                <ConstructionExpensePage />
-              </ProtectedRoute>
-            }
-          />
         </Route>
 
         {/* Teacher */}

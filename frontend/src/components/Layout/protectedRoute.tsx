@@ -1,6 +1,7 @@
 import React, { type ReactElement } from "react";
 import { Navigate } from "react-router-dom";
 import { useAppSelector } from "../../store/store";
+import { can, type Permission } from "../../store/permissions";
 
 interface ProtectedRouteProps {
   allowedRoles?: string[];
@@ -32,3 +33,8 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 };
 
 export default ProtectedRoute;
+
+// Office console page guard: a role without the permission goes back to the dashboard
+// (the menu doesn't show the page either; the server refuses the data anyway).
+export const RequirePermission = ({ perm, children }: { perm: Permission; children: ReactElement }) =>
+  can(useAppSelector((s) => s.auth.user?.role), perm) ? children : <Navigate to="/admin" replace />;

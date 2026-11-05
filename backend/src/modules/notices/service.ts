@@ -5,6 +5,7 @@ import { listClassSectionsForTeacher } from "../classSections/service";
 import { getStudentByUserId } from "../students/service";
 import { getParentByUserId } from "../parents/service";
 import { httpError } from "../../utils/httpError";
+import { isSchoolWide } from "../../config/permissions";
 
 export const createNotice = (data: {
   title: string;
@@ -89,7 +90,7 @@ export const listTeacherNoticeClasses = async (userId: number) => {
   }));
 };
 
-// Admins: existing audience rules (role and/or one class). Teachers: one notice per chosen class.
+// Office and Principal: existing audience rules (role and/or one class). Teachers: one notice per chosen class.
 export const createNoticesForActor = async (actor: Actor, body: Record<string, unknown>) => {
   const fields = parseNoticeFields(body ?? {});
   if (actor.role === "TEACHER") {
@@ -101,7 +102,7 @@ export const createNoticesForActor = async (actor: Actor, body: Record<string, u
     );
   }
   const targetRole = body.targetRole ? String(body.targetRole) : undefined;
-  if (targetRole && !["SUPER_ADMIN", "ADMIN", "TEACHER", "STUDENT", "PARENT"].includes(targetRole)) {
+  if (targetRole && !["SUPER_ADMIN", "ADMIN", "PRINCIPAL", "ACCOUNTANT", "TEACHER", "STUDENT", "PARENT"].includes(targetRole)) {
     throw httpError(400, `Invalid targetRole "${targetRole}"`);
   }
   const targetClassSectionId = body.targetClassSectionId ? Number(body.targetClassSectionId) : undefined;
@@ -203,7 +204,7 @@ const getOwnClassSectionIds = async (userId: number, role: Role): Promise<number
 //   handled separately by listNoticesForAdmin, which bypasses all filtering).
 // - both null -> everyone.
 export const listNoticesForUser = async (userId: number, role: Role) => {
-  if (role === "SUPER_ADMIN" || role === "ADMIN") {
+  if (isSchoolWide(role)) {
     return listNoticesForAdmin();
   }
 

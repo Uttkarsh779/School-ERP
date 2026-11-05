@@ -12,12 +12,13 @@ import {
   upsertAttendanceEntry,
 } from "./service";
 import { onAttendanceMarked } from "../notifications/events";
+import { isSchoolWide } from "../../config/permissions";
 
 // SUPER_ADMIN/ADMIN can manage any class; a TEACHER only the class section they're
 // the assigned class teacher for.
 const canManageClassAttendance = async (req: CustomRequest, classSectionId: number): Promise<boolean> => {
   const role = req.user?.role;
-  if (role === "SUPER_ADMIN" || role === "ADMIN") return true;
+  if (isSchoolWide(role)) return true;
   if (role !== "TEACHER" || !req.user) return false;
   const staff = await findStaffByUserId(req.user.id);
   if (!staff) return false;
@@ -28,7 +29,7 @@ const canManageClassAttendance = async (req: CustomRequest, classSectionId: numb
 // students; a PARENT only for their own linked children.
 const canViewStudentAttendance = async (req: CustomRequest, studentId: number): Promise<boolean> => {
   const role = req.user?.role;
-  if (role === "SUPER_ADMIN" || role === "ADMIN") return true;
+  if (isSchoolWide(role)) return true;
   if (!req.user) return false;
 
   const student = await getStudentById(studentId);

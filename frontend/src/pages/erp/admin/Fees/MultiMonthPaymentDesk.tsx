@@ -5,10 +5,10 @@ import ReceiptModal from "../../../../components/shared/FeeReceipt/ReceiptModal"
 import { useGetClassSectionsQuery } from "../../../../store/api/classSections.api";
 import { useGetStudentsQuery } from "../../../../store/api/students.api";
 import { useGetStudentMonthsChartQuery, useRecordMultiMonthPaymentMutation } from "../../../../store/api/fees.api";
-import { useAppSelector } from "../../../../store/store";
 import { classLabel, getErrorMessage, inr } from "./feeUtils";
 import styles from "./MultiMonthPaymentDesk.module.css";
 import shared from "./Fees.module.css";
+import { useCan } from "../../../../store/permissions";
 
 interface MultiMonthPaymentDeskProps {
   initialStudentId?: number;
@@ -50,8 +50,11 @@ const keyOf = (m: { month: number; year: number }) => `${m.month}-${m.year}`;
 const PICK_LIMIT = 50;
 
 const MultiMonthPaymentDesk = ({ initialStudentId, onPaymentSuccess }: MultiMonthPaymentDeskProps) => {
-  const role = useAppSelector((s) => s.auth.user?.role);
-  const canWaive = role === "SUPER_ADMIN" || role === "ADMIN";
+  // The counter may waive late fees; fee-head waivers and an overall discount are the Super
+  // Admin's (the server refuses them from anyone else).
+  const can = useCan();
+  const canWaiveLate = can("fees.collect");
+  const canDiscount = can("fees.waive");
 
   const [filterClassId, setFilterClassId] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -120,17 +123,17 @@ const MultiMonthPaymentDesk = ({ initialStudentId, onPaymentSuccess }: MultiMont
   const summary = useMemo(() => {
     const due = selected.reduce((s, m) => s + Math.max(0, m.balanceDue - (m.lateFeeAmount || 0)), 0);
     const late = selected.reduce((s, m) => s + (m.lateFeeAmount || 0), 0);
-    const lateWaived = canWaive && waiveLateFines ? late : 0;
-    const heads = canWaive
+    const lateWaived = canWaiveLate && waiveLateFines ? late : 0;
+    const heads = canDiscount
       ? Object.entries(headWaivers)
           .filter(([k]) => selectedKeys.some((sk) => k.startsWith(`${sk}-`)))
           .reduce((s, [, w]) => s + (Number(w.amount) > 0 ? Number(w.amount) : 0), 0)
       : 0;
     const beforeLump = Math.max(0, due + late - lateWaived - heads);
     const lv = Number(lumpValue);
-    const lump = canWaive && lv > 0 ? (lumpType === "PERCENTAGE" ? Math.round((beforeLump * Math.min(lv, 100)) / 100) : Math.min(lv, beforeLump)) : 0;
+    const lump = canDiscount && lv > 0 ? (lumpType === "PERCENTAGE" ? Math.round((beforeLump * Math.min(lv, 100)) / 100) : Math.min(lv, beforeLump)) : 0;
     return { due, late, lateWaived, heads, lump, net: Math.max(0, beforeLump - lump) };
-  }, [selected, selectedKeys, waiveLateFines, headWaivers, lumpType, lumpValue, canWaive]);
+  }, [selected, selectedKeys, waiveLateFines, headWaivers, lumpType, lumpValue, canWaiveLate, canDiscount]);
 
   useEffect(() => {
     setPayAmount(summary.net > 0 ? String(Math.round(summary.net * 100) / 100) : "");
@@ -163,7 +166,7 @@ const MultiMonthPaymentDesk = ({ initialStudentId, onPaymentSuccess }: MultiMont
         selectedMonths: selected.map((m) => ({
           month: m.month,
           year: m.year,
-          headWaivers: canWaive
+          headWaivers: canDiscount
             ? Object.entries(headWaivers)
                 .filter(([k, w]) => k.startsWith(`${keyOf(m)}-`) && Number(w.amount) > 0)
                 .map(([k, w]) => ({
@@ -174,10 +177,10 @@ const MultiMonthPaymentDesk = ({ initialStudentId, onPaymentSuccess }: MultiMont
             : [],
         })),
         lumpSumDiscount:
-          canWaive && Number(lumpValue) > 0
+          canDiscount && Number(lumpValue) > 0
             ? { type: lumpType, value: Number(lumpValue), reason: lumpReason.trim() || "Discount at payment desk" }
             : undefined,
-        waiveLateFines: canWaive && waiveLateFines,
+        waiveLateFines: canWaiveLate && waiveLateFines,
         paymentAmount: amount,
         paymentMode,
         transactionRef: transactionRef.trim() || undefined,
@@ -435,7 +438,7 @@ const MultiMonthPaymentDesk = ({ initialStudentId, onPaymentSuccess }: MultiMont
           </Card>
 
           <div className={shared.twoCol}>
-            {canWaive ? (
+            {canWaiveLate ? (
               <Card title="Waivers & discounts" subtitle="Every waiver is recorded with its reason and who applied it">
                 {selected.length === 0 ? (
                   <p className={shared.muted}>Select months to apply waivers.</p>
@@ -449,69 +452,74 @@ const MultiMonthPaymentDesk = ({ initialStudentId, onPaymentSuccess }: MultiMont
                         </span>
                       </label>
                     )}
-                    <table className={shared.itemsTable}>
-                      <thead>
-                        <tr>
-                          <th>Month · Fee head</th>
-                          <th>Waive ₹</th>
-                          <th>Reason</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {selected.flatMap((m) =>
-                          m.heads.map((h) => {
-                            const wk = `${keyOf(m)}-${h.feeHeadId}`;
-                            const w = headWaivers[wk] ?? { amount: "", reason: "" };
-                            return (
-                              <tr key={wk}>
-                                <td>
-                                  {m.monthName.slice(0, 3)} · {h.headName} <span className={shared.muted}>({inr(h.baseAmount)})</span>
-                                </td>
-                                <td>
-                                  <input
-                                    className={shared.cellInput}
-                                    inputMode="decimal"
-                                    value={w.amount}
-                                    onChange={(e) => setHeadWaivers((p) => ({ ...p, [wk]: { ...w, amount: e.target.value } }))}
-                                  />
-                                </td>
-                                <td>
-                                  <input
-                                    className={shared.cellInput}
-                                    value={w.reason}
-                                    placeholder="Reason"
-                                    onChange={(e) => setHeadWaivers((p) => ({ ...p, [wk]: { ...w, reason: e.target.value } }))}
-                                  />
-                                </td>
-                              </tr>
-                            );
-                          })
-                        )}
-                      </tbody>
-                    </table>
-                    <div className={shared.filters} style={{ marginBottom: 0 }}>
-                      <Select
-                        label="Overall discount"
-                        value={lumpType}
-                        onChange={(e) => setLumpType(e.target.value as "FIXED_AMOUNT" | "PERCENTAGE")}
-                        options={[
-                          { label: "Fixed amount (₹)", value: "FIXED_AMOUNT" },
-                          { label: "Percentage (%)", value: "PERCENTAGE" },
-                        ]}
-                      />
-                      <Input label="Value" inputMode="decimal" value={lumpValue} onChange={(e) => setLumpValue(e.target.value)} />
-                      <div className={shared.wide}>
-                        <Input label="Reason" value={lumpReason} onChange={(e) => setLumpReason(e.target.value)} placeholder="e.g. Early quarterly payment" />
-                      </div>
-                    </div>
+                    {!canDiscount ? (
+                      <p className={shared.muted}>Fee waivers and discounts are given by the Super Admin.</p>
+                    ) : (
+                      <>
+                        <table className={shared.itemsTable}>
+                          <thead>
+                            <tr>
+                              <th>Month · Fee head</th>
+                              <th>Waive ₹</th>
+                              <th>Reason</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {selected.flatMap((m) =>
+                              m.heads.map((h) => {
+                                const wk = `${keyOf(m)}-${h.feeHeadId}`;
+                                const w = headWaivers[wk] ?? { amount: "", reason: "" };
+                                return (
+                                  <tr key={wk}>
+                                    <td>
+                                      {m.monthName.slice(0, 3)} · {h.headName} <span className={shared.muted}>({inr(h.baseAmount)})</span>
+                                    </td>
+                                    <td>
+                                      <input
+                                        className={shared.cellInput}
+                                        inputMode="decimal"
+                                        value={w.amount}
+                                        onChange={(e) => setHeadWaivers((p) => ({ ...p, [wk]: { ...w, amount: e.target.value } }))}
+                                      />
+                                    </td>
+                                    <td>
+                                      <input
+                                        className={shared.cellInput}
+                                        value={w.reason}
+                                        placeholder="Reason"
+                                        onChange={(e) => setHeadWaivers((p) => ({ ...p, [wk]: { ...w, reason: e.target.value } }))}
+                                      />
+                                    </td>
+                                  </tr>
+                                );
+                              })
+                            )}
+                          </tbody>
+                        </table>
+                        <div className={shared.filters} style={{ marginBottom: 0 }}>
+                          <Select
+                            label="Overall discount"
+                            value={lumpType}
+                            onChange={(e) => setLumpType(e.target.value as "FIXED_AMOUNT" | "PERCENTAGE")}
+                            options={[
+                              { label: "Fixed amount (₹)", value: "FIXED_AMOUNT" },
+                              { label: "Percentage (%)", value: "PERCENTAGE" },
+                            ]}
+                          />
+                          <Input label="Value" inputMode="decimal" value={lumpValue} onChange={(e) => setLumpValue(e.target.value)} />
+                          <div className={shared.wide}>
+                            <Input label="Reason" value={lumpReason} onChange={(e) => setLumpReason(e.target.value)} placeholder="e.g. Early quarterly payment" />
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
               </Card>
             ) : (
               <Card title="Waivers & discounts">
                 <p className={shared.muted}>
-                  Waivers and discounts can be applied by an Admin or Super Admin. Late fees shown are calculated from the school's late-fee
-                  rule.
+                  Waivers and discounts are given by the Super Admin. Late fees shown are calculated from the school's late-fee rule.
                 </p>
               </Card>
             )}

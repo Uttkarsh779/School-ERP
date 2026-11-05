@@ -26,8 +26,10 @@ import BulkImportPanel from "./BulkImportPanel";
 import BulkPhotoUploadModal from "./photos/BulkPhotoUploadModal";
 import { useIdCards } from "../../../../components/shared/Print/useIdCards";
 import styles from "./StudentsPage.module.css";
+import { useCan } from "../../../../store/permissions";
 
 const StudentsPage = () => {
+  const can = useCan();
   const navigate = useNavigate();
   const [isPhotoUploadOpen, setIsPhotoUploadOpen] = useState(false);
   const { printStudents } = useIdCards();
@@ -233,15 +235,24 @@ const StudentsPage = () => {
         subtitle="View, search, and manage all student profiles across RRS Intl School"
         actions={
           <div style={{ display: "flex", flexWrap: "wrap", gap: "0.6rem" }}>
-            <Button type="button" variant="outline" onClick={() => setIsPhotoUploadOpen(true)}>
-              Upload photos
-            </Button>
-            <Button type="button" variant="outline" icon={<Icon name="printer" />} onClick={printIdCards}>
-              Print ID cards
-            </Button>
-            <Button type="button" icon={<Icon name="plus" />} onClick={openModal}>
-              New Student
-            </Button>
+            {can("certificates") && (
+              <Button type="button" variant="outline" icon={<Icon name="fileText" />} onClick={() => navigate("/admin/certificates")}>
+                Certificate register
+              </Button>
+            )}
+            {can("students.edit") && (
+              <>
+                <Button type="button" variant="outline" onClick={() => setIsPhotoUploadOpen(true)}>
+                  Upload photos
+                </Button>
+                <Button type="button" variant="outline" icon={<Icon name="printer" />} onClick={printIdCards}>
+                  Print ID cards
+                </Button>
+                <Button type="button" icon={<Icon name="plus" />} onClick={openModal}>
+                  New Student
+                </Button>
+              </>
+            )}
           </div>
         }
       />

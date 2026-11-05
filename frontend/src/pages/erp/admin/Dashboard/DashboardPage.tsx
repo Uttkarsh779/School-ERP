@@ -7,6 +7,8 @@ import { formatPct, pctTone } from "../Attendance/attendanceFormat";
 import { MODE_LABEL, fmtDate, inr } from "../Fees/feeUtils";
 import SuperAdminInsights from "./SuperAdminInsights";
 import styles from "./DashboardPage.module.css";
+import { useCan } from "../../../../store/permissions";
+import { canOpenPath } from "../../../../layouts/AppShell/navConfig";
 
 const greeting = () => {
   const h = Number(new Intl.DateTimeFormat("en-IN", { hour: "numeric", hour12: false, timeZone: "Asia/Kolkata" }).format(new Date()));
@@ -20,23 +22,32 @@ const DashboardPage = () => {
   const navigate = useNavigate();
   const user = useAppSelector((s) => s.auth.user);
   const isSuperAdmin = user?.role === "SUPER_ADMIN";
+  const can = useCan();
+  const canOpen = (path: string) => canOpenPath(user?.role, path);
+  const firstName = user?.name?.split(" ").find((w) => w && !w.endsWith(".")); // "Dr. Alok" -> Alok
   const { data, isLoading, isError, refetch } = useGetAdminDashboardQuery();
 
   const header = (
     <PageHeader
-      title={`${greeting()}${user?.name ? `, ${user.name.split(" ")[0]}` : ""}`}
+      title={`${greeting()}${firstName ? `, ${firstName}` : ""}`}
       subtitle={`${longToday()}${data?.currentSession ? ` · Session ${data.currentSession.name}` : ""}`}
       actions={
         <div className={styles.headerActions}>
-          <Button variant="outline" icon={<Icon name="plus" size={16} />} onClick={() => navigate("/admin/students")}>
-            Add student
-          </Button>
-          <Button variant="outline" icon={<Icon name="bell" size={16} />} onClick={() => navigate("/admin/notices")}>
-            Post notice
-          </Button>
-          <Button icon={<Icon name="building" size={16} />} onClick={() => navigate("/admin/fees?tab=collect")}>
-            Collect fee
-          </Button>
+          {can("students.edit") && (
+            <Button variant="outline" icon={<Icon name="plus" size={16} />} onClick={() => navigate("/admin/students")}>
+              Add student
+            </Button>
+          )}
+          {can("notices") && (
+            <Button variant="outline" icon={<Icon name="bell" size={16} />} onClick={() => navigate("/admin/notices")}>
+              Post notice
+            </Button>
+          )}
+          {can("fees.collect") && (
+            <Button icon={<Icon name="building" size={16} />} onClick={() => navigate("/admin/fees?tab=collect")}>
+              Collect fee
+            </Button>
+          )}
         </div>
       }
     />
@@ -123,7 +134,7 @@ const DashboardPage = () => {
       <div className={styles.twoCol}>
         <Card
           title="Attendance today"
-          action={<Button size="sm" variant="ghost" onClick={() => navigate("/admin/attendance")}>Reports →</Button>}
+          action={canOpen("/admin/attendance") && <Button size="sm" variant="ghost" onClick={() => navigate("/admin/attendance")}>Reports →</Button>}
         >
           <div className={styles.widgetBody}>
             <div className={styles.miniStatRow}>
@@ -167,7 +178,7 @@ const DashboardPage = () => {
           </div>
         </Card>
 
-        <Card title="Fees" action={<Button size="sm" variant="ghost" onClick={() => navigate("/admin/fees")}>Fee management →</Button>}>
+        <Card title="Fees" action={canOpen("/admin/fees") && <Button size="sm" variant="ghost" onClick={() => navigate("/admin/fees")}>Fee management →</Button>}>
           <div className={styles.widgetBody}>
             <div className={styles.miniStatRow}>
               <div className={styles.miniStat}>
@@ -227,9 +238,11 @@ const DashboardPage = () => {
                   <div className={styles.noticeTitle}>{a.title}</div>
                   {a.detail && <div className={styles.noticeMeta}>{a.detail}</div>}
                 </div>
-                <Button size="sm" variant="outline" onClick={() => navigate(a.to)}>
-                  {a.cta}
-                </Button>
+                {canOpen(a.to) && (
+                  <Button size="sm" variant="outline" onClick={() => navigate(a.to)}>
+                    {a.cta}
+                  </Button>
+                )}
               </li>
             ))}
           </ul>
@@ -255,7 +268,7 @@ const DashboardPage = () => {
           </div>
         </Card>
 
-        <Card title="Exams & marks" action={<Button size="sm" variant="ghost" onClick={() => navigate("/admin/exams")}>Exams →</Button>}>
+        <Card title="Exams & marks" action={canOpen("/admin/exams") && <Button size="sm" variant="ghost" onClick={() => navigate("/admin/exams")}>Exams →</Button>}>
           {data.exams.length === 0 ? (
             <p className={styles.widgetMuted}>No exams created in this session yet.</p>
           ) : (
@@ -283,7 +296,7 @@ const DashboardPage = () => {
           )}
         </Card>
 
-        <Card title="Admissions" action={<Button size="sm" variant="ghost" onClick={() => navigate("/admin/students")}>Students →</Button>}>
+        <Card title="Admissions" action={canOpen("/admin/students") && <Button size="sm" variant="ghost" onClick={() => navigate("/admin/students")}>Students →</Button>}>
           <div className={styles.widgetBody}>
             <div className={styles.bigNumber}>
               <strong>{data.admissions.newThisMonth}</strong>
@@ -334,7 +347,7 @@ const DashboardPage = () => {
       {/* NOTICES */}
       <Card
         title="Recent announcements"
-        action={<Button size="sm" variant="ghost" onClick={() => navigate("/admin/notices")}>All notices →</Button>}
+        action={canOpen("/admin/notices") && <Button size="sm" variant="ghost" onClick={() => navigate("/admin/notices")}>All notices →</Button>}
       >
         {!data.recentNotices || data.recentNotices.length === 0 ? (
           <p className={styles.widgetMuted}>No notices posted yet.</p>

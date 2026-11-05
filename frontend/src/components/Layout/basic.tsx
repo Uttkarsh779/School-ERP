@@ -4,6 +4,8 @@ import { useAppSelector } from "../../store/store";
 const roleHome: Record<string, string> = {
   SUPER_ADMIN: "/admin",
   ADMIN: "/admin",
+  PRINCIPAL: "/admin",
+  ACCOUNTANT: "/admin",
   TEACHER: "/teacher",
   STUDENT: "/student",
 };

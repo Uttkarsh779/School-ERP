@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { Icon, PageHeader } from "../../../../components/ui";
+import { Button, Icon, PageHeader } from "../../../../components/ui";
 import { useAppSelector } from "../../../../store/store";
+import { useCan, type Permission } from "../../../../store/permissions";
 import { useGetFeeOverviewQuery } from "../../../../store/api/fees.api";
 import MultiMonthPaymentDesk from "./MultiMonthPaymentDesk";
 import FeeOverviewTab from "./tabs/FeeOverviewTab";
@@ -16,11 +17,12 @@ import styles from "./Fees.module.css";
 
 type Tab = "overview" | "collect" | "daybook" | "bills" | "dues" | "structures" | "refunds" | "settings" | "audit";
 
-// Fee Management shell. Each tab lives in its own file under ./tabs. Waivers are open to
-// Admins too; other money decisions (refund approval, deletes, bulk fee changes, audit log)
-// are Super Admin only — hidden here and enforced by the server.
+// Fee Management shell. Each tab lives in its own file under ./tabs. Tabs and buttons follow
+// store/permissions.ts: the counter (office, accountant) collects and bills; the Principal only
+// reads; fee amounts, rules, waivers, refunds and the audit log are the Super Admin's.
 const AdminFeesPage = () => {
   const isSuperAdmin = useAppSelector((s) => s.auth.user?.role) === "SUPER_ADMIN";
+  const can = useCan();
   const [params, setParams] = useSearchParams();
   const location = useLocation();
   const navigate = useNavigate();
@@ -43,25 +45,33 @@ const AdminFeesPage = () => {
     else go("overview");
   };
 
-  const tabs: Array<{ key: Tab; label: string; hint: string; icon: string; count?: number; superOnly?: boolean }> = [
+  const tabs: Array<{ key: Tab; label: string; hint: string; icon: string; count?: number; perm?: Permission }> = [
     { key: "overview", label: "Overview", hint: "Today's collection and totals", icon: "dashboard" },
-    { key: "collect", label: "Collect Payment", hint: "Take a fee payment and print the receipt", icon: "wallet" },
+    { key: "collect", label: "Collect Payment", hint: "Take a fee payment and print the receipt", icon: "wallet", perm: "fees.collect" },
     { key: "daybook", label: "Day Book", hint: "Each day's collection by mode and collector · print", icon: "clipboardCheck" },
     { key: "bills", label: "Bills & Invoices", hint: "Monthly bills issued to students", icon: "fileText" },
     { key: "dues", label: "Dues & Defaulters", hint: "Who hasn't paid · print the list", icon: "bell", count: overview?.defaulterCount },
     { key: "structures", label: "Fee Structures", hint: "Fee amounts for each class", icon: "layers" },
     { key: "refunds", label: "Refunds", hint: "Refund requests from parents", icon: "arrowLeft", count: overview?.pendingRefunds },
-    { key: "settings", label: "Settings", hint: "Late fee and other fee rules", icon: "edit" },
-    { key: "audit", label: "Audit Log", hint: "Every change made to fee records", icon: "clipboardCheck", superOnly: true },
+    { key: "settings", label: "Settings", hint: "Fee heads, late fee and billing rules", icon: "edit", perm: "fees.configure" },
+    { key: "audit", label: "Audit Log", hint: "Every change made to fee records", icon: "clipboardCheck", perm: "owner" },
   ];
-  const visibleTabs = tabs.filter((t) => !t.superOnly || isSuperAdmin);
+  const visibleTabs = tabs.filter((t) => !t.perm || can(t.perm));
   const current = visibleTabs.find((t) => t.key === tab);
   const inSection = tab !== "overview";
 
   return (
     <div className={styles.page}>
       <div className={inSection ? styles.hideOnPhone : undefined}>
-        <PageHeader title="Fee Management" subtitle="Collections, bills, dues, fee structures and refunds" />
+        <PageHeader
+          title="Fee Management"
+          subtitle="Collections, bills, dues, fee structures and refunds"
+          actions={
+            <Button variant="outline" icon={<Icon name="badge" size={16} />} onClick={() => navigate("/admin/fees/concessions")}>
+              Concessions
+            </Button>
+          }
+        />
       </div>
 
       {/* Phones: inside a section, a back link and the section's name instead of the tab strip */}
@@ -117,21 +127,25 @@ const AdminFeesPage = () => {
       </div>
 
       {tab === "overview" && <FeeOverviewTab onGoTo={go} />}
-      {tab === "collect" && <MultiMonthPaymentDesk initialStudentId={collectStudentId} />}
+      {tab === "collect" && can("fees.collect") && <MultiMonthPaymentDesk initialStudentId={collectStudentId} />}
       {tab === "daybook" && <DayBookTab />}
       {tab === "bills" && <BillsTab isSuperAdmin={isSuperAdmin} />}
       {tab === "dues" && (
         <DefaultersTab
-          onCollect={(studentId) => {
-            setCollectStudentId(studentId);
-            go("collect");
-          }}
+          onCollect={
+            can("fees.collect")
+              ? (studentId) => {
+                  setCollectStudentId(studentId);
+                  go("collect");
+                }
+              : undefined
+          }
         />
       )}
       {tab === "structures" && <StructuresTab isSuperAdmin={isSuperAdmin} />}
       {tab === "refunds" && <RefundsTab isSuperAdmin={isSuperAdmin} />}
-      {tab === "settings" && <FeeSettingsTab isSuperAdmin={isSuperAdmin} />}
-      {tab === "audit" && isSuperAdmin && <FeeAuditTab />}
+      {tab === "settings" && can("fees.configure") && <FeeSettingsTab isSuperAdmin={isSuperAdmin} />}
+      {tab === "audit" && can("owner") && <FeeAuditTab />}
     </div>
   );
 };

@@ -6,8 +6,10 @@ import { useGetParentByIdQuery, useGetParentDuesSummaryQuery } from "../../../..
 import RecordStudentPaymentModal from "./RecordStudentPaymentModal.tsx";
 import LinkChildModal from "./LinkChildModal.tsx";
 import styles from "./FamilyProfilePage.module.css";
+import { useCan } from "../../../../store/permissions";
 
 const FamilyProfilePage = () => {
+  const can = useCan();
   const { id } = useParams();
   const navigate = useNavigate();
   const parentId = Number(id);
@@ -67,9 +69,11 @@ const FamilyProfilePage = () => {
             <Button variant="outline" onClick={() => navigate("/admin/parents")}>
               Back
             </Button>
-            <Button icon={<Icon name="plus" size={16} />} variant="outline" onClick={() => setShowLinkChildModal(true)}>
-              Link Student
-            </Button>
+            {can("families.edit") && (
+              <Button icon={<Icon name="plus" size={16} />} variant="outline" onClick={() => setShowLinkChildModal(true)}>
+                Link Student
+              </Button>
+            )}
           </div>
         }
       />
@@ -117,7 +121,7 @@ const FamilyProfilePage = () => {
                       <Badge tone={childSummary.dueSummary.netPayable > 0 ? "danger" : "success"}>
                         Due: ₹{childSummary.dueSummary.netPayable.toLocaleString()}
                       </Badge>
-                      {childSummary.dueSummary.netPayable > 0 && (
+                      {childSummary.dueSummary.netPayable > 0 && can("fees.collect") && (
                         <Button
                           size="sm"
                           icon={<Icon name="wallet" size={14} />}
@@ -161,7 +165,7 @@ const FamilyProfilePage = () => {
                         <span>Net Payable for {childSummary.student.name}</span>
                         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "12px" }}>
                           <span style={{ fontSize: "1.1rem" }}>₹{childSummary.dueSummary.netPayable.toLocaleString()}</span>
-                          {childSummary.dueSummary.netPayable > 0 && (
+                          {childSummary.dueSummary.netPayable > 0 && can("fees.collect") && (
                             <Button
                               size="sm"
                               icon={<Icon name="wallet" size={14} />}

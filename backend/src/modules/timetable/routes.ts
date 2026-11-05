@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { authenticateToken, authorizeRoles } from "../../middleware/auth";
+import { allow, SCHOOL_WIDE } from "../../config/permissions";
 import { asyncHandler } from "../../utils/asyncHandler";
 import { deleteSlot, getClassTimetable, getMyTimetable, postTimetableSlot } from "./controller";
 
@@ -9,11 +10,11 @@ router.use(authenticateToken);
 
 router.get(
   "/",
-  authorizeRoles(["SUPER_ADMIN", "ADMIN", "TEACHER", "STUDENT", "PARENT"]),
+  authorizeRoles([...SCHOOL_WIDE, "TEACHER", "STUDENT", "PARENT"]),
   asyncHandler(getClassTimetable)
 );
 router.get("/mine", authorizeRoles(["TEACHER"]), asyncHandler(getMyTimetable));
-router.post("/", authorizeRoles(["SUPER_ADMIN", "ADMIN"]), asyncHandler(postTimetableSlot));
-router.delete("/:id", authorizeRoles(["SUPER_ADMIN", "ADMIN"]), asyncHandler(deleteSlot));
+router.post("/", allow("academics.edit"), asyncHandler(postTimetableSlot));
+router.delete("/:id", allow("academics.edit"), asyncHandler(deleteSlot));
 
 export default router;

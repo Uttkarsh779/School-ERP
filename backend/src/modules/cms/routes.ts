@@ -1,5 +1,6 @@
 import { Router, type NextFunction, type Request, type Response } from "express";
-import { authenticateToken, authorizeRoles } from "../../middleware/auth";
+import { authenticateToken } from "../../middleware/auth";
+import { allow } from "../../config/permissions";
 import { asyncHandler } from "../../utils/asyncHandler";
 import * as controller from "./controller";
 
@@ -31,7 +32,7 @@ export const adminCmsRouter = Router();
 
 // All admin CMS routes require auth and admin role
 adminCmsRouter.use(authenticateToken);
-adminCmsRouter.use(authorizeRoles(["SUPER_ADMIN", "ADMIN"]));
+adminCmsRouter.use(allow("website"));
 
 // Website settings
 adminCmsRouter.get("/settings", asyncHandler(controller.getSettings));

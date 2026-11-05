@@ -16,6 +16,7 @@ import FileUploadField from "../../../../components/shared/FileUploadField/FileU
 import { useCreateNoticeMutation, useDeleteNoticeMutation } from "../../../../store/api/notices.api";
 import { useGetClassSectionsQuery } from "../../../../store/api/classSections.api";
 import styles from "./AdminNoticesPage.module.css";
+import { useCan } from "../../../../store/permissions";
 
 interface NoticeFormInputs {
   title: string;
@@ -34,6 +35,7 @@ const getErrorMessage = (err: unknown, fallback: string) => {
 };
 
 const AdminNoticesPage = () => {
+  const canPost = useCan()("notices");
   const { data: classSections } = useGetClassSectionsQuery();
   const [createNotice, { isLoading: isCreating }] = useCreateNoticeMutation();
   const [deleteNotice] = useDeleteNoticeMutation();
@@ -98,14 +100,17 @@ const AdminNoticesPage = () => {
         title="Notices"
         subtitle="Post announcements for staff, students and parents"
         actions={
-          <Button variant="primary" onClick={() => setIsModalOpen(true)}>
-            + New Notice
-          </Button>
+          canPost && (
+            <Button variant="primary" onClick={() => setIsModalOpen(true)}>
+              + New Notice
+            </Button>
+          )
         }
       />
 
       <NoticeBoard
-        renderActions={(notice) => (
+        renderActions={(notice) =>
+          canPost && (
           <Button
             variant="outline"
             size="sm"
@@ -114,7 +119,8 @@ const AdminNoticesPage = () => {
           >
             Delete
           </Button>
-        )}
+          )
+        }
       />
 
       {isModalOpen && (

@@ -5,9 +5,11 @@ import ReceiptModal from "../../../../../components/shared/FeeReceipt/ReceiptMod
 import { useGetFeeOverviewQuery } from "../../../../../store/api/fees.api";
 import { MODE_LABEL, MONTH_NAMES, fmtDate, inr } from "../feeUtils";
 import styles from "../Fees.module.css";
+import { useCan } from "../../../../../store/permissions";
 
 // Fee overview: real collection/outstanding figures from GET /fees/overview.
 const FeeOverviewTab = ({ onGoTo }: { onGoTo: (tab: "collect" | "dues" | "refunds" | "structures") => void }) => {
+  const canCollect = useCan()("fees.collect");
   const { data, isLoading, isError, refetch } = useGetFeeOverviewQuery();
   const [receiptId, setReceiptId] = useState<number | null>(null);
 
@@ -61,7 +63,13 @@ const FeeOverviewTab = ({ onGoTo }: { onGoTo: (tab: "collect" | "dues" | "refund
       <div className={styles.twoCol}>
         <Card
           title="Recent payments"
-          action={<Button size="sm" variant="ghost" onClick={() => onGoTo("collect")}>Collect a payment →</Button>}
+          action={
+            canCollect && (
+              <Button size="sm" variant="ghost" onClick={() => onGoTo("collect")}>
+                Collect a payment →
+              </Button>
+            )
+          }
         >
           {data.recentPayments.length === 0 ? (
             <p className={styles.muted}>No payments recorded yet.</p>

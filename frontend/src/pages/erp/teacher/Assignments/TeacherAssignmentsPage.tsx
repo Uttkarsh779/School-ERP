@@ -16,6 +16,7 @@ import { useGetClassSectionsQuery, useGetMyClassSectionsQuery } from "../../../.
 import { useGetSubjectsQuery } from "../../../../store/api/subjects.api";
 import { useAppSelector } from "../../../../store/store";
 import styles from "./TeacherAssignmentsPage.module.css";
+import { can } from "../../../../store/permissions";
 
 const fmt = (iso?: string | null) => (iso ? new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—");
 const errorOf = (err: unknown, fallback: string) => (err as { data?: { message?: string } })?.data?.message ?? fallback;
@@ -28,7 +29,7 @@ const emptyForm = (classSectionId = ""): FormState => ({ classSectionId, subject
 // submissions — Checked / Redo with a comment, or record work handed in on paper.
 const TeacherAssignmentsPage = () => {
   const role = useAppSelector((s) => s.auth.user?.role);
-  const isStaffAdmin = role === "SUPER_ADMIN" || role === "ADMIN";
+  const isStaffAdmin = can(role, "homework"); // office and Principal: every class
   const mine = useGetMyClassSectionsQuery(undefined, { skip: isStaffAdmin });
   const all = useGetClassSectionsQuery(undefined, { skip: !isStaffAdmin });
   const classes = (isStaffAdmin ? all.data : mine.data) ?? [];

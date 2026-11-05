@@ -18,6 +18,7 @@ import { fmtDate, getErrorMessage, inr } from "../Fees/feeUtils";
 import EntryFormModal, { MODE_OPTIONS } from "./EntryFormModal";
 import { printAccountSummary } from "./accountsPrint";
 import styles from "./Accounts.module.css";
+import { useNavigate } from "react-router-dom";
 
 type Tab = "entries" | "summary" | "categories";
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -27,12 +28,23 @@ const modeLabel = (m: string) => MODE_OPTIONS.find((o) => o.value === m)?.label 
 
 // Accounts: the school's income & expense book (fee collection is counted automatically).
 const AccountsPage = () => {
+  const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>("entries");
   const isSuperAdmin = useAppSelector((s) => s.auth.user?.role) === "SUPER_ADMIN";
 
   return (
     <div>
-      <PageHeader title="Expenses & Accounts" subtitle="School expenses and other income — fee collection is added automatically" />
+      <PageHeader
+        title="Expenses & Accounts"
+        subtitle="School expenses and other income — fee collection is added automatically"
+        actions={
+          isSuperAdmin && (
+            <Button variant="outline" icon={<Icon name="hardHat" size={16} />} onClick={() => navigate("/admin/construction")}>
+              Construction expenses
+            </Button>
+          )
+        }
+      />
       <div className={styles.tabs} role="tablist">
         {(
           [

@@ -13,11 +13,13 @@ import {
 import FeeItemsEditor, { ACADEMIC_MONTHS, annualTotal, itemFromApi, itemsToApi, validateItems, type FeeItemDraft } from "./FeeItemsEditor";
 import { MONTH_NAMES, classLabel, getErrorMessage, inr } from "./feeUtils";
 import styles from "./Fees.module.css";
+import { useCan } from "../../../../store/permissions";
 
 // One class's fee plan, on real data: edit the structure's items (saved through the API —
 // already-billed fee heads can't be removed, only re-priced), see the month-by-month
 // schedule, and check what a real student of the class owes per month.
 const AdminClassFeeStructureDetailPage = () => {
+  const canEdit = useCan()("fees.configure"); // fee amounts: Super Admin only
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const structureId = Number(id);
@@ -101,7 +103,7 @@ const AdminClassFeeStructureDetailPage = () => {
             <Button variant="outline" icon={<Icon name="arrowLeft" size={16} />} onClick={() => navigate("/admin/fees?tab=structures")}>
               Fee structures
             </Button>
-            {!editing ? (
+            {!canEdit ? null : !editing ? (
               <Button icon={<Icon name="edit" size={16} />} onClick={() => setEditing(true)}>
                 Edit plan
               </Button>

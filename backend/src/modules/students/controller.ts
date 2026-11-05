@@ -18,6 +18,7 @@ import {
   updateStudent,
   type StudentProfileFields,
 } from "./service";
+import { isSchoolWide } from "../../config/permissions";
 
 // Pulls the optional profile fields (family/govt-ID/address details) out of a request
 // body, converting dates and validating the two enum fields. Shared by the single-create,
@@ -75,7 +76,7 @@ export const getStudents = async (req: CustomRequest, res: Response): Promise<vo
       res.status(403).json({ success: false, message: "Forbidden" });
       return;
     }
-  } else if (role !== "SUPER_ADMIN" && role !== "ADMIN") {
+  } else if (!isSchoolWide(role)) {
     res.status(403).json({ success: false, message: "Forbidden" });
     return;
   }

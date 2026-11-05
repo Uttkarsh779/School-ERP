@@ -11,12 +11,13 @@ import {
   listTimetableForStaff,
   upsertTimetableSlot,
 } from "./service";
+import { isSchoolWide } from "../../config/permissions";
 
 // SUPER_ADMIN/ADMIN see any class; TEACHER only their own class; STUDENT only their
 // own class; PARENT only a linked child's class.
 const canViewClassTimetable = async (req: CustomRequest, classSectionId: number): Promise<boolean> => {
   const role = req.user?.role;
-  if (role === "SUPER_ADMIN" || role === "ADMIN") return true;
+  if (isSchoolWide(role)) return true;
   if (!req.user) return false;
 
   if (role === "TEACHER") {

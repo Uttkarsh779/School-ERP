@@ -53,10 +53,12 @@ const refreshSession = async (api: BaseQueryApi, extraOptions: object): Promise<
     api,
     extraOptions
   );
-  const data = refreshResult?.data as { accessToken: string; refreshToken: string } | undefined;
+  const data = refreshResult?.data as { accessToken: string; refreshToken: string; user?: Partial<IUser> } | undefined;
   if (!data?.accessToken) return false;
 
-  api.dispatch(setTokens({ accessToken: data.accessToken, refreshToken: data.refreshToken, user: state.auth.user }));
+  // The server sends the account as it is now, so a changed role (e.g. made Principal) applies.
+  const user = state.auth.user && data.user?.role ? { ...state.auth.user, role: data.user.role } : state.auth.user;
+  api.dispatch(setTokens({ accessToken: data.accessToken, refreshToken: data.refreshToken, user }));
   localStorage.setItem("accessToken", data.accessToken);
   localStorage.setItem("refreshToken", data.refreshToken);
   return true;

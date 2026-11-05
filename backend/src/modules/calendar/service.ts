@@ -178,10 +178,10 @@ export const copyFromSession = async (actor: Actor, body: any) => {
 
 const QUIET_MS = 10 * 60_000;
 const istHour = () => new Date(Date.now() + IST).getUTCHours();
-const linkFor = (role: string) => (role === "TEACHER" ? "/teacher/calendar" : "/student/calendar");
-const whoFor = (role: string): Audience => (role === "TEACHER" ? "STAFF" : "STUDENTS");
+const linkFor = (role: string) => (role === "TEACHER" ? "/teacher/calendar" : role === "STUDENT" ? "/student/calendar" : "/admin/calendar");
+const whoFor = (role: string): Audience => (role === "STUDENT" ? "STUDENTS" : "STAFF");
 const recipients = () =>
-  prisma.user.findMany({ where: { isActive: true, role: { in: ["STUDENT", "TEACHER"] } }, select: { id: true, role: true } });
+  prisma.user.findMany({ where: { isActive: true, role: { in: ["STUDENT", "TEACHER", "PRINCIPAL", "ACCOUNTANT"] } }, select: { id: true, role: true } });
 const when = (e: { startDate: Date; endDate: Date }) =>
   +e.endDate === +e.startDate ? pretty(e.startDate) : `${pretty(e.startDate)} – ${pretty(e.endDate)}`;
 

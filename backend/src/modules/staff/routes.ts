@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { authenticateToken, authorizeRoles } from "../../middleware/auth";
+import { allow } from "../../config/permissions";
 import { asyncHandler } from "../../utils/asyncHandler";
 import { getStaff, getStaffList, patchStaff, patchStaffActive, postStaff } from "./controller";
 import { resetStaffPassword } from "./service";
@@ -10,8 +11,8 @@ const router = Router();
 
 router.use(authenticateToken);
 
-router.get("/", authorizeRoles(["SUPER_ADMIN", "ADMIN"]), asyncHandler(getStaffList));
-router.get("/:id", authorizeRoles(["SUPER_ADMIN", "ADMIN"]), asyncHandler(getStaff));
+router.get("/", allow("staff.view"), asyncHandler(getStaffList));
+router.get("/:id", allow("staff.view"), asyncHandler(getStaff));
 router.post("/", authorizeRoles(["SUPER_ADMIN"]), asyncHandler(postStaff));
 router.patch("/:id", authorizeRoles(["SUPER_ADMIN"]), asyncHandler(patchStaff));
 router.patch("/:id/active", authorizeRoles(["SUPER_ADMIN"]), asyncHandler(patchStaffActive));

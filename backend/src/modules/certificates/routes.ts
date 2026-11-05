@@ -1,12 +1,13 @@
 import { Router, type Response } from "express";
-import { authenticateToken, authorizeRoles, type CustomRequest } from "../../middleware/auth";
+import { authenticateToken, type CustomRequest } from "../../middleware/auth";
+import { allow } from "../../config/permissions";
 import { asyncHandler } from "../../utils/asyncHandler";
 import { httpError } from "../../utils/httpError";
 import { cancelCertificate, issueCertificate, listCertificateRegister, listStudentCertificates, prefillCertificate } from "./service";
 
 const router = Router();
 router.use(authenticateToken);
-router.use(authorizeRoles(["SUPER_ADMIN", "ADMIN"]));
+router.use(allow("certificates"));
 
 const idParam = (req: CustomRequest, name = "id") => {
   const id = Number(req.params[name]);

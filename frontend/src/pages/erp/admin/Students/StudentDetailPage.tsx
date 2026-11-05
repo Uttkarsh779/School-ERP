@@ -51,6 +51,7 @@ const OUTCOME_BADGE = {
 } as const;
 import { formatPct } from "../Attendance/attendanceFormat";
 import { emptyStudentFormValues, type StudentFormValues } from "./studentForm";
+import { useCan } from "../../../../store/permissions";
 
 interface CredentialsFormInputs {
   email?: string;
@@ -66,6 +67,8 @@ const getErrorMessage = (err: unknown, fallback: string) => {
 };
 
 const StudentDetailPage = () => {
+  const can = useCan();
+  const canEdit = can("students.edit"); // the Principal and Accountant view the profile
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const studentId = Number(id);
@@ -287,13 +290,19 @@ const StudentDetailPage = () => {
           {/* Profile header: who, which class, quick actions, and the record at a glance */}
           <section className={styles.hero}>
             <div className={styles.heroTop}>
-              <button type="button" className={styles.avatarButton} onClick={() => setIsPhotoOpen(true)} title={student.photoUrl ? "Change photo" : "Add photo"}>
+              <button
+                type="button"
+                className={styles.avatarButton}
+                onClick={() => setIsPhotoOpen(true)}
+                disabled={!canEdit}
+                title={canEdit ? (student.photoUrl ? "Change photo" : "Add photo") : undefined}
+              >
                 {student.photoUrl ? (
                   <img src={student.photoUrl} alt="" className={styles.avatar} />
                 ) : (
                   <span className={styles.avatar}>{student.name.charAt(0).toUpperCase()}</span>
                 )}
-                <span className={styles.avatarBadge}>{student.photoUrl ? "Change" : "Add photo"}</span>
+                {canEdit && <span className={styles.avatarBadge}>{student.photoUrl ? "Change" : "Add photo"}</span>}
               </button>
               <div className={styles.heroMain}>
                 <h1 className={styles.name}>{student.name}</h1>
@@ -311,22 +320,30 @@ const StudentDetailPage = () => {
             </div>
 
             <div className={styles.actions}>
-              <Button size="sm" variant="outline" icon={<Icon name="edit" size={15} />} onClick={openEditModal}>
-                Edit profile
-              </Button>
-              <Button size="sm" variant="outline" icon={<Icon name="bus" size={15} />} onClick={openTransportModal}>
-                Transport
-              </Button>
-              <Button size="sm" variant="outline" icon={<Icon name="badge" size={15} />} onClick={() => setIsModalOpen(true)}>
-                Set login
-              </Button>
-              <Button size="sm" variant="outline" icon={<Icon name="fileText" size={15} />} onClick={() => setTab("certificates")}>
-                Certificates
-              </Button>
-              <Button size="sm" variant="outline" icon={<Icon name="printer" size={15} />} onClick={() => printStudents([student])}>
-                ID card
-              </Button>
-              {(history?.transport.some((t) => t.status === "ACTIVE") || student.transportRoute) && (
+              {canEdit && (
+                <>
+                  <Button size="sm" variant="outline" icon={<Icon name="edit" size={15} />} onClick={openEditModal}>
+                    Edit profile
+                  </Button>
+                  <Button size="sm" variant="outline" icon={<Icon name="bus" size={15} />} onClick={openTransportModal}>
+                    Transport
+                  </Button>
+                  <Button size="sm" variant="outline" icon={<Icon name="badge" size={15} />} onClick={() => setIsModalOpen(true)}>
+                    Set login
+                  </Button>
+                </>
+              )}
+              {can("certificates") && (
+                <Button size="sm" variant="outline" icon={<Icon name="fileText" size={15} />} onClick={() => setTab("certificates")}>
+                  Certificates
+                </Button>
+              )}
+              {canEdit && (
+                <Button size="sm" variant="outline" icon={<Icon name="printer" size={15} />} onClick={() => printStudents([student])}>
+                  ID card
+                </Button>
+              )}
+              {canEdit && (history?.transport.some((t) => t.status === "ACTIVE") || student.transportRoute) && (
                 <Button size="sm" variant="ghost" icon={<Icon name="close" size={15} />} onClick={() => setIsEndTransportOpen(true)}>
                   End transport
                 </Button>
@@ -389,7 +406,9 @@ const StudentDetailPage = () => {
                 ["transport", "Transport"],
                 ["certificates", "Certificates"],
               ] as const
-            ).map(([key, label]) => (
+            )
+              .filter(([key]) => key !== "certificates" || can("certificates"))
+              .map(([key, label]) => (
               <button
                 key={key}
                 type="button"

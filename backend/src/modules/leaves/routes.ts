@@ -1,5 +1,6 @@
 import { Router, type Response } from "express";
 import { authenticateToken, authorizeRoles, type CustomRequest } from "../../middleware/auth";
+import { allow, SCHOOL_WIDE } from "../../config/permissions";
 import { asyncHandler } from "../../utils/asyncHandler";
 import { httpError } from "../../utils/httpError";
 import { applyForLeave, cancelLeave, decideLeave, listAllLeaves, listClassLeaves, listMyLeaves } from "./service";
@@ -17,7 +18,7 @@ const idParam = (req: CustomRequest) => {
 // Apply / list own requests: students (for themselves) and staff (for themselves).
 router.post(
   "/",
-  authorizeRoles(["STUDENT", "TEACHER", "ADMIN", "SUPER_ADMIN"]),
+  authorizeRoles([...SCHOOL_WIDE, "TEACHER", "STUDENT"]),
   asyncHandler(async (req: CustomRequest, res: Response) => {
     const leave = await applyForLeave(req.user!, req.body ?? {});
     onLeaveApplied(leave.id);
@@ -26,14 +27,14 @@ router.post(
 );
 router.get(
   "/mine",
-  authorizeRoles(["STUDENT", "TEACHER", "ADMIN", "SUPER_ADMIN"]),
+  authorizeRoles([...SCHOOL_WIDE, "TEACHER", "STUDENT"]),
   asyncHandler(async (req: CustomRequest, res: Response) => {
     res.json({ success: true, data: await listMyLeaves(req.user!) });
   })
 );
 router.patch(
   "/:id/cancel",
-  authorizeRoles(["STUDENT", "TEACHER", "ADMIN", "SUPER_ADMIN"]),
+  authorizeRoles([...SCHOOL_WIDE, "TEACHER", "STUDENT"]),
   asyncHandler(async (req: CustomRequest, res: Response) => {
     res.json({ success: true, message: "Request cancelled", data: await cancelLeave(req.user!, idParam(req)) });
   })
@@ -51,7 +52,7 @@ router.get(
 // Admin: all requests.
 router.get(
   "/",
-  authorizeRoles(["ADMIN", "SUPER_ADMIN"]),
+  allow("leaves.manage"),
   asyncHandler(async (req: CustomRequest, res: Response) => {
     res.json({
       success: true,
@@ -63,7 +64,7 @@ router.get(
 // Decide: class teacher (own students) or admin; who may decide what is checked in the service.
 router.patch(
   "/:id/decision",
-  authorizeRoles(["TEACHER", "ADMIN", "SUPER_ADMIN"]),
+  allow("leaves.manage", "TEACHER"),
   asyncHandler(async (req: CustomRequest, res: Response) => {
     if (typeof req.body?.approved !== "boolean") throw httpError(400, "approved (true/false) is required");
     const leave = await decideLeave(req.user!, idParam(req), req.body.approved, req.body.note);

@@ -53,6 +53,7 @@ const NON_TEACHING_ROLES = [
   { value: "HOUSEKEEPING_STAFF", label: "Housekeeping Staff" },
   { value: "OFFICE_STAFF", label: "Office Staff" },
   { value: "ADMIN_STAFF", label: "Admin Staff" },
+  { value: "ACCOUNTANT", label: "Accountant" },
   { value: "SUPPORT_STAFF", label: "Support Staff" },
   { value: "OTHER", label: "Other Non-Teaching Staff" },
 ];
@@ -66,7 +67,24 @@ const ACCOUNT_REQUIRED_ROLES = [
   "COORDINATOR",
   "ADMIN_STAFF",
   "OFFICE_STAFF",
+  "ACCOUNTANT",
 ];
+
+// What the login of each category can do (backend staff/service.ts loginRoleFor).
+const loginAccess = (category?: string) =>
+  !isAccountRequiredRole(category)
+    ? "No login."
+    : category === "PRINCIPAL"
+      ? "Signs in as Principal: sees everything, runs academics, approves leave and publishes results; reads fees but doesn't collect."
+      : category === "ACCOUNTANT"
+        ? "Signs in as Accountant: fees, day book and expenses; views students."
+        : category === "ADMIN_STAFF" || category === "OFFICE_STAFF"
+          ? "Signs in to the office console: admissions, records, fee counter."
+          : "Signs in as a teacher.";
+
+const LoginAccess = ({ category }: { category?: string }) => (
+  <p style={{ gridColumn: "1 / -1", margin: 0, fontSize: "0.82rem", color: "var(--erp-text-muted)" }}>{loginAccess(category)}</p>
+);
 
 const isAccountRequiredRole = (role?: string) => {
   if (!role) return true;
@@ -522,6 +540,7 @@ const StaffPage = () => {
                   {...register("staffCategory", { required: "Role is required" })}
                   options={selectedGroup === "TEACHING" ? TEACHING_ROLES : NON_TEACHING_ROLES}
                 />
+                <LoginAccess category={watch("staffCategory") || "TEACHER"} />
 
                 {(() => {
                   const currentRole = watch("staffCategory") || "TEACHER";
@@ -672,6 +691,7 @@ const StaffPage = () => {
                     onChange={(e) => setEditForm({ ...editForm, staffCategory: e.target.value })}
                     options={editForm.group === "TEACHING" ? TEACHING_ROLES : NON_TEACHING_ROLES}
                   />
+                  <LoginAccess category={editForm.staffCategory} />
                 </FormGrid>
               </FormSection>
 
