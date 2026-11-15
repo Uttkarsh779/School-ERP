@@ -4,6 +4,7 @@ import { generateCollectionPeriodBills } from "./collectionEngineService";
 import { periodCodeFor } from "./billingService";
 import { createAuditLog } from "./ledgerService";
 import { notify } from "../notifications/service";
+import { publicMessage } from "../../utils/publicError";
 
 // Monthly billing settings and the automatic monthly run.
 //  - autoGenerate on: each month's bills are generated on generateDay (or the first hourly
@@ -11,7 +12,7 @@ import { notify } from "../notifications/service";
 //    lastAutoRunPeriod makes a second server/process skip it.
 //  - Bills for a month that's already billed are skipped (generation is idempotent), so
 //    turning this on mid-month only fills in missing bills.
-//  - transportDueDay is the transport fee's due day; fee items carry their own due day.
+//  - dueDay is when the whole bill is due: every fee and transport together.
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const IST = 5.5 * 3600_000;
@@ -34,15 +35,18 @@ export const updateBillingSettings = async (actor: { id: number }, body: any) =>
     data.autoGenerate = body.autoGenerate;
   }
   if (body?.generateDay !== undefined) data.generateDay = dayField(body.generateDay, "Bill generation day");
-  if (body?.transportDueDay !== undefined) data.transportDueDay = dayField(body.transportDueDay, "Transport due day");
+  if (body?.dueDay !== undefined) data.dueDay = dayField(body.dueDay, "Fee due day");
+  // A bill made after its due date would be overdue, and fined, from the day it's generated.
+  const next = { ...before, ...data };
+  if (next.autoGenerate && next.dueDay < next.generateDay) throw httpError(400, `Bills are generated on day ${next.generateDay}, so the fee due day can't be earlier than that`);
   const after = await prisma.feeBillingSetting.update({ where: { id: 1 }, data });
   await createAuditLog({
     action: "UPDATE_BILLING_SETTINGS",
     entityType: "FeeBillingSetting",
     entityId: 1,
     userId: actor.id,
-    oldValues: { autoGenerate: before.autoGenerate, generateDay: before.generateDay, transportDueDay: before.transportDueDay },
-    newValues: { autoGenerate: after.autoGenerate, generateDay: after.generateDay, transportDueDay: after.transportDueDay },
+    oldValues: { autoGenerate: before.autoGenerate, generateDay: before.generateDay, dueDay: before.dueDay },
+    newValues: { autoGenerate: after.autoGenerate, generateDay: after.generateDay, dueDay: after.dueDay },
   });
   return after;
 };
@@ -94,7 +98,7 @@ export const runAutoBilling = async () => {
     // Release the claim so the next hourly check tries again.
     await prisma.feeBillingSetting.update({
       where: { id: 1 },
-      data: { lastAutoRunPeriod: settings.lastAutoRunPeriod, lastAutoRunSummary: `${label}: failed — ${err?.message ?? err}` },
+      data: { lastAutoRunPeriod: settings.lastAutoRunPeriod, lastAutoRunSummary: `${label}: failed — ${publicMessage(err, "the bills couldn't be generated")}` },
     });
     throw err;
   }

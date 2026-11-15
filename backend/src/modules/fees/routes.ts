@@ -34,12 +34,12 @@ router.delete("/fees/heads/:id", allow("fees.configure"), asyncHandler(controlle
 // Fee Structures, Duplication, Calendar & Simulator
 router.get(
   "/fee-structures",
-  allow("fees.view", "TEACHER", "STUDENT", "PARENT"),
+  allow("fees.view", "TEACHER", "STUDENT"),
   asyncHandler(controller.getFeeStructures)
 );
 router.get(
   "/fee-structures/:id",
-  allow("fees.view", "TEACHER", "STUDENT", "PARENT"),
+  allow("fees.view", "TEACHER", "STUDENT"),
   asyncHandler(controller.getFeeStructureById)
 );
 router.post("/fee-structures", allow("fees.configure"), asyncHandler(controller.postFeeStructure));
@@ -60,7 +60,7 @@ router.post("/fees/late-fee-rules", allow("fees.configure"), asyncHandler(contro
 router.post("/fees/charges/generate", allow("fees.collect"), asyncHandler(controller.postGenerateCharges));
 router.get(
   "/fees/student/:studentId/due-summary",
-  allow("fees.view", "STUDENT", "PARENT"),
+  allow("fees.view", "STUDENT"),
   asyncHandler(controller.getStudentDueSummary)
 );
 
@@ -69,41 +69,40 @@ router.post("/fees/invoices/generate", allow("fees.collect"), asyncHandler(contr
 router.post("/fees/invoices/:id/extend-due-date", allow("fees.collect"), asyncHandler(controller.postExtendDueDate));
 router.get(
   "/fees/invoices",
-  allow("fees.view", "STUDENT", "PARENT"),
+  allow("fees.view", "STUDENT"),
   asyncHandler(controller.getInvoices)
 );
 router.get(
   "/fees/invoices/:id",
-  allow("fees.view", "STUDENT", "PARENT"),
+  allow("fees.view", "STUDENT"),
   asyncHandler(controller.getInvoiceById)
 );
 
 // Transport Villages & Student Assignments
-router.get("/transport/villages", allow("transport.view", "TEACHER", "STUDENT", "PARENT"), asyncHandler(controller.getTransportVillages));
+router.get("/transport/villages", allow("transport.view", "TEACHER", "STUDENT"), asyncHandler(controller.getTransportVillages));
 router.post("/transport/villages", allow("fees.configure"), asyncHandler(controller.postTransportVillage));
 router.put("/transport/villages/:id/fee", allow("fees.configure"), asyncHandler(controller.putTransportVillageFee));
 router.patch("/transport/villages/:id/status", allow("fees.configure"), asyncHandler(controller.patchTransportVillageStatus));
 router.delete("/transport/villages/:id", allow("fees.configure"), asyncHandler(controller.deleteTransportVillage));
-router.get("/transport/assignments", allow("transport.view", "TEACHER", "STUDENT", "PARENT"), asyncHandler(controller.getTransportAssignments));
+router.get("/transport/assignments", allow("transport.view"), asyncHandler(controller.getTransportAssignments)); // the office's roster of every student
 router.post("/transport/assignments", allow("transport.edit"), asyncHandler(controller.postAssignTransport));
-router.post("/transport/assignments/discontinue", allow("transport.edit"), asyncHandler(controller.postDiscontinueTransport));
 router.delete("/transport/assignments/:id", allow("transport.edit"), asyncHandler(controller.deleteTransportAssignment));
 
 // Razorpay & Manual Payments
 router.post(
   "/payments/razorpay/order",
-  allow("fees.collect", "STUDENT", "PARENT"),
+  allow("fees.collect", "STUDENT"),
   asyncHandler(controller.postCreateRazorpayOrder)
 );
 router.post(
   "/payments/razorpay/verify",
-  allow("fees.collect", "STUDENT", "PARENT"),
+  allow("fees.collect", "STUDENT"),
   asyncHandler(controller.postVerifyRazorpayPayment)
 );
 router.post("/payments/manual", allow("fees.collect"), asyncHandler(controller.postManualPayment));
 router.get(
   "/fees/student/:studentId/months-chart",
-  allow("fees.view", "STUDENT", "PARENT"),
+  allow("fees.view", "STUDENT"),
   asyncHandler(controller.getStudentMonthsChart)
 );
 router.post(
@@ -121,31 +120,31 @@ router.post("/fees/adjustments/waive-fee", allow("fees.waive"), asyncHandler(con
 // Receipts
 router.get(
   "/payments/:id/receipt",
-  allow("fees.view", "STUDENT", "PARENT"),
+  allow("fees.view", "STUDENT"),
   asyncHandler(controller.getReceipt)
 );
 router.get(
   "/payments/:id/receipt/pdf",
-  allow("fees.view", "STUDENT", "PARENT"),
+  allow("fees.view", "STUDENT"),
   asyncHandler(controller.getReceiptPdfHtml)
 );
 
 // Student Ledger
 router.get(
   "/fees/ledger/:studentId",
-  allow("fees.view", "STUDENT", "PARENT"),
+  allow("fees.view", "STUDENT"),
   asyncHandler(controller.getStudentLedger)
 );
 
 // Adjustments & Refunds
 router.post("/fees/adjustments", allow("fees.waive"), asyncHandler(controller.postAdjustment));
-router.post("/refunds", allow("fees.collect", "STUDENT", "PARENT"), asyncHandler(controller.postRefundRequest));
+router.post("/refunds", allow("fees.collect", "STUDENT"), asyncHandler(controller.postRefundRequest));
 // Refund approval and charge-level discounts are money decisions: Super Admin only.
 router.patch("/refunds/:id/approve", authorizeRoles(["SUPER_ADMIN"]), asyncHandler(controller.patchApproveRefund));
 router.patch("/refunds/:id/process", authorizeRoles(["SUPER_ADMIN"]), asyncHandler(controller.patchProcessRefund));
 router.get(
   "/refunds",
-  allow("fees.view", "STUDENT", "PARENT"),
+  allow("fees.view", "STUDENT"),
   asyncHandler(controller.getRefunds)
 );
 

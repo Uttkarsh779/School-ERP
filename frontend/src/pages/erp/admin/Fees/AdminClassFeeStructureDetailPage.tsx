@@ -48,7 +48,7 @@ const AdminClassFeeStructureDetailPage = () => {
       ACADEMIC_MONTHS.map((m) => {
         const lines = items
           .filter((it) => it.applicableMonths.includes(m) && Number(it.amount) > 0)
-          .map((it) => ({ head: feeHeads.find((h) => h.id === Number(it.feeHeadId))?.name ?? "Fee", amount: Number(it.amount), dueDay: Number(it.dueDateDay) }));
+          .map((it) => ({ head: feeHeads.find((h) => h.id === Number(it.feeHeadId))?.name ?? "Fee", amount: Number(it.amount) }));
         return { month: m, lines, total: lines.reduce((s, l) => s + l.amount, 0) };
       }),
     [items, feeHeads]
@@ -174,9 +174,7 @@ const AdminClassFeeStructureDetailPage = () => {
                   ) : (
                     s.lines.map((l, i) => (
                       <div key={i} className={`${styles.summaryLine} ${styles.muted}`}>
-                        <span>
-                          {l.head} · due {l.dueDay}
-                        </span>
+                        <span>{l.head}</span>
                         <span>{inr(l.amount)}</span>
                       </div>
                     ))

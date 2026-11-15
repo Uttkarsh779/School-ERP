@@ -8,6 +8,7 @@ import {
   listClassSectionsForTeacher,
   updateClassSection,
 } from "./service";
+import { sendError } from "../../utils/publicError";
 
 // Strip the class teacher's passwordHash before a class section leaves the API.
 const sanitize = (classSection: any) => {
@@ -66,6 +67,6 @@ export const deleteClassSectionController = async (req: CustomRequest, res: Resp
     await deleteClassSection(Number(req.params.id));
     res.status(200).json({ success: true, message: "Class section deleted successfully" });
   } catch (err: any) {
-    res.status(400).json({ success: false, message: err.message || "Failed to delete class section" });
+    sendError(res, err, "Failed to delete class section");
   }
 };

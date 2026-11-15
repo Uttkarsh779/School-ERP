@@ -15,38 +15,18 @@ type LineItem = { feeHeadId: number; headName: string; code: string; amount: num
 
 // Everything the concession rules need for one student, loaded once so a whole session
 // can be billed/projected month by month without going back to the database.
+// All concessions are assigned per student by the office on the Concessions screen —
+// there is no automatic sibling/staff-child detection (the Families module was removed).
 export interface ConcessionContext {
-  studentConcessions: any[]; // ACTIVE StudentConcession rows (with concessionScheme)
-  siblingScheme: any | null;
-  staffScheme: any | null;
-  siblingOrder: number | null; // from the primary parent link
-  staffMember: any | null; // Staff record of the primary parent, if the parent is staff
+  studentConcessions: any[]; // ACTIVE StudentConcession rows (with concessionScheme and staff)
 }
 
-export const loadConcessionContext = async (db: any, studentId: number): Promise<ConcessionContext> => {
-  const [student, studentConcessions, schemes] = await Promise.all([
-    db.student.findUnique({
-      where: { id: studentId },
-      include: { parents: { where: { isPrimary: true }, include: { parent: true } } },
-    }),
-    db.studentConcession.findMany({ where: { studentId, status: "ACTIVE" }, include: { concessionScheme: true } }),
-    db.concessionScheme.findMany({
-      where: { isActive: true, type: { in: [AdjustmentType.SIBLING_DISCOUNT, AdjustmentType.STAFF_CHILD] } },
-      orderBy: { id: "asc" },
-    }),
-  ]);
-  const parentLink = student?.parents?.[0];
-  const staffMember = parentLink?.parent?.userId
-    ? await db.staff.findUnique({ where: { userId: parentLink.parent.userId } })
-    : null;
-  return {
-    studentConcessions,
-    siblingScheme: schemes.find((s: any) => s.type === AdjustmentType.SIBLING_DISCOUNT) ?? null,
-    staffScheme: schemes.find((s: any) => s.type === AdjustmentType.STAFF_CHILD) ?? null,
-    siblingOrder: parentLink?.siblingOrder ?? null,
-    staffMember,
-  };
-};
+export const loadConcessionContext = async (db: any, studentId: number): Promise<ConcessionContext> => ({
+  studentConcessions: await db.studentConcession.findMany({
+    where: { studentId, status: "ACTIVE" },
+    include: { concessionScheme: true, staff: true },
+  }),
+});
 
 const activeOn = (row: { startsFrom?: Date | null; endsOn?: Date | null }, date: Date) =>
   (!row.startsFrom || new Date(row.startsFrom) <= date) && (!row.endsOn || new Date(row.endsOn) >= date);
@@ -109,43 +89,12 @@ export const applyConcessions = (
     }));
   }
 
-  // ORDER 2: SIBLING DISCOUNT (global scheme, by the child's sibling order)
-  const sibling = ctx.siblingScheme;
-  if (sibling && activeOn(sibling, billingDate) && ctx.siblingOrder && ctx.siblingOrder > 1) {
-    const cfg = parseConfig(sibling.configJson)[String(ctx.siblingOrder)];
-    if (cfg) {
-      const isPct = (cfg.calculationType || sibling.calculationType) === CalculationType.PERCENTAGE;
-      apply(headsFor(sibling.applicableHeads), Number(cfg.value || sibling.value), isPct, (feeHeadId, amount) => ({
-        type: AdjustmentType.SIBLING_DISCOUNT,
-        concessionSchemeId: sibling.id,
-        feeHeadId,
-        amount,
-        reason: sibling.name,
-      }));
-    }
-  }
-
-  // ORDER 3: STAFF CHILD DISCOUNT (global scheme, by the parent's staff category) — only
-  // while the parent is employed (Staff.isActive). Not User.isActive: that is login access,
-  // which drivers/guards/cleaning staff never have.
-  const staffScheme = ctx.staffScheme;
-  const staff = ctx.staffMember;
-  if (staffScheme && activeOn(staffScheme, billingDate) && staff && staff.isActive) {
-    const cfg = parseConfig(staffScheme.configJson)[staff.staffCategory];
-    if (cfg) {
-      apply(headsFor(staffScheme.applicableHeads), Number(cfg.value), cfg.calculationType === CalculationType.PERCENTAGE, (feeHeadId, amount) => ({
-        type: AdjustmentType.STAFF_CHILD,
-        concessionSchemeId: staffScheme.id,
-        staffId: staff.id,
-        feeHeadId,
-        amount,
-        reason: `Staff Child Concession (${staff.staffCategory})`,
-      }));
-    }
-  }
-
-  // ORDER 4: OTHER STUDENT CONCESSIONS (transport, special, ...)
+  // ORDER 2: ALL OTHER CONCESSIONS (sibling, staff child, transport, special, ...), each one
+  // assigned to the student by hand. A STAFF_CHILD concession only applies while the linked
+  // staff member is employed (Staff.isActive) — not User.isActive, which is login access that
+  // drivers/guards/cleaning staff never have.
   for (const conc of active.filter((c) => c.type !== AdjustmentType.SCHOLARSHIP)) {
+    if (conc.type === AdjustmentType.STAFF_CHILD && conc.staff && !conc.staff.isActive) continue;
     apply(headsFor(conc.applicableHeads), Number(conc.value), conc.calculationType === CalculationType.PERCENTAGE, (feeHeadId, amount) => ({
       type: conc.type,
       studentConcessionId: conc.id,

@@ -5,6 +5,8 @@ import { hashPassword, comparePassword } from "../../utils/password";
 import { createUser, findUserByEmail } from "./service";
 import { prisma } from "../../config/prisma";
 import { getStudentByAdmissionNo } from "../students/service";
+import { MAX_SUPER_ADMINS } from "../staff/service";
+import { issueTokens, tokenVersionOf } from "./tokens";
 
 import { JWT_REFRESH_SECRET, JWT_SECRET } from "../../config/secrets";
 
@@ -25,9 +27,8 @@ export const registerUser = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    // Parents don't get logins — families use the student's login.
-    if (role === Role.PARENT) {
-      res.status(400).json({ success: false, message: "Parent accounts are not supported; families sign in with the student's login" });
+    if (role === Role.SUPER_ADMIN && (await prisma.user.count({ where: { role: Role.SUPER_ADMIN, isActive: true } })) >= MAX_SUPER_ADMINS) {
+      res.status(400).json({ success: false, message: `There are already ${MAX_SUPER_ADMINS} Super Admins.` });
       return;
     }
 
@@ -72,11 +73,6 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    if (user.role === Role.PARENT) {
-      res.status(403).json({ success: false, message: "Parents don't have a login. Please sign in with the student's admission number." });
-      return;
-    }
-
     // Role-based portal segregation check
     if (loginMode === "family" && user.role !== Role.STUDENT) {
       res.status(403).json({ success: false, message: "Staff & Admin accounts must sign in from the Staff & Admin Sign In tab." });
@@ -94,17 +90,7 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const accessToken = jwt.sign(
-      { id: user.id, email: user.email, role: user.role },
-      JWT_SECRET(),
-      { expiresIn: "15m" }
-    );
-
-    const refreshToken = jwt.sign(
-      { id: user.id, email: user.email, role: user.role },
-      JWT_REFRESH_SECRET(),
-      { expiresIn: "7d" }
-    );
+    const { accessToken, refreshToken } = issueTokens(user);
 
     res.status(200).json({
       success: true,
@@ -145,17 +131,20 @@ export const refreshToken = async (req: Request, res: Response): Promise<void> =
 
     // Read the account again: a deactivated login stops here, and a changed role (e.g. a
     // teacher made Principal) takes effect without signing out.
-    const user = await prisma.user.findUnique({ where: { id: Number(decoded.id) }, select: { id: true, email: true, role: true, name: true, isActive: true } });
+    const user = await prisma.user.findUnique({ where: { id: Number(decoded.id) }, select: { id: true, email: true, role: true, name: true, isActive: true, tokenVersion: true } });
     if (!user || !user.isActive) {
       res.status(401).json({ success: false, message: "This account is no longer active" });
       return;
     }
+    // The password was changed or reset since this device signed in.
+    if (tokenVersionOf(decoded) !== user.tokenVersion) {
+      res.status(401).json({ success: false, message: "Your password was changed. Please sign in again." });
+      return;
+    }
 
-    const claims = { id: user.id, email: user.email, role: user.role };
     res.status(200).json({
       success: true,
-      accessToken: jwt.sign(claims, JWT_SECRET(), { expiresIn: "15m" }),
-      refreshToken: jwt.sign(claims, JWT_REFRESH_SECRET(), { expiresIn: "7d" }),
+      ...issueTokens(user),
       user: { id: user.id, email: user.email, role: user.role, name: user.name },
     });
   } catch (error) {

@@ -38,7 +38,7 @@ async function main() {
   }
 
   // 3. Find some students to apply concessions to
-  const students = await prisma.student.findMany({ take: 5, include: { parents: { include: { parent: true } } } });
+  const students = await prisma.student.findMany({ take: 5 });
   if (students.length < 5) {
     console.log("Not enough students in DB. Run normal seed first.");
     return;
@@ -84,7 +84,7 @@ async function seedStudentConcession(
 }
 
 async function seedStaffChildConcession(category: any, schemeId: number, studentId: number, adminId: number, start: Date, end: Date) {
-  let staff = await prisma.staff.findFirst({ where: { staffCategory: category }, include: { user: { include: { parent: true } } } });
+  let staff = await prisma.staff.findFirst({ where: { staffCategory: category } });
   if (!staff) {
     console.log(`No staff with category ${category} found. Creating dummy...`);
     const user = await prisma.user.create({
@@ -95,18 +95,7 @@ async function seedStaffChildConcession(category: any, schemeId: number, student
         role: category === "TEACHER" ? "TEACHER" : "ADMIN"
       }
     });
-    staff = await prisma.staff.create({ data: { userId: user.id, staffCategory: category }, include: { user: { include: { parent: true } } } });
-  }
-
-  // Link staff parent to student
-  let parent = staff.user.parent;
-  if (!parent) {
-    parent = await prisma.parentGuardian.create({ data: { userId: staff.user.id, name: staff.user.name, email: staff.user.email } });
-  }
-
-  const link = await prisma.parentStudent.findUnique({ where: { parentId_studentId: { parentId: parent.id, studentId } } });
-  if (!link) {
-    await prisma.parentStudent.create({ data: { parentId: parent.id, studentId, relationshipType: "Parent" } });
+    staff = await prisma.staff.create({ data: { userId: user.id, staffCategory: category } });
   }
 
   await seedStudentConcession(studentId, schemeId, staff.id, "STAFF_CHILD", "PERCENTAGE", category === "DRIVER" ? 40 : 50, adminId, `Child of ${category}`, start, end);

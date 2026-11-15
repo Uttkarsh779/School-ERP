@@ -12,7 +12,7 @@ router.use(authenticateToken);
 // listNoticesForUser (see service.ts), not here.
 router.get(
   "/",
-  authorizeRoles([...SCHOOL_WIDE, "TEACHER", "STUDENT", "PARENT"]),
+  authorizeRoles([...SCHOOL_WIDE, "TEACHER", "STUDENT"]),
   asyncHandler(getNotices)
 );
 router.get("/sent", authorizeRoles(["TEACHER"]), asyncHandler(getSentNotices));

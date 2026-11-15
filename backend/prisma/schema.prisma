@@ -4,6 +4,10 @@
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
+  // Pinned so the generated client never depends on tsconfig: CommonJS, imports without a
+  // file extension (ts-node, used by npm run dev and the tests, can't resolve "./x.js" to x.ts).
+  moduleFormat        = "cjs"
+  importFileExtension = ""
 }
 
 datasource db {
@@ -17,7 +21,6 @@ enum Role {
   ACCOUNTANT
   TEACHER
   STUDENT
-  PARENT
 }
 
 enum AttendanceStatus {
@@ -78,11 +81,13 @@ model User {
   role         Role
   name         String
   isActive     Boolean  @default(true)
+  // Raised whenever the password is set or reset; refresh tokens carrying an older number
+  // stop working, which signs the account out on every other device (prisma/token_version.sql).
+  tokenVersion Int      @default(0)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   staff   Staff?
-  parent  ParentGuardian?
   student Student?
 
   markedAttendance Attendance[] // admins can also mark/override attendance, not just teachers
@@ -112,8 +117,15 @@ model User {
   accountEntriesUpdated       AccountEntry[]          @relation("AccountEntryUpdatedBy")
   accountEntriesVoided        AccountEntry[]          @relation("AccountEntryVoidedBy")
   calendarEventsCreated       CalendarEvent[]         @relation("CalendarEventCreatedBy")
+  passwordResets              PasswordReset[]
+  consentsRecorded            DataConsent[]          @relation("ConsentRecordedBy")
+  consentsWithdrawn           DataConsent[]          @relation("ConsentWithdrawnBy")
+  dataRequestsMade            DataRequest[]          @relation("DataRequestBy")
+  dataRequestsResolved        DataRequest[]          @relation("DataRequestResolvedBy")
   notifications               Notification[]
   pushSubscriptions           PushSubscription[]
+  studentDocumentsUploaded    StudentDocument[]      @relation("StudentDocumentUploadedBy")
+  inventoryMovementsCreated   InventoryMovement[]    @relation("InventoryMovementCreatedBy")
 }
 
 model AcademicSession {
@@ -223,6 +235,7 @@ model Staff {
   StudentConcession     StudentConcession[]
   assignmentsCreated    Assignment[]
   leaveRequests         LeaveRequest[]
+  inventoryMovements    InventoryMovement[]
 
   @@map("teachers")
 }
@@ -255,7 +268,7 @@ model Student {
   bloodGroup    String?
   photoUrl      String?
 
-  // Family — printed on report cards/ID cards; independent of any ParentGuardian login account.
+  // Family — printed on report cards/ID cards; the only family record the ERP keeps.
   fatherName    String?
   fatherContact String?
   motherName    String?
@@ -277,7 +290,6 @@ model Student {
   isActive         Boolean       @default(true)
   createdAt        DateTime      @default(now())
 
-  parents        ParentStudent[]
   attendance     Attendance[]
   examResults    ExamResult[]
   feePayments    FeePayment[]
@@ -295,6 +307,12 @@ model Student {
   leaveRequests        LeaveRequest[]
   certificates         StudentCertificate[]
   enrollments          StudentEnrollment[]
+  dataConsents         DataConsent[]
+  dataRequests         DataRequest[]
+  documents            StudentDocument[]
+  health               StudentHealth?
+  healthCheckups       HealthCheckup[]
+  vaccinations         Vaccination[]
 
   @@unique([classSectionId, rollNo])
 }
@@ -326,37 +344,6 @@ model StudentEnrollment {
 
   @@unique([studentId, sessionId])
   @@index([classSectionId])
-}
-
-model ParentGuardian {
-  id      Int    @id @default(autoincrement())
-  userId  Int?   @unique
-  user    User?  @relation(fields: [userId], references: [id]) // name/email live on User if present
-  name    String @default("Unknown") // Required for business logic now
-  email   String?
-  contact String?
-  address String?
-
-  children       ParentStudent[]
-  paymentBatches PaymentBatch[]
-}
-
-// Join table — this is what makes sibling accounts work (prep/FEATURE_ANALYSIS.md §7):
-// one ParentGuardian can link to N Students, each Student stays an independent record/ledger.
-model ParentStudent {
-  id        Int            @id @default(autoincrement())
-  parentId  Int
-  parent    ParentGuardian @relation(fields: [parentId], references: [id])
-  studentId Int
-  student   Student        @relation(fields: [studentId], references: [id])
-
-  relationshipType              String? // "Father", "Mother", "Guardian", etc.
-  isPrimary                     Boolean @default(true)
-  siblingOrder                  Int     @default(1)
-  receivesFeeNotifications      Boolean @default(true)
-  receivesAcademicNotifications Boolean @default(true)
-
-  @@unique([parentId, studentId])
 }
 
 model Attendance {
@@ -564,7 +551,7 @@ model FeeStructureItem {
   amount              Decimal      @db.Decimal(10, 2)
   frequency           FeeFrequency @default(MONTHLY)
   applicableMonths    Int[]        // 1-12 e.g. [6] or [1,2,3,4,5,6,7,8,9,10,11,12]
-  dueDateDay          Int          @default(10)
+  dueDateDay          Int          @default(10) // no longer used: every fee on a bill is due on FeeBillingSetting.dueDay
   allowPartialPayment Boolean      @default(true)
   effectiveFrom       DateTime     @default(now())
   effectiveTo         DateTime?
@@ -694,6 +681,9 @@ model StudentConcession {
   concessionScheme   ConcessionScheme? @relation(fields: [concessionSchemeId], references: [id])
   staffId            Int?
   staff              Staff?            @relation(fields: [staffId], references: [id])
+  // Sibling discount: the brothers / sisters the admin named when giving it (record only;
+  // the discount itself is the value below). prisma/sibling_concession.sql
+  siblingStudentIds  Int[]             @default([])
   type               AdjustmentType
   calculationType    CalculationType
   value              Decimal           @db.Decimal(10, 2)
@@ -734,30 +724,11 @@ model FeeAdjustment {
   reverseReason       String?
 }
 
-model PaymentBatch {
-  id               Int            @id @default(autoincrement())
-  parentGuardianId Int
-  parentGuardian   ParentGuardian @relation(fields: [parentGuardianId], references: [id])
-  totalAmount      Decimal        @db.Decimal(10, 2)
-  mode             FeeMode
-  receiptNumber    String         @unique
-  paymentDate      DateTime       @default(now())
-  transactionRef   String?
-  notes            String?
-  recordedByUserId Int?
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
-
-  payments         Payment[]
-}
-
 model Payment {
   id                Int           @id @default(autoincrement())
   paymentNumber     String        @unique
   studentId         Int
   student           Student       @relation(fields: [studentId], references: [id])
-  paymentBatchId    Int?
-  paymentBatch      PaymentBatch? @relation(fields: [paymentBatchId], references: [id])
   amount            Decimal       @db.Decimal(10, 2)
   mode              FeeMode
   status            PaymentStatus @default(PENDING)
@@ -966,7 +937,7 @@ model Assignment {
 
 model WebsiteSetting {
   id               Int      @id @default(1)
-  schoolName       String   @default("Delhi Public Academy")
+  schoolName        String   @default("RRS International School")
   tagline          String   @default("Empowering Minds, Inspiring Excellence")
   heroTitle        String   @default("Welcome to Excellence in Modern Education")
   heroSubtitle     String   @default("Nurturing global citizens with world-class academics, values, and advanced infrastructure.")
@@ -976,7 +947,7 @@ model WebsiteSetting {
   affiliationNo    String   @default("CBSE-2130892")
   establishedYear  Int      @default(1998)
   phone            String   @default("+91 98765 43210")
-  email            String   @default("info@dpa-school.edu.in")
+  email             String   @default("")
   address          String   @default("Sector 14, Knowledge Park, New Delhi, India")
   admissionsOpen   Boolean  @default(true)
   admissionNotice  String?  @default("Admissions open for Academic Session 2026-27 from Nursery to Grade XII.")
@@ -1077,7 +1048,6 @@ model AdmissionInquiry {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @default(now()) @updatedAt
 }
-
 
 // ==================== BUILDING CONSTRUCTION EXPENSE (SUPER_ADMIN only) ====================
 
@@ -1354,7 +1324,7 @@ model FeeBillingSetting {
   id                 Int       @id @default(1)
   autoGenerate       Boolean   @default(false)
   generateDay        Int       @default(1) // 1-28
-  transportDueDay    Int       @default(10) // 1-28; fee items have their own due day
+  dueDay             Int       @default(10) @map("transportDueDay") // 1-28; every fee on a bill, transport included, is due this day
   lastAutoRunPeriod  String? // e.g. "OCT_2026"
   lastAutoRunAt      DateTime?
   lastAutoRunSummary String?
@@ -1588,4 +1558,220 @@ model ExamSetting {
   id                      Int      @id @default(1)
   admitCardsForDefaulters Boolean  @default(false)
   updatedAt               DateTime @default(now())
+}
+
+// Forgot-password codes (prisma/password_reset.sql). Only a hash of the 6-digit code is kept;
+// a code works once, for 10 minutes, and is voided after 5 wrong tries.
+model PasswordReset {
+  id          Int       @id @default(autoincrement())
+  userId      Int
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channel     String // EMAIL | SMS
+  destination String // masked address/number the code went to, for the audit trail
+  codeHash    String
+  attempts    Int       @default(0)
+  expiresAt   DateTime
+  usedAt      DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([userId, createdAt])
+}
+
+// ---- Privacy (India's DPDP Act): prisma/privacy.sql ----------------------------------------
+
+// The privacy notice families agree to. One row (id = 1). Raising noticeVersion asks every
+// family to agree again the next time the student login is used.
+model PrivacySetting {
+  id             Int      @id @default(1)
+  noticeText     String
+  noticeVersion  Int      @default(1)
+  // Off until the Super Admin has reviewed the notice: only then do student logins ask.
+  consentEnabled Boolean  @default(false)
+  grievanceName  String?
+  grievanceEmail String?
+  grievancePhone String?
+  updatedAt      DateTime @updatedAt
+}
+
+// A parent's / guardian's consent for one student: given online on the student login, or
+// recorded by the office from a signed paper form. Never deleted; a withdrawal is recorded on it.
+model DataConsent {
+  id                Int       @id @default(autoincrement())
+  studentId         Int
+  student           Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  noticeVersion     Int
+  givenBy           String // parent / guardian name
+  relationship      String // Father, Mother, Guardian
+  method            String // ONLINE | PAPER
+  givenAt           DateTime  @default(now())
+  recordedByUserId  Int?
+  recordedBy        User?     @relation("ConsentRecordedBy", fields: [recordedByUserId], references: [id])
+  userAgent         String?
+  withdrawnAt       DateTime?
+  withdrawnByUserId Int?
+  withdrawnBy       User?     @relation("ConsentWithdrawnBy", fields: [withdrawnByUserId], references: [id])
+  withdrawReason    String?
+
+  @@index([studentId, givenAt])
+}
+
+// A family's request about their data: correct it, erase it, or stop using it (withdraw
+// consent). The office answers it; the school decides what it must keep by law (e.g. TC records).
+model DataRequest {
+  id                Int       @id @default(autoincrement())
+  studentId         Int
+  student           Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  type              String // CORRECTION | ERASURE | WITHDRAW_CONSENT
+  details           String
+  status            String    @default("OPEN") // OPEN | RESOLVED | REJECTED
+  response          String?
+  requestedByUserId Int
+  requestedBy       User      @relation("DataRequestBy", fields: [requestedByUserId], references: [id])
+  resolvedByUserId  Int?
+  resolvedBy        User?     @relation("DataRequestResolvedBy", fields: [resolvedByUserId], references: [id])
+  createdAt         DateTime  @default(now())
+  resolvedAt        DateTime?
+
+  @@index([status, createdAt])
+  @@index([studentId])
+}
+
+// ---------------------------------------------------------------------------
+// Student documents and health (prisma/student_records.sql)
+// ---------------------------------------------------------------------------
+
+// A scanned document kept on file. The file is stored privately ("authenticated") in
+// Cloudinary and only reached through the ERP; removing one deletes the file and keeps
+// this row (removedAt) as a log.
+model StudentDocument {
+  id               Int       @id @default(autoincrement())
+  studentId        Int
+  student          Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  docType          String // BIRTH_CERTIFICATE | AADHAAR | TRANSFER_CERTIFICATE | … (studentRecords/documentsService.ts)
+  title            String?
+  publicId         String
+  resourceType     String // image | raw
+  format           String?
+  mimeType         String?
+  bytes            Int       @default(0)
+  uploadedByUserId Int
+  uploadedBy       User      @relation("StudentDocumentUploadedBy", fields: [uploadedByUserId], references: [id])
+  verifiedAt       DateTime?
+  verifiedByUserId Int?
+  removedAt        DateTime?
+  removedByUserId  Int?
+  removeReason     String?
+  createdAt        DateTime  @default(now())
+
+  @@index([studentId])
+}
+
+model StudentHealth {
+  studentId         Int      @id
+  student           Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  allergies         String?
+  conditions        String? // asthma, epilepsy, diabetes …
+  medicines         String? // taken regularly
+  emergencyMedicine String? // inhaler, EpiPen … and where it's kept
+  dietary           String?
+  disability        String?
+  doctorName        String?
+  doctorPhone       String?
+  emergencyName     String?
+  emergencyRelation String?
+  emergencyPhone    String?
+  officeNotes       String? // office and Principal only
+  updatedByUserId   Int?
+  updatedAt         DateTime @default(now()) @updatedAt
+}
+
+model HealthCheckup {
+  id               Int      @id @default(autoincrement())
+  studentId        Int
+  student          Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  checkupDate      DateTime @db.Date
+  heightCm         Decimal? @db.Decimal(5, 1)
+  weightKg         Decimal? @db.Decimal(5, 1)
+  visionLeft       String?
+  visionRight      String?
+  dental           String?
+  notes            String?
+  recordedByUserId Int
+  createdAt        DateTime @default(now())
+
+  @@index([studentId])
+}
+
+model Vaccination {
+  id               Int       @id @default(autoincrement())
+  studentId        Int
+  student          Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  vaccine          String
+  dose             String?
+  givenOn          DateTime? @db.Date
+  notes            String?
+  recordedByUserId Int
+  createdAt        DateTime  @default(now())
+
+  @@index([studentId])
+}
+
+// ---------------------------------------------------------------------------
+// Inventory: school stock (prisma/inventory.sql)
+// ---------------------------------------------------------------------------
+
+model InventoryCategory {
+  id        Int             @id @default(autoincrement())
+  name      String          @unique
+  isActive  Boolean         @default(true)
+  createdAt DateTime        @default(now())
+  items     InventoryItem[]
+}
+
+// stock is changed only together with a movement, in one transaction.
+model InventoryItem {
+  id         Int                 @id @default(autoincrement())
+  name       String              @unique
+  categoryId Int
+  category   InventoryCategory   @relation(fields: [categoryId], references: [id])
+  unit       String              @default("pcs")
+  returnable Boolean             @default(false) // expected back after an issue (tools, sports kit)
+  minStock   Decimal             @default(0) @db.Decimal(12, 2) // warn at or below this
+  stock      Decimal             @default(0) @db.Decimal(12, 2)
+  location   String?
+  notes      String?
+  isActive   Boolean             @default(true)
+  createdAt  DateTime            @default(now())
+  movements  InventoryMovement[]
+
+  @@index([categoryId])
+}
+
+// type: IN | ISSUE | RETURN | ADJUST | WRITE_OFF. quantity > 0; change = signed effect on stock.
+model InventoryMovement {
+  id              Int           @id @default(autoincrement())
+  itemId          Int
+  item            InventoryItem @relation(fields: [itemId], references: [id])
+  type            String
+  quantity        Decimal       @db.Decimal(12, 2)
+  change          Decimal       @db.Decimal(12, 2)
+  movedOn         DateTime      @db.Date
+  supplier        String?
+  billNo          String?
+  unitCost        Decimal?      @db.Decimal(12, 2)
+  staffId         Int?
+  staff           Staff?        @relation(fields: [staffId], references: [id], onDelete: SetNull)
+  issuedTo        String? // room, class or department
+  note            String?
+  isVoid          Boolean       @default(false)
+  voidReason      String?
+  voidedAt        DateTime?
+  voidedByUserId  Int?
+  createdByUserId Int
+  createdBy       User          @relation("InventoryMovementCreatedBy", fields: [createdByUserId], references: [id])
+  createdAt       DateTime      @default(now())
+
+  @@index([itemId])
+  @@index([staffId])
+  @@index([movedOn])
 }

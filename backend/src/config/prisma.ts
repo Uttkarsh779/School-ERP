@@ -8,6 +8,7 @@ dotenv.config({ path: path.resolve(__dirname, "../../.env") });
 import { PrismaClient } from "../generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
+import { connectWithRetry } from "./dbRetry";
 
 if (!process.env.DATABASE_URL) {
   throw new Error(
@@ -18,7 +19,16 @@ if (!process.env.DATABASE_URL) {
 // Plain TCP Postgres pool (suits a long-running server better than Neon's WebSocket driver).
 // Idle connections are closed before Neon drops them; a connection Neon still cuts (e.g. when
 // the database auto-suspends) is logged in one line and replaced on the next query.
-const pool = new Pool({
+// A failed connect is retried; Pool.query() goes through connect() too, so everything is covered.
+class RetryingPool extends Pool {
+  connect(callback?: any): any {
+    const open = connectWithRetry(() => super.connect());
+    if (!callback) return open;
+    open.then((client) => callback(undefined, client, client.release), callback);
+  }
+}
+
+const pool = new RetryingPool({
   connectionString: process.env.DATABASE_URL,
   max: 10,
   idleTimeoutMillis: 30_000,

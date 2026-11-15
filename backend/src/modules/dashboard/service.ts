@@ -7,7 +7,6 @@ export const getAdminCounts = async () => {
     studentCount,
     staffCount,
     classSectionCount,
-    parentCount,
     transportVillagesCount,
     transportStudentsCount,
     feeOverview,
@@ -17,7 +16,6 @@ export const getAdminCounts = async () => {
     prisma.student.count({ where: { isActive: true } }),
     prisma.staff.count({ where: { user: { isActive: true } } }),
     prisma.classSection.count(),
-    prisma.parentGuardian.count(),
     prisma.transportVillage.count({ where: { isActive: true } }),
     prisma.studentTransportAssignment.count({ where: { status: "ACTIVE" } }),
     getFeeOverview(),
@@ -33,7 +31,6 @@ export const getAdminCounts = async () => {
     studentCount,
     staffCount,
     classSectionCount,
-    parentCount,
     transportVillagesCount,
     transportStudentsCount,
     // Real figures only (see fees/overviewService) — zeros when nothing is billed yet.

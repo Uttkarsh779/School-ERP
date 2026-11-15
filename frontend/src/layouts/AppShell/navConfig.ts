@@ -19,7 +19,6 @@ const OFFICE_NAV: NavEntry[] = [
 
   { label: "Students", path: "/admin/students", icon: "graduationCap", group: "People", perm: "students.view" },
   { label: "Staff", path: "/admin/staff", icon: "users", group: "People", perm: "staff.view" },
-  { label: "Families & Parents", path: "/admin/parents", icon: "familyCheck", group: "People", perm: "families.view" },
   { label: "Leave Requests", path: "/admin/leaves", icon: "calendar", group: "People", perm: "leaves.manage" },
   { label: "Admission Report", path: "/admin/admission-report", icon: "fileText", group: "People", perm: "owner" },
 
@@ -37,6 +36,7 @@ const OFFICE_NAV: NavEntry[] = [
   { label: "My Leave", path: "/admin/my-leave", icon: "calendar", group: "Communication", perm: "leave.own" },
 
   { label: "Transport", path: "/admin/transport", icon: "building", group: "School", perm: "transport.edit" },
+  { label: "Inventory", path: "/admin/inventory", icon: "box", group: "School", perm: "inventory.view" },
   { label: "Website", path: "/admin/cms", icon: "globe", group: "School", perm: "website" },
   { label: "Settings", path: "/admin/settings", icon: "settings", group: "School", perm: "settings" },
 ];

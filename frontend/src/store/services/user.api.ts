@@ -31,22 +31,22 @@ export const apiUser = createApi({
         body: newUser,
       }),
     }),
-    forgotPassword: builder.mutation<{ email: string }, { email: string }>({
-      query: (newUser) => ({
+    // Forgot password: staff get a code by email, students by SMS. mode matches the login tab.
+    forgotPassword: builder.mutation<{ success: boolean; message: string }, { identifier: string; mode: "staff" | "family" }>({
+      query: (body) => ({
         url: "users/forgot-password",
         method: "POST",
-        body: newUser,
+        body,
       }),
     }),
     resetPassword: builder.mutation<
-      { code: string; password: string; token: string },
-      { email: string; password: string; token: string }
+      { success: boolean; message: string },
+      { identifier: string; mode: "staff" | "family"; code: string; newPassword: string }
     >({
-      query: (newUser) => ({
+      query: (body) => ({
         url: "users/reset-password",
         method: "POST",
-        body: newUser,
-        headers: { Authorization: `Bearer ${newUser?.token}` },
+        body,
       }),
     }),
     updateUser: builder.mutation({

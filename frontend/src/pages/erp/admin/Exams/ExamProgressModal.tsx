@@ -22,7 +22,7 @@ const ExamProgressModal = ({ exam, title, onResults, onClose }: { exam: IExam; t
       ) : (
         <div className={styles.admitForm}>
           <p className={styles.admitHint}>
-            {done} of {data.subjects.length} subject{data.subjects.length === 1 ? "" : "s"} complete · {total} student{total === 1 ? "" : "s"}. Subject teachers enter marks on their own Exams page.
+            <b>{done}</b> of {data.subjects.length} subject{data.subjects.length === 1 ? "" : "s"} complete · {total} student{total === 1 ? "" : "s"}
           </p>
           {noTeacher > 0 && (
             <p className={styles.resultWarn} style={{ margin: 0 }}>
@@ -35,7 +35,10 @@ const ExamProgressModal = ({ exam, title, onResults, onClose }: { exam: IExam; t
               return (
                 <li key={s.subjectId}>
                   <div className={styles.progressTop}>
-                    <strong>{s.name}</strong>
+                    <span>
+                      <strong>{s.name}</strong>{" "}
+                      <small className={s.teachers.length ? undefined : styles.failText}>· {s.teachers.length ? s.teachers.join(", ") : "No teacher allocated"}</small>
+                    </span>
                     <span>
                       {s.entered}/{total}
                     </span>
@@ -43,7 +46,6 @@ const ExamProgressModal = ({ exam, title, onResults, onClose }: { exam: IExam; t
                   <div className={`${styles.progressBar} ${pct === 100 ? styles.progressDone : ""}`}>
                     <span style={{ width: `${pct}%` }} />
                   </div>
-                  <small className={s.teachers.length ? undefined : styles.failText}>{s.teachers.length ? s.teachers.join(", ") : "No teacher allocated"}</small>
                 </li>
               );
             })}

@@ -8,6 +8,8 @@ import { useAppSelector } from "../../../../../store/store";
 import { inr, MODE_LABEL } from "../feeUtils";
 import { printDayBook } from "./dayBookPrint";
 import styles from "../Fees.module.css";
+import ExportButton from "../../../../../components/shared/ExportButton";
+import { useCan } from "../../../../../store/permissions";
 
 // Fee day book: what came in on a day (or a range), split by payment mode and by who
 // collected it, so the cash counted at the end of the day can be matched and handed over.
@@ -18,6 +20,7 @@ const dateTime = (d: string | null) =>
   d ? new Date(d).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" }) : "—";
 
 const DayBookTab = () => {
+  const can = useCan();
   const [from, setFrom] = useState(today);
   const [to, setTo] = useState(today);
   const { data, isLoading, isFetching, isError, error, refetch } = useGetDayBookQuery({ from, to: to < from ? from : to });
@@ -59,9 +62,12 @@ const DayBookTab = () => {
         title="Fee day book"
         subtitle="Every receipt for the day, totals by payment mode and by who collected, for closing the counter"
         action={
-          <Button size="sm" variant="outline" disabled={!data} onClick={() => data && printDayBook(data, site?.settings, me?.name ?? me?.email)}>
-            Print day book
-          </Button>
+          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+            <Button size="sm" variant="outline" disabled={!data} onClick={() => data && printDayBook(data, site?.settings, me?.name ?? me?.email)}>
+              Print day book
+            </Button>
+            {can("exports.fees") && <ExportButton path="day-book" params={{ from, to }} label="Excel" disabled={!data} />}
+          </div>
         }
       >
         <div className={styles.filters}>

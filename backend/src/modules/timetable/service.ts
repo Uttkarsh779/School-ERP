@@ -18,6 +18,20 @@ export const listTimetableForStaff = (staffId: number) =>
     include: { subject: true, classSection: true },
   });
 
+// Every period of the current session (all classes), for printing all class or all teacher
+// timetables at once.
+export const listTimetableForCurrentSession = () =>
+  prisma.timetableSlot.findMany({
+    where: { classSection: { session: { isCurrent: true } } },
+    orderBy: [{ dayOfWeek: "asc" }, { periodNumber: "asc" }],
+    select: {
+      id: true, classSectionId: true, dayOfWeek: true, periodNumber: true, subjectId: true, staffId: true, room: true,
+      subject: { select: { id: true, name: true } },
+      classSection: { select: { id: true, className: true, section: true } },
+      staff: { select: { id: true, user: { select: { name: true } } } },
+    },
+  });
+
 export const upsertTimetableSlot = async (data: {
   classSectionId: number;
   dayOfWeek: number;

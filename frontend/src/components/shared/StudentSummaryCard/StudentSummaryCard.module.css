@@ -1,0 +1,218 @@
+/* The student's header card. Phone first. */
+.card {
+  position: relative;
+  overflow: hidden;
+  background: var(--erp-surface);
+  border: 1px solid var(--erp-border);
+  border-radius: var(--erp-radius-lg);
+  box-shadow: var(--erp-shadow-sm);
+}
+
+.card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--erp-primary-600), var(--erp-primary-500));
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 1.1rem 1.25rem 0.9rem;
+}
+
+.photo,
+.avatar {
+  width: 3.6rem;
+  height: 3.6rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.photo {
+  display: block;
+  object-fit: cover;
+  border: 2px solid var(--erp-primary-100);
+}
+
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--erp-primary-100);
+  color: var(--erp-primary-700);
+  font-weight: 700;
+  font-size: 1.35rem;
+}
+
+.photoButton {
+  position: relative;
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  border-radius: 50%;
+  font: inherit;
+  cursor: pointer;
+}
+
+.photoBadge {
+  position: absolute;
+  left: 50%;
+  bottom: -0.35rem;
+  transform: translateX(-50%);
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: var(--erp-surface);
+  border: 1px solid var(--erp-border);
+  color: var(--erp-primary-700);
+  font-size: 0.68rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.who {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.3rem;
+}
+
+.name {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--erp-text);
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
+}
+
+.classBadge {
+  display: inline-block;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  background: var(--erp-primary-50);
+  color: var(--erp-primary-700);
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.meta {
+  font-size: 0.8rem;
+  color: var(--erp-text-muted);
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  border-top: 1px solid var(--erp-border);
+  background: var(--erp-bg);
+}
+
+.fact {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+  padding: 0.7rem 1.25rem;
+}
+
+.fact + .fact {
+  border-left: 1px solid var(--erp-border);
+}
+
+.factButton {
+  border: none;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--erp-transition-fast);
+}
+
+.factButton:hover {
+  background: var(--erp-primary-50);
+}
+
+.factButton:focus-visible {
+  outline: 2px solid var(--erp-primary-500);
+  outline-offset: -2px;
+}
+
+.factLabel {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--erp-text-muted);
+}
+
+.factValue {
+  max-width: 100%;
+  margin-top: 0.15rem;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--erp-text);
+  overflow-wrap: anywhere;
+}
+
+.factSub {
+  max-width: 100%;
+  font-size: 0.74rem;
+  color: var(--erp-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tone_good {
+  color: var(--erp-success);
+}
+
+.tone_warn {
+  color: var(--erp-warning);
+}
+
+.tone_bad {
+  color: var(--erp-danger);
+}
+
+@media (max-width: 640px) {
+  .top {
+    padding: 1rem 1rem 0.8rem;
+    gap: 0.75rem;
+  }
+
+  /* Facts as a 2 x 2 grid on phones */
+  .facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .fact {
+    padding: 0.6rem 1rem;
+  }
+
+  .fact + .fact {
+    border-left: none;
+  }
+
+  .fact:nth-child(even) {
+    border-left: 1px solid var(--erp-border);
+  }
+
+  .fact:nth-child(n + 3) {
+    border-top: 1px solid var(--erp-border);
+  }
+}

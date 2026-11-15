@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { toast } from "react-toastify";
-import { Button, ConfirmDialog, EmptyState, Modal, Spinner } from "../../../../components/ui";
+import { Button, ConfirmDialog, EmptyState, Icon, Modal, Spinner } from "../../../../components/ui";
 import { DEFAULT_INSTRUCTIONS, printAdmitCards } from "../../../../components/shared/Print/admitCardPrint";
 import { usePrintSchool } from "../../../../components/shared/Print/usePrintSchool";
 import { useGetAdmitCardsQuery, useSaveDateSheetMutation } from "../../../../store/api/exams.api";
-import { useCopyDateSheetMutation } from "../../../../store/api/examPlan.api";
+import { useCopyDateSheetMutation, useLazyGetDateSheetsQuery } from "../../../../store/api/examPlan.api";
+import { printDateSheets } from "../../../../components/shared/Print/dateSheetPrint";
 import styles from "./AdminExamsPage.module.css";
 
 // Admit cards for one exam: the office fills in the date sheet (date and time of each
@@ -19,6 +20,7 @@ const AdmitCardModal = ({ examId, siblings = 0, onClose }: { examId: number; sib
   const [save, { isLoading: saving }] = useSaveDateSheetMutation();
   const [copy, { isLoading: copying }] = useCopyDateSheetMutation();
   const [confirmCopy, setConfirmCopy] = useState(false);
+  const [fetchSheets, { isFetching: loadingSheets }] = useLazyGetDateSheetsQuery();
   const schoolFor = usePrintSchool();
   const [rows, setRows] = useState<Row[]>([]);
   const [instructions, setInstructions] = useState(DEFAULT_INSTRUCTIONS);
@@ -57,6 +59,20 @@ const AdmitCardModal = ({ examId, siblings = 0, onClose }: { examId: number; sib
       printAdmitCards(fresh, schoolFor("admitCard"));
     } catch (e: any) {
       toast.error(e?.data?.message ?? "Couldn't save the date sheet");
+    }
+  };
+
+  // Print the saved date sheet: this class, or (all) every class of this exam on one notice-board sheet.
+  const onPrintSheet = async (all: boolean) => {
+    try {
+      await saveSheet();
+      const sheets = await fetchSheets().unwrap();
+      const mine = sheets.find((s) => s.examId === examId);
+      if (!mine) return void toast.info("Fill in the date sheet before printing it.");
+      const list = all ? sheets.filter((s) => s.name === mine.name && s.term === mine.term && s.type === mine.type) : [mine];
+      printDateSheets(list, { school: schoolFor("admitCard"), combine: all });
+    } catch (e: any) {
+      toast.error(e?.data?.message ?? "Couldn't print the date sheet");
     }
   };
 
@@ -146,6 +162,14 @@ const AdmitCardModal = ({ examId, siblings = 0, onClose }: { examId: number; sib
             <Button variant="outline" onClick={() => onSave(false)} isLoading={saving}>
               Save
             </Button>
+            <Button variant="outline" icon={<Icon name="printer" size={15} />} onClick={() => onPrintSheet(false)} isLoading={saving || loadingSheets}>
+              Print date sheet
+            </Button>
+            {siblings > 0 && (
+              <Button variant="outline" icon={<Icon name="printer" size={15} />} onClick={() => onPrintSheet(true)} isLoading={saving || loadingSheets}>
+                Print for all classes
+              </Button>
+            )}
             {data.admitCard && (
               <Button onClick={() => onSave(true)} isLoading={saving}>
                 Save &amp; print admit cards

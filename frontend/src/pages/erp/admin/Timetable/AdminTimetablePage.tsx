@@ -7,6 +7,7 @@ import {
   EmptyState,
   FormGrid,
   FormSection,
+  Icon,
   Input,
   Modal,
   PageHeader,
@@ -14,6 +15,8 @@ import {
   Spinner,
 } from "../../../../components/ui";
 import TimetableGrid from "../../../../components/shared/TimetableGrid/TimetableGrid";
+import { groupTimetables, printTimetables } from "../../../../components/shared/Print/timetablePrint";
+import { useGetPublicWebsiteDataQuery } from "../../../../store/api/cms.api";
 import { useGetClassSectionsQuery } from "../../../../store/api/classSections.api";
 import { useGetStaffListQuery } from "../../../../store/api/staff.api";
 import {
@@ -21,7 +24,7 @@ import {
   useCreateSubjectMutation,
   useGetSubjectsQuery,
 } from "../../../../store/api/subjects.api";
-import { useGetClassTimetableQuery, useUpsertTimetableSlotMutation } from "../../../../store/api/timetable.api";
+import { useGetClassTimetableQuery, useLazyGetAllTimetablesQuery, useUpsertTimetableSlotMutation } from "../../../../store/api/timetable.api";
 import styles from "./AdminTimetablePage.module.css";
 
 interface SlotFormValues {
@@ -62,6 +65,33 @@ const AdminTimetablePage = () => {
     { skip: !csId }
   );
 
+  const { data: site } = useGetPublicWebsiteDataQuery();
+  const [fetchAll, { isFetching: isLoadingAll }] = useLazyGetAllTimetablesQuery();
+  const [printTeacherId, setPrintTeacherId] = useState("");
+  const selectedClass = classSections?.find((c) => c.id === csId);
+
+  // Print: this class, every class, one teacher, or every teacher (one per page).
+  const printAll = async (by: "class" | "teacher", staffId?: number) => {
+    try {
+      const all = await fetchAll().unwrap();
+      const list = groupTimetables(staffId ? all.filter((s) => s.staffId === staffId) : all, by);
+      if (staffId && list.length === 0) {
+        const name = staffList?.find((s) => s.id === staffId)?.user?.name ?? "This teacher";
+        return void toast.info(`${name} has no periods in the timetable yet`);
+      }
+      if (list.length === 0) return void toast.info("No timetable has been set up yet");
+      printTimetables(list, { school: site?.settings, documentTitle: by === "class" ? "Class timetables" : "Teacher timetables" });
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Couldn't load the timetables"));
+    }
+  };
+  const printThisClass = () =>
+    selectedClass &&
+    printTimetables(
+      [{ title: `${selectedClass.className} - ${selectedClass.section}`, subtitle: "Class timetable", kind: "class", slots: slots ?? [] }],
+      { school: site?.settings }
+    );
+
   const [upsertSlot, { isLoading: isSavingSlot }] = useUpsertTimetableSlotMutation();
   const [createSubject, { isLoading: isCreatingSubject }] = useCreateSubjectMutation();
   const [assignTeacher] = useAssignSubjectTeacherMutation();
@@ -76,7 +106,7 @@ const AdminTimetablePage = () => {
     { value: "", label: "No teacher" },
     ...(staffList?.map((s) => ({
       value: String(s.id),
-      label: s.user.name,
+      label: s.user.name ?? "",
     })) ?? []),
   ];
 
@@ -144,6 +174,34 @@ const AdminTimetablePage = () => {
   return (
     <div>
       <PageHeader title="Class Weekly Timetable" subtitle="Manage and assign weekly periods for each class section" />
+
+      <Card title="Print / Save as PDF">
+        <div style={{ display: "flex", gap: "0.6rem", alignItems: "flex-end", flexWrap: "wrap" }}>
+          <Button variant="outline" icon={<Icon name="printer" size={16} />} disabled={!csId || !slots?.length} onClick={printThisClass}>
+            {selectedClass ? `This class (${selectedClass.className}-${selectedClass.section})` : "This class"}
+          </Button>
+          <Button variant="outline" icon={<Icon name="printer" size={16} />} isLoading={isLoadingAll} onClick={() => printAll("class")}>
+            All classes
+          </Button>
+          <Button variant="outline" icon={<Icon name="printer" size={16} />} isLoading={isLoadingAll} onClick={() => printAll("teacher")}>
+            All teachers
+          </Button>
+          <div style={{ display: "flex", gap: "0.5rem", alignItems: "flex-end", flex: "1 1 280px", minWidth: 0 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <Select
+                label="One teacher"
+                placeholder="Choose a teacher"
+                options={(staffList ?? []).map((s) => ({ value: String(s.id), label: s.user?.name ?? `Staff #${s.id}` }))}
+                value={printTeacherId}
+                onChange={(e) => setPrintTeacherId(e.target.value)}
+              />
+            </div>
+            <Button variant="outline" icon={<Icon name="printer" size={16} />} disabled={!printTeacherId} isLoading={isLoadingAll} onClick={() => printAll("teacher", Number(printTeacherId))}>
+              Print
+            </Button>
+          </div>
+        </div>
+      </Card>
 
       <Card title="Class Schedule Management">
         <div style={{ display: "flex", gap: "1rem", alignItems: "flex-end", flexWrap: "wrap", marginBottom: "1.5rem" }}>

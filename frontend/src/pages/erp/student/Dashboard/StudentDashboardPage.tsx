@@ -7,6 +7,7 @@ import { useGetMyStudentProfileQuery } from "../../../../store/api/students.api"
 import { useGetNoticesQuery } from "../../../../store/api/notices.api";
 import { STATUS_META, formatPct } from "../../admin/Attendance/attendanceFormat";
 import styles from "./StudentDashboardPage.module.css";
+import StudentSummaryCard from "../../../../components/shared/StudentSummaryCard/StudentSummaryCard";
 
 const RESULT_META: Record<string, { label: string; tone: "success" | "danger" | "warning" | "info" | "neutral" }> = {
   PASS: { label: "Pass", tone: "success" },
@@ -80,49 +81,23 @@ const StudentDashboardPage = () => {
 
       {/* Student ID card */}
       {profile && (
-        <section className={styles.idCard}>
-          <div className={styles.idTop}>
-            {profile.photoUrl ? (
-              <img src={profile.photoUrl} alt="" className={styles.photo} />
-            ) : (
-              <div className={styles.avatar}>{profile.name.charAt(0).toUpperCase()}</div>
-            )}
-            <div className={styles.idWho}>
-              <div className={styles.name}>{profile.name}</div>
-              {profile.classSection && (
-                <span className={styles.classBadge}>
-                  {profile.classSection.className} - {profile.classSection.section}
-                </span>
-              )}
-            </div>
+        <StudentSummaryCard
+          name={profile.name}
+          photoUrl={profile.photoUrl}
+          classLabel={profile.classSection ? `${profile.classSection.className} - ${profile.classSection.section}` : null}
+          action={
             <button type="button" className={styles.profileLink} onClick={() => navigate("/student/profile")} aria-label="View my profile">
               <span>View profile</span>
               <Icon name="chevronRight" size={16} />
             </button>
-          </div>
-          <dl className={styles.idFacts}>
-            <div>
-              <dt>Admission No</dt>
-              <dd>{profile.admissionNo}</dd>
-            </div>
-            <div>
-              <dt>Roll No</dt>
-              <dd>{profile.rollNo || "—"}</dd>
-            </div>
-            {extras?.sessionName && (
-              <div>
-                <dt>Session</dt>
-                <dd>{extras.sessionName}</dd>
-              </div>
-            )}
-            {extras?.classTeacherName && (
-              <div>
-                <dt>Class teacher</dt>
-                <dd>{extras.classTeacherName}</dd>
-              </div>
-            )}
-          </dl>
-        </section>
+          }
+          facts={[
+            { label: "Admission No", value: profile.admissionNo },
+            { label: "Roll No", value: profile.rollNo || "—" },
+            ...(extras?.sessionName ? [{ label: "Session", value: extras.sessionName }] : []),
+            ...(extras?.classTeacherName ? [{ label: "Class teacher", value: extras.classTeacherName }] : []),
+          ]}
+        />
       )}
 
       <div className={styles.statsGrid}>

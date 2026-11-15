@@ -455,21 +455,8 @@ const FAQ: React.FC = () => {
 
   // Error state
   if (isError) {
-    let errorMessage = "Unknown error";
-
     console.error("FAQ API Error:", error);
-
-    if (error && "data" in error && error.data) {
-      if (typeof error.data === "string") {
-        errorMessage = error.data;
-      } else if (error.data.message) {
-        errorMessage = error.data.message;
-      } else {
-        errorMessage = JSON.stringify(error.data);
-      }
-    } else if (error && "error" in error) {
-      errorMessage = error.error;
-    }
+    const errorMessage = "We couldn't load the FAQs. Please try again in a moment.";
 
     return (
       <section className={styles.faqSection}>
@@ -490,7 +477,7 @@ const FAQ: React.FC = () => {
               color: "#e74c3c",
             }}
           >
-            Error loading FAQs: {errorMessage}
+            {errorMessage}
           </div>
         </div>
       </section>

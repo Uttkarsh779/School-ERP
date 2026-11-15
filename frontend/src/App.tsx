@@ -17,8 +17,6 @@ import ClassSectionsPage from "./pages/erp/admin/ClassSections/ClassSectionsPage
 import StaffPage from "./pages/erp/admin/Staff/StaffPage";
 import StudentsPage from "./pages/erp/admin/Students/StudentsPage";
 import StudentDetailPage from "./pages/erp/admin/Students/StudentDetailPage";
-import ParentsPage from "./pages/erp/admin/Parents/ParentsPage";
-import FamilyProfilePage from "./pages/erp/admin/Parents/FamilyProfilePage";
 import AdminAttendancePage from "./pages/erp/admin/Attendance/AdminAttendancePage";
 import AdminTimetablePage from "./pages/erp/admin/Timetable/AdminTimetablePage";
 import AdminExamsPage from "./pages/erp/admin/Exams/AdminExamsPage";
@@ -31,6 +29,7 @@ import AdminCmsPage from "./pages/erp/admin/Cms/AdminCmsPage";
 import AdmissionReportPage from "./pages/erp/admin/AdmissionReport/AdmissionReportPage";
 import ConstructionExpensePage from "./pages/erp/admin/Construction/ConstructionExpensePage";
 import AccountsPage from "./pages/erp/admin/Accounts/AccountsPage";
+import InventoryPage from "./pages/erp/admin/Inventory/InventoryPage";
 import SchoolCalendar from "./components/shared/SchoolCalendar/SchoolCalendar";
 import PublicLayout from "./pages/public/PublicLayout";
 import HomePage from "./pages/public/HomePage";
@@ -41,6 +40,8 @@ import GalleryPage from "./pages/public/GalleryPage";
 import AdmissionsPage from "./pages/public/AdmissionsPage";
 import NoticesPage from "./pages/public/NoticesPage";
 import ContactPage from "./pages/public/ContactPage";
+import PrivacyPage from "./pages/public/PrivacyPage";
+import ConsentGate from "./components/shared/Privacy/ConsentGate";
 
 import TeacherDashboardPage from "./pages/erp/teacher/Dashboard/TeacherDashboardPage";
 import TeacherAttendancePage from "./pages/erp/teacher/Attendance/TeacherAttendancePage";
@@ -82,6 +83,7 @@ function App() {
           <Route path="/admissions" element={<AdmissionsPage />} />
           <Route path="/notices" element={<NoticesPage />} />
           <Route path="/contact" element={<ContactPage />} />
+          <Route path="/privacy" element={<PrivacyPage />} />
         </Route>
         <Route path="/home" element={<Navigate to="/" replace />} />
         <Route path="/facilities" element={<Navigate to="/campus" replace />} />
@@ -113,8 +115,6 @@ function App() {
           <Route path="/admin/staff" element={<RequirePermission perm="staff.view"><StaffPage /></RequirePermission>} />
           <Route path="/admin/students" element={<RequirePermission perm="students.view"><StudentsPage /></RequirePermission>} />
           <Route path="/admin/students/:id" element={<RequirePermission perm="students.view"><StudentDetailPage /></RequirePermission>} />
-          <Route path="/admin/parents" element={<RequirePermission perm="families.view"><ParentsPage /></RequirePermission>} />
-          <Route path="/admin/parents/:id" element={<RequirePermission perm="families.view"><FamilyProfilePage /></RequirePermission>} />
           <Route path="/admin/timetable" element={<RequirePermission perm="academics.edit"><AdminTimetablePage /></RequirePermission>} />
           <Route path="/admin/attendance" element={<RequirePermission perm="attendance"><AdminAttendancePage /></RequirePermission>} />
           <Route path="/admin/exams" element={<RequirePermission perm="exams.coordinate"><AdminExamsPage /></RequirePermission>} />
@@ -128,6 +128,7 @@ function App() {
           <Route path="/admin/leaves" element={<RequirePermission perm="leaves.manage"><AdminLeavesPage /></RequirePermission>} />
           <Route path="/admin/my-leave" element={<RequirePermission perm="leave.own"><MyLeavePage /></RequirePermission>} />
           <Route path="/admin/accounts" element={<RequirePermission perm="accounts"><AccountsPage /></RequirePermission>} />
+          <Route path="/admin/inventory" element={<RequirePermission perm="inventory.view"><InventoryPage /></RequirePermission>} />
           <Route path="/admin/calendar" element={<RequirePermission perm="dashboard"><OfficeCalendar /></RequirePermission>} />
           <Route path="/admin/settings" element={<RequirePermission perm="settings"><SettingsPage /></RequirePermission>} />
           <Route path="/admin/certificates" element={<RequirePermission perm="certificates"><CertificateRegisterPage /></RequirePermission>} />
@@ -164,7 +165,9 @@ function App() {
         <Route
           element={
             <ProtectedRoute allowedRoles={["STUDENT"]}>
-              <AppShell />
+              <ConsentGate>
+                <AppShell />
+              </ConsentGate>
             </ProtectedRoute>
           }
         >

@@ -1,3 +1,4 @@
+import { issueTokens, signOutEverywhere } from "../auth/tokens";
 import { prisma } from "../../config/prisma";
 import { comparePassword, hashPassword } from "../../utils/password";
 import { httpError } from "../../utils/httpError";
@@ -117,7 +118,7 @@ export const updateMyProfile = async (userId: number, body: Record<string, unkno
 
   const staffFields = ["contact", "qualifications", "address", "photoUrl"] as const;
   const touchesStaff = staffFields.some((f) => update[f] !== undefined);
-  if (user.role === "STUDENT" || user.role === "PARENT") {
+  if (user.role === "STUDENT") {
     throw httpError(403, "Your details are managed by the school office. Please contact them for changes.");
   }
   if (touchesStaff && !user.staff) {
@@ -150,5 +151,7 @@ export const changeMyPassword = async (userId: number, currentPassword: unknown,
   if (!user) throw httpError(404, "Account not found");
   if (!(await comparePassword(currentPassword, user.passwordHash))) throw httpError(400, "Current password is incorrect");
   if (await comparePassword(newPassword as string, user.passwordHash)) throw httpError(400, "New password must be different from the current one");
-  await prisma.user.update({ where: { id: userId }, data: { passwordHash: await hashPassword(newPassword as string) } });
+  // Signs out every other device; this one gets fresh tokens back.
+  const updated = await prisma.user.update({ where: { id: userId }, data: { passwordHash: await hashPassword(newPassword as string), ...signOutEverywhere } });
+  return issueTokens(updated);
 };

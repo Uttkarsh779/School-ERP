@@ -3,7 +3,6 @@ import type { Role } from "../../generated/prisma/enums";
 import { findStaffByUserId } from "../staff/service";
 import { listClassSectionsForTeacher } from "../classSections/service";
 import { getStudentByUserId } from "../students/service";
-import { getParentByUserId } from "../parents/service";
 import { httpError } from "../../utils/httpError";
 import { isSchoolWide } from "../../config/permissions";
 
@@ -102,7 +101,7 @@ export const createNoticesForActor = async (actor: Actor, body: Record<string, u
     );
   }
   const targetRole = body.targetRole ? String(body.targetRole) : undefined;
-  if (targetRole && !["SUPER_ADMIN", "ADMIN", "PRINCIPAL", "ACCOUNTANT", "TEACHER", "STUDENT", "PARENT"].includes(targetRole)) {
+  if (targetRole && !["SUPER_ADMIN", "ADMIN", "PRINCIPAL", "ACCOUNTANT", "TEACHER", "STUDENT"].includes(targetRole)) {
     throw httpError(400, `Invalid targetRole "${targetRole}"`);
   }
   const targetClassSectionId = body.targetClassSectionId ? Number(body.targetClassSectionId) : undefined;
@@ -176,7 +175,7 @@ export const listNoticesForAdmin = async () => {
 
 // Resolves the calling user's own class section id(s) so listNoticesForUser can match
 // class-targeted notices — a TEACHER via the class(es) they're the assigned class teacher
-// of, a STUDENT via their own class, a PARENT via any of their linked children's classes.
+// of, a STUDENT via their own class.
 const getOwnClassSectionIds = async (userId: number, role: Role): Promise<number[]> => {
   if (role === "TEACHER") {
     const staff = await findStaffByUserId(userId);
@@ -187,11 +186,6 @@ const getOwnClassSectionIds = async (userId: number, role: Role): Promise<number
   if (role === "STUDENT") {
     const student = await getStudentByUserId(userId);
     return student ? [student.classSectionId] : [];
-  }
-  if (role === "PARENT") {
-    const parent = await getParentByUserId(userId);
-    if (!parent) return [];
-    return parent.children.map((link: any) => link.student.classSectionId);
   }
   return [];
 };

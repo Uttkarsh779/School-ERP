@@ -48,6 +48,18 @@ export interface TransportVillage {
   name: string;
   monthlyFee: number;
   isActive: boolean;
+  feeHistory?: { id: number; monthlyFee: number; effectiveDate: string }[];
+}
+
+export interface TransportAssignment {
+  id: number;
+  studentId: number;
+  student: { id: number; name: string; admissionNo: string; classSection: { className: string; section: string } };
+  village: { name: string; monthlyFee: number };
+  startDate: string;
+  endDate?: string | null;
+  status: "ACTIVE" | "DISCONTINUED";
+  policy: "FULL_MONTH" | "PRORATED" | "NEXT_PERIOD";
 }
 
 export interface AssignStudentVillageInput {
@@ -117,6 +129,34 @@ export const transportApi = erpApi.injectEndpoints({
       transformResponse: (res: ApiEnvelope<TransportVillage[]>) => res.data,
       providesTags: ["Transport"],
     }),
+    createVillage: builder.mutation<TransportVillage, { name: string; monthlyFee: number }>({
+      query: (body) => ({ url: "transport/villages", method: "POST", body }),
+      transformResponse: (res: ApiEnvelope<TransportVillage>) => res.data,
+      invalidatesTags: ["Transport"],
+    }),
+    updateVillageFee: builder.mutation<TransportVillage, { id: number; monthlyFee: number; effectiveDate?: string }>({
+      query: ({ id, ...body }) => ({ url: `transport/villages/${id}/fee`, method: "PUT", body }),
+      transformResponse: (res: ApiEnvelope<TransportVillage>) => res.data,
+      invalidatesTags: ["Transport"],
+    }),
+    setVillageStatus: builder.mutation<TransportVillage, { id: number; isActive: boolean }>({
+      query: ({ id, isActive }) => ({ url: `transport/villages/${id}/status`, method: "PATCH", body: { isActive } }),
+      transformResponse: (res: ApiEnvelope<TransportVillage>) => res.data,
+      invalidatesTags: ["Transport"],
+    }),
+    deleteVillage: builder.mutation<unknown, number>({
+      query: (id) => ({ url: `transport/villages/${id}`, method: "DELETE" }),
+      invalidatesTags: ["Transport"],
+    }),
+    getTransportAssignments: builder.query<TransportAssignment[], void>({
+      query: () => "transport/assignments",
+      transformResponse: (res: ApiEnvelope<TransportAssignment[]>) => res.data,
+      providesTags: ["Transport"],
+    }),
+    deleteTransportAssignment: builder.mutation<unknown, number>({
+      query: (id) => ({ url: `transport/assignments/${id}`, method: "DELETE" }),
+      invalidatesTags: ["Transport", "Student"],
+    }),
     assignStudentVillage: builder.mutation<any, AssignStudentVillageInput>({
       query: (body) => ({ url: "transport/assignments", method: "POST", body }),
       transformResponse: (res: ApiEnvelope<any>) => res.data,
@@ -140,6 +180,12 @@ export const {
   useUpdateVehicleMutation,
   useAssignStudentTransportMutation,
   useGetVillagesQuery,
+  useCreateVillageMutation,
+  useUpdateVillageFeeMutation,
+  useSetVillageStatusMutation,
+  useDeleteVillageMutation,
+  useGetTransportAssignmentsQuery,
+  useDeleteTransportAssignmentMutation,
   useAssignStudentVillageMutation,
   useEndStudentTransportMutation,
 } = transportApi;

@@ -23,7 +23,7 @@ router.get(
 );
 router.get(
   "/student/:studentId/summary",
-  allow("attendance", "TEACHER", "PARENT", "STUDENT"),
+  allow("attendance", "TEACHER", "STUDENT"),
   asyncHandler(getStudentSummary)
 );
 router.get("/defaulters", allow("attendance"), asyncHandler(getDefaulters));

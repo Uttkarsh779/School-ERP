@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { toast } from "react-toastify";
-import { Button, Card, ConfirmDialog, EmptyState, Input, Modal, Select, Spinner } from "../../../../components/ui";
+import { Button, ConfirmDialog, EmptyState, Input, Modal, Select, Spinner } from "../../../../components/ui";
 import {
   useDeleteSchemeMutation,
   useGetExamClassesQuery,
@@ -13,6 +13,7 @@ import {
 } from "../../../../store/api/examPlan.api";
 import { useAppSelector } from "../../../../store/store";
 import styles from "./AdminExamsPage.module.css";
+import ui from "./SchemesTab.module.css";
 
 // Assessment schemes: how each group of classes is assessed (terms, periodic assessment +
 // exam marks and their parts, final weightage, grade scale, co-scholastic scale). The exam
@@ -212,9 +213,16 @@ const SchemesTab = () => {
   const unassigned = allClasses.filter((c) => !(schemes ?? []).some((s) => s.classNames.includes(c)));
 
   return (
-    <div className={styles.listPage}>
-      <Card title="Admit cards and unpaid fees" subtitle={isSuperAdmin ? undefined : "Only the Super Admin can change this."}>
-        <label className={styles.checkRow}>
+    <div className={ui.page}>
+      <div className={ui.settingRow}>
+        <div className={ui.settingText}>
+          <strong>Admit cards for students with overdue fees</strong>
+          <span>
+            When off, these students are left out when admit cards are printed and listed for the office to follow up.
+            {!isSuperAdmin && " Only the Super Admin can change this."}
+          </span>
+        </div>
+        <label className={ui.switch}>
           <input
             type="checkbox"
             checked={!!meta?.settings.admitCardsForDefaulters}
@@ -228,82 +236,130 @@ const SchemesTab = () => {
               }
             }}
           />
-          Issue admit cards to students with overdue fees too
+          {meta?.settings.admitCardsForDefaulters ? "Issue" : "Hold back"}
         </label>
-        <p className={styles.admitHint} style={{ marginTop: 6 }}>
-          When off, students with overdue fees are left out when admit cards are printed, and listed so the office can follow up.
-        </p>
-      </Card>
+      </div>
 
-      <div className={styles.sectionHead}>
-        <h2>Assessment schemes</h2>
+      <div className={ui.head}>
+        <div>
+          <h2>Assessment schemes</h2>
+          <p>How each group of classes is marked and graded.{!canEdit && " Only the Super Admin and the Principal can change these."}</p>
+        </div>
         {canEdit && (
           <Button size="sm" onClick={() => setEditing(structuredClone(blank))}>
             New scheme
           </Button>
         )}
       </div>
-      {!canEdit && <p className={styles.admitHint}>Only the Super Admin and the Principal can change these.</p>}
-      {unassigned.length > 0 && <p className={styles.resultWarn}>Not in any scheme yet (they use the default two-term pattern): {unassigned.join(", ")}</p>}
+
+      {unassigned.length > 0 && (
+        <div className={ui.unassigned}>
+          <span>Not in any scheme (default two-term pattern):</span>
+          {unassigned.map((c) => (
+            <span key={c} className={ui.chipMuted}>
+              {c}
+            </span>
+          ))}
+        </div>
+      )}
 
       {isLoading ? (
         <Spinner />
       ) : isError || !schemes ? (
         <EmptyState title="Couldn't load the schemes" action={<Button onClick={() => refetch()}>Retry</Button>} />
+      ) : schemes.length === 0 ? (
+        <EmptyState title="No schemes yet" description="Every class uses the default two-term pattern until you add a scheme." />
       ) : (
-        <div className={styles.schemeGrid}>
-          {schemes.map((s) => (
-            <Card
-              key={s.id}
-              title={s.name}
-              subtitle={s.classNames.join(", ") || "No classes"}
-              action={
-                canEdit ? (
-                  <div className={styles.cardActions}>
-                    <Button size="sm" variant="outline" onClick={() => setEditing(s)}>
-                      Edit
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => setDeleting(s)}>
-                      Delete
-                    </Button>
+        <div className={ui.grid}>
+          {schemes.map((s) => {
+            const total = s.paMax + s.examMax || 1;
+            const classes = [...s.classNames].sort((a, b) => classOrder(a) - classOrder(b));
+            return (
+              <article key={s.id} className={ui.card}>
+                <div className={ui.cardTop}>
+                  <div style={{ minWidth: 0 }}>
+                    <h3>{s.name}</h3>
+                    <div className={ui.chips}>
+                      {classes.length ? classes.map((c) => <span key={c} className={ui.chip}>{c}</span>) : <span className={ui.chipMuted}>No classes</span>}
+                    </div>
                   </div>
-                ) : undefined
-              }
-            >
-              <ul className={styles.schemeFacts}>
-                <li>
-                  <span>Pattern</span>
-                  <strong>
-                    {s.terms === 2 ? "Two terms" : "One result for the year"} · {s.paMax} + {s.examMax}
-                  </strong>
-                </li>
-                <li>
-                  <span>Periodic assessment</span>
-                  <strong>
-                    {s.paComponents.map((c) => `${c.label} ${c.max}${c.source === "TESTS" ? (c.rule === "BEST" ? ` (best ${c.best ?? 2})` : " (average)") : ""}`).join(" · ") || "—"}
-                  </strong>
-                </li>
-                {s.terms === 2 && (
-                  <li>
-                    <span>Final weightage (default)</span>
-                    <strong>
-                      Term 1 {s.finalWeights[0]}% · Term 2 {s.finalWeights[1]}%
-                    </strong>
-                  </li>
-                )}
-                <li>
-                  <span>Pass mark · Co-scholastic</span>
-                  <strong>
-                    {s.passPercentage}% · {s.coScale}-point scale
-                  </strong>
-                </li>
-                <li>
-                  <span>Grades</span>
-                  <strong>{[...s.gradeScale].sort((a, b) => b.min - a.min).map((g) => `${g.grade} ${g.min}+`).join(", ")}</strong>
-                </li>
-              </ul>
-            </Card>
-          ))}
+                  {canEdit && (
+                    <div className={ui.actions}>
+                      <Button size="sm" variant="outline" onClick={() => setEditing(s)}>
+                        Edit
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => setDeleting(s)} aria-label={`Delete ${s.name}`}>
+                        Delete
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                <div className={ui.section}>
+                  <p className={ui.sectionLabel}>Each {s.terms === 2 ? "term" : "subject"} out of {s.paMax + s.examMax}</p>
+                  <div className={ui.bar}>
+                    {s.paMax > 0 && (
+                      <span className={ui.barPa} style={{ flex: s.paMax / total }} title="Periodic assessment">
+                        PA {s.paMax}
+                      </span>
+                    )}
+                    {s.examMax > 0 && (
+                      <span className={ui.barExam} style={{ flex: s.examMax / total }} title="Term exam">
+                        Exam {s.examMax}
+                      </span>
+                    )}
+                  </div>
+                  <div className={ui.stats}>
+                    <div className={ui.stat}>
+                      <span>{s.terms === 2 ? "Term 1 / Term 2" : "Result"}</span>
+                      <strong>{s.terms === 2 ? `${s.finalWeights[0]}% / ${s.finalWeights[1]}%` : "Once a year"}</strong>
+                    </div>
+                    <div className={ui.stat}>
+                      <span>Pass mark</span>
+                      <strong>{s.passPercentage}%</strong>
+                    </div>
+                    <div className={ui.stat}>
+                      <span>Co-scholastic</span>
+                      <strong>{s.coScale}-point</strong>
+                    </div>
+                  </div>
+                </div>
+
+                <div className={ui.section}>
+                  <p className={ui.sectionLabel}>Periodic assessment parts</p>
+                  {s.paComponents.length ? (
+                    <ul className={ui.parts}>
+                      {s.paComponents.map((c) => (
+                        <li key={c.key}>
+                          <span className={ui.partName}>{c.label || "Unnamed part"}</span>
+                          <span className={ui.partRule}>
+                            {c.source === "TESTS" ? (c.rule === "BEST" ? `best ${c.best ?? 2} tests` : "average of tests") : "teacher enters"}
+                          </span>
+                          <span className={ui.partMarks}>{c.max}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <span className={ui.partRule}>None</span>
+                  )}
+                </div>
+
+                <div className={ui.section}>
+                  <p className={ui.sectionLabel}>Grades (minimum %)</p>
+                  <div className={ui.grades}>
+                    {[...s.gradeScale]
+                      .sort((a, b) => b.min - a.min)
+                      .map((g) => (
+                        <span key={g.grade} className={ui.grade}>
+                          <b>{g.grade}</b>
+                          <span>{g.min}+</span>
+                        </span>
+                      ))}
+                  </div>
+                </div>
+              </article>
+            );
+          })}
         </div>
       )}
 

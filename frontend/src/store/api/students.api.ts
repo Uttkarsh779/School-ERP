@@ -165,6 +165,21 @@ export interface StudentHistory {
 
 export const studentsApi = erpApi.injectEndpoints({
   endpoints: (builder) => ({
+    // Next admission number in the school's own pattern (e.g. ADM2026019), for the New Student form.
+    // Is this Aadhaar / APAAR ID already on another student? null = no clash.
+    checkStudentIds: builder.query<
+      { aadharNumber?: { message: string } | null; apaarId?: { message: string } | null },
+      { aadharNumber?: string; apaarId?: string; exceptId?: number }
+    >({
+      query: (params) => ({ url: "students/check-ids", params }),
+      transformResponse: (res: ApiEnvelope<{ aadharNumber?: { message: string } | null; apaarId?: { message: string } | null }>) => res.data,
+      keepUnusedDataFor: 0,
+    }),
+    getNextAdmissionNo: builder.query<string, void>({
+      query: () => "students/next-admission-no",
+      transformResponse: (res: ApiEnvelope<{ admissionNo: string }>) => res.data.admissionNo,
+      keepUnusedDataFor: 0,
+    }),
     getStudents: builder.query<IStudent[], { classSectionId?: number } | void>({
       query: (params) => ({ url: "students", params: params ?? undefined }),
       transformResponse: (res: ApiEnvelope<IStudent[]>) => res.data,
@@ -223,6 +238,8 @@ export const studentsApi = erpApi.injectEndpoints({
 });
 
 export const {
+  useLazyGetNextAdmissionNoQuery,
+  useLazyCheckStudentIdsQuery,
   useSetStudentPhotoMutation,
   useGetStudentsQuery,
   useGetStudentByIdQuery,

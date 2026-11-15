@@ -1,0 +1,223 @@
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+  border-bottom: 1px solid var(--erp-border);
+  overflow-x: auto;
+  margin-bottom: 1.25rem;
+}
+
+.tab {
+  padding: 0.7rem 1rem;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--erp-text-muted);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.tab:hover {
+  color: var(--erp-text);
+}
+
+.tabActive {
+  color: var(--erp-primary-700);
+  border-bottom-color: var(--erp-primary-600);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 0.9rem;
+  margin-bottom: 1rem;
+}
+
+.section > .statsGrid {
+  margin-bottom: 0;
+}
+
+.addButtons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 0.25rem 0.9rem;
+  align-items: end;
+  margin-bottom: 1rem;
+}
+
+.wide {
+  grid-column: span 2;
+}
+
+.alignEnd {
+  display: flex;
+  align-items: flex-end;
+  padding-bottom: 1rem;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding-bottom: 1.1rem;
+  font-size: 0.86rem;
+  cursor: pointer;
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.25rem 0.9rem;
+}
+
+.formGrid .wide {
+  grid-column: 1 / -1;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin-top: 1.25rem;
+}
+
+.rowActions {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.link {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--erp-primary-700);
+}
+
+.muted {
+  color: var(--erp-text-muted);
+  font-size: 0.8rem;
+}
+
+.strong {
+  font-weight: 600;
+}
+
+.danger {
+  color: var(--erp-danger);
+}
+
+.success {
+  color: var(--erp-success);
+}
+
+.voided {
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+
+.twoCol {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.listItem {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--erp-border);
+  border-radius: var(--erp-radius-md);
+  background: var(--erp-bg);
+  font-size: 0.88rem;
+}
+
+.listMain {
+  flex: 1;
+  min-width: 0;
+}
+
+@media (max-width: 640px) {
+  .wide,
+  .formGrid {
+    grid-column: auto;
+  }
+
+  .formGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .addButtons {
+    justify-content: stretch;
+  }
+
+  .addButtons > * {
+    flex: 1;
+  }
+}
+
+/* Inventory */
+.lowText {
+  color: var(--erp-danger);
+  font-weight: 700;
+}
+
+.typePicker {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+}
+
+.typeBtn {
+  padding: 0.55rem 0.6rem;
+  border: 1px solid var(--erp-border);
+  border-radius: var(--erp-radius-sm);
+  background: var(--erp-surface);
+  color: var(--erp-text);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.typeBtnActive {
+  border-color: var(--erp-primary-600);
+  background: var(--erp-primary-100);
+  color: var(--erp-primary-700);
+}
+
+.stockLine {
+  margin: -0.4rem 0 0.9rem;
+  font-size: 0.86rem;
+  color: var(--erp-text-muted);
+}

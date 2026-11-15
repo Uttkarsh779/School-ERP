@@ -12,7 +12,6 @@ const ROLE_LABEL: Record<string, string> = {
   ADMIN: "Admin",
   TEACHER: "Teacher",
   STUDENT: "Student",
-  PARENT: "Parent",
 };
 
 const errorOf = (err: unknown, fallback: string) => (err as { data?: { message?: string } })?.data?.message ?? fallback;

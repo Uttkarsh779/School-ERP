@@ -252,17 +252,23 @@ const AdminExamsPage = () => {
       {pageTab === "exams" && (
         <div className={styles.listPage}>
           {/* How an exam moves along: what each status means */}
-          <p className={styles.flowHint}>
-            <span>Coordinator plans exam</span>
-            <Icon name="chevronRight" size={14} />
-            <span>Teachers enter marks</span>
-            <Icon name="chevronRight" size={14} />
-            <span>Class teacher marks ready</span>
-            <Icon name="chevronRight" size={14} />
-            <span>Coordinator locks</span>
-            <Icon name="chevronRight" size={14} />
-            <span>Principal publishes</span>
-          </p>
+          <ol className={styles.flowSteps} aria-label="How an exam moves along">
+            {[
+              ["Plan exam", "Coordinator"],
+              ["Enter marks", "Subject teachers"],
+              ["Mark ready", "Class teacher"],
+              ["Lock marks", "Coordinator"],
+              ["Publish", "Principal"],
+            ].map(([step, who], i) => (
+              <li key={step}>
+                <span className={styles.flowNum}>{i + 1}</span>
+                <span className={styles.flowText}>
+                  <b>{step}</b>
+                  <small>{who}</small>
+                </span>
+              </li>
+            ))}
+          </ol>
 
           <div className={styles.filterBar}>
             <div className={styles.searchBox}>

@@ -11,7 +11,6 @@ export type FeeItemDraft = {
   amount: string;
   frequency: "MONTHLY" | "ANNUAL" | "ONE_TIME";
   applicableMonths: number[];
-  dueDateDay: string;
 };
 
 export const ACADEMIC_MONTHS = [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3];
@@ -22,7 +21,6 @@ export const emptyItem = (): FeeItemDraft => ({
   amount: "",
   frequency: "MONTHLY",
   applicableMonths: ALL_MONTHS,
-  dueDateDay: "10",
 });
 
 export const itemFromApi = (i: IFeeStructureItem): FeeItemDraft => ({
@@ -30,7 +28,6 @@ export const itemFromApi = (i: IFeeStructureItem): FeeItemDraft => ({
   amount: String(Number(i.amount)),
   frequency: i.frequency,
   applicableMonths: i.applicableMonths?.length ? i.applicableMonths : ALL_MONTHS,
-  dueDateDay: String(i.dueDateDay ?? 10),
 });
 
 // Client-side check mirroring the server's validator. Returns an error message or null.
@@ -43,8 +40,6 @@ export const validateItems = (items: FeeItemDraft[]): string | null => {
     seen.add(it.feeHeadId);
     if (!(Number(it.amount) > 0)) return "Every amount must be greater than zero";
     if (it.applicableMonths.length === 0) return "Pick at least one month for every fee";
-    const d = Number(it.dueDateDay);
-    if (!Number.isInteger(d) || d < 1 || d > 28) return "Due day must be between 1 and 28";
   }
   return null;
 };
@@ -55,7 +50,6 @@ export const itemsToApi = (items: FeeItemDraft[]) =>
     amount: Number(it.amount),
     frequency: it.frequency,
     applicableMonths: [...it.applicableMonths].sort((a, b) => a - b),
-    dueDateDay: Number(it.dueDateDay),
     allowPartialPayment: true,
   }));
 
@@ -96,7 +90,6 @@ const FeeItemsEditor = ({ items, onChange, feeHeads, disabled }: FeeItemsEditorP
               <th style={{ width: 120 }}>Amount (₹)</th>
               <th style={{ width: 130 }}>Frequency</th>
               <th>Charged in</th>
-              <th style={{ width: 80 }}>Due day</th>
               <th style={{ width: 110 }}>Per year</th>
               <th />
             </tr>
@@ -158,16 +151,6 @@ const FeeItemsEditor = ({ items, onChange, feeHeads, disabled }: FeeItemsEditorP
                       </button>
                     ))}
                   </div>
-                </td>
-                <td>
-                  <input
-                    className={styles.cellInput}
-                    inputMode="numeric"
-                    value={it.dueDateDay}
-                    disabled={disabled}
-                    onChange={(e) => update(i, { dueDateDay: e.target.value })}
-                    aria-label="Due day"
-                  />
                 </td>
                 <td className={styles.strong}>{inr((Number(it.amount) || 0) * it.applicableMonths.length)}</td>
                 <td>

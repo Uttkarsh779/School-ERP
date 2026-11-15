@@ -29,6 +29,7 @@ import { useGetStaffListQuery } from "../../../../store/api/staff.api";
 import { useGetFeeHeadsQuery } from "../../../../store/api/fees.api";
 import { useAppSelector } from "../../../../store/store";
 import styles from "./AdminFeesPage.module.css";
+import SiblingPicker from "./SiblingPicker";
 
 const formatMonthYear = (dateInput: string | Date) => {
   const date = new Date(dateInput);
@@ -74,7 +75,7 @@ const AdminConcessionsPage = () => {
   }).length;
 
   const [addStep, setAddStep] = useState(1);
-  const [addWho, setAddWho] = useState<"INDIVIDUAL" | "FAMILY" | "STAFF_CHILD">("INDIVIDUAL");
+  const [addWho, setAddWho] = useState<"INDIVIDUAL" | "STAFF_CHILD">("INDIVIDUAL");
   const [addType, setAddType] = useState("");
   const [selectedClassSectionId, setSelectedClassSectionId] = useState<string>("ALL");
   const [studentSearchQuery, setStudentSearchQuery] = useState("");
@@ -90,6 +91,7 @@ const AdminConcessionsPage = () => {
     startsFrom: new Date().toISOString().split("T")[0],
     endsOn: "",
     reason: "",
+    siblingStudentIds: [] as string[],
   });
 
   const handleAddSubmit = async (e: React.FormEvent) => {
@@ -116,10 +118,15 @@ const AdminConcessionsPage = () => {
       if (isStaffChild && !addForm.staffId) {
         return toast.error("Please select a Staff Member for Staff Child discount");
       }
+      const isSibling = addType === "SIBLING_DISCOUNT";
+      if (isSibling && addForm.siblingStudentIds.length === 0) {
+        return toast.error("Please choose the sibling(s) studying in the school");
+      }
 
       await assignConcession({
         studentId: Number(addForm.studentId),
         staffId: isStaffChild && addForm.staffId ? Number(addForm.staffId) : undefined,
+        siblingStudentIds: isSibling ? addForm.siblingStudentIds.map(Number) : undefined,
         concessionSchemeId: schemeId,
         type: addType,
         calculationType,
@@ -162,7 +169,7 @@ const AdminConcessionsPage = () => {
     setCustomCalcType("FLAT");
     setAddForm({
       studentId: "", staffId: "", concessionSchemeId: "", value: "",
-      applicableHeads: [], startsFrom: new Date().toISOString().split("T")[0], endsOn: "", reason: "",
+      applicableHeads: [], startsFrom: new Date().toISOString().split("T")[0], endsOn: "", reason: "", siblingStudentIds: [],
     });
   };
 
@@ -288,7 +295,6 @@ const AdminConcessionsPage = () => {
                   options={[
                     { label: "Individual Student", value: "INDIVIDUAL" },
                     { label: "Staff Member's Child", value: "STAFF_CHILD" },
-                    { label: "Family", value: "FAMILY" },
                   ]}
                 />
                 <div style={{ marginTop: "1rem", display: "flex", flexWrap: "wrap", justifyContent: "flex-end" }}>
@@ -307,7 +313,7 @@ const AdminConcessionsPage = () => {
                     { label: "Select Type", value: "" },
                     { label: "Scholarship", value: "SCHOLARSHIP" },
                     { label: "Discount", value: "DISCOUNT" },
-                    { label: "Family/Sibling Discount", value: "SIBLING_DISCOUNT" },
+                    { label: "Sibling Discount", value: "SIBLING_DISCOUNT" },
                     { label: "Staff Child Discount", value: "STAFF_CHILD" },
                     { label: "Transport Concession", value: "TRANSPORT_CONCESSION" },
                     { label: "Other", value: "OTHER" },
@@ -323,7 +329,6 @@ const AdminConcessionsPage = () => {
             {addStep === 3 && (() => {
               const isStaffChildRecipient = addWho === "STAFF_CHILD" || addType === "STAFF_CHILD";
               const selectedStaff = staffMembers.find((s: any) => s.id.toString() === addForm.staffId);
-              const linkedChildStudentIds: number[] = selectedStaff?.user?.parent?.children?.map((c: any) => c.studentId) || [];
               
               const filteredStudentsList = students.filter((st: any) => {
                 if (isStaffChildRecipient && !addForm.staffId) {
@@ -340,13 +345,6 @@ const AdminConcessionsPage = () => {
                   if (!nameMatch && !admMatch && !rollMatch) return false;
                 }
                 return true;
-              }).sort((a: any, b: any) => {
-                // Sort pre-linked children to top if present
-                const aIsLinked = linkedChildStudentIds.includes(a.id);
-                const bIsLinked = linkedChildStudentIds.includes(b.id);
-                if (aIsLinked && !bIsLinked) return -1;
-                if (!aIsLinked && bIsLinked) return 1;
-                return 0;
               });
 
               const selectedStudentObj = students.find((s: any) => s.id.toString() === addForm.studentId);
@@ -457,7 +455,7 @@ const AdminConcessionsPage = () => {
                                   <div
                                     key={st.id}
                                     onClick={() => {
-                                      setAddForm({ ...addForm, studentId: st.id.toString() });
+                                      setAddForm({ ...addForm, studentId: st.id.toString(), siblingStudentIds: addForm.siblingStudentIds.filter((id) => id !== st.id.toString()) });
                                       setStudentSearchQuery(`${st.name} (${st.admissionNo})`);
                                       setShowStudentSuggestions(false);
                                     }}
@@ -483,9 +481,6 @@ const AdminConcessionsPage = () => {
                                       </span>
                                     </div>
                                     <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "0.4rem" }}>
-                                      {isStaffChildRecipient && linkedChildStudentIds.includes(st.id) && (
-                                        <Badge tone="success">Linked Child</Badge>
-                                      )}
                                       {st.classSection && (
                                         <Badge tone="neutral">
                                           Class {st.classSection.className} - {st.classSection.section}
@@ -500,6 +495,15 @@ const AdminConcessionsPage = () => {
                         )}
                       </div>
                     </div>
+
+                  {addType === "SIBLING_DISCOUNT" && (
+                    <SiblingPicker
+                      students={students}
+                      excludeId={addForm.studentId || undefined}
+                      value={addForm.siblingStudentIds}
+                      onChange={(ids) => setAddForm({ ...addForm, siblingStudentIds: ids })}
+                    />
+                  )}
 
                   <Select
                     label="Concession Scheme (Preset Template) *"
@@ -696,6 +700,17 @@ const AdminConcessionsPage = () => {
                 </div>
                 <div style={{ fontSize: "0.88rem", color: "var(--erp-text)" }}>
                   Eligible because student is a child of <strong>{selectedConcession.staff?.user?.name}</strong> (Staff Category: {selectedConcession.staff?.staffCategory}).
+                </div>
+              </div>
+            )}
+
+            {selectedConcession.type === "SIBLING_DISCOUNT" && (
+              <div style={{ padding: "1rem 1.25rem", background: "rgba(2, 132, 199, 0.04)", border: "1px solid rgba(2, 132, 199, 0.2)", borderRadius: "var(--erp-radius-md)" }}>
+                <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--erp-primary-700)", marginBottom: "0.35rem" }}>Sibling(s) in the school</div>
+                <div style={{ fontSize: "0.88rem", color: "var(--erp-text)" }}>
+                  {(selectedConcession as any).siblings?.length
+                    ? (selectedConcession as any).siblings.map((sb: any) => `${sb.name} (${sb.className}, Adm. ${sb.admissionNo})`).join(", ")
+                    : "Not recorded (given before siblings were recorded)."}
                 </div>
               </div>
             )}

@@ -33,11 +33,11 @@ router.use(planRouter);
 
 router.get(
   "/",
-  allow("exams.coordinate", "TEACHER", "STUDENT", "PARENT"),
+  allow("exams.coordinate", "TEACHER", "STUDENT"),
   asyncHandler(getExams)
 );
 router.post("/", allow("exams.coordinate", "TEACHER"), asyncHandler(postExam)); // coordinator, see planService
-router.get("/date-sheets", allow("exams.coordinate", "TEACHER", "STUDENT", "PARENT"), asyncHandler(getDateSheets));
+router.get("/date-sheets", allow("exams.coordinate", "TEACHER", "STUDENT"), asyncHandler(getDateSheets));
 router.post(
   "/:id/results",
   allow("exams.coordinate", "TEACHER"),
@@ -53,12 +53,12 @@ router.get("/:id/remarks", allow("exams.coordinate", "TEACHER"), asyncHandler(ge
 router.put("/:id/remarks", allow("exams.coordinate", "TEACHER"), asyncHandler(putExamRemarks));
 router.get(
   "/:id/report-card/:studentId",
-  allow("exams.coordinate", "TEACHER", "STUDENT", "PARENT"),
+  allow("exams.coordinate", "TEACHER", "STUDENT"),
   asyncHandler(getReportCard)
 );
 router.get(
   "/:id/report-cards/print",
-  allow("exams.coordinate", "TEACHER", "STUDENT", "PARENT"),
+  allow("exams.coordinate", "TEACHER", "STUDENT"),
   asyncHandler(getReportCardsPrint)
 );
 

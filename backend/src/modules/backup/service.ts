@@ -2,6 +2,7 @@ import { prisma } from "../../config/prisma";
 import { cloudinary } from "../../config/cloudinary";
 import { httpError } from "../../utils/httpError";
 import { createDump } from "./dump";
+import { publicMessage } from "../../utils/publicError";
 
 // Database backups: a gzipped JSON copy of every table, uploaded privately ("authenticated":
 // no public link works) to Cloudinary, so it survives even if the database is lost. A daily
@@ -36,7 +37,7 @@ export const runBackup = async (kind: "AUTO" | "MANUAL", userId?: number) => {
     });
   } catch (e: any) {
     // Logged so the Super Admin sees a failed night on the Backup page.
-    await prisma.backupRecord.create({ data: { kind, error: String(e?.message ?? e).slice(0, 500), createdByUserId: userId ?? null } });
+    await prisma.backupRecord.create({ data: { kind, error: publicMessage(e, "The backup failed. See the server log for details.").slice(0, 500), createdByUserId: userId ?? null } });
     throw e;
   }
 };

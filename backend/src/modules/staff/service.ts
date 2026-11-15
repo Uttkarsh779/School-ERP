@@ -1,22 +1,16 @@
+import { signOutEverywhere } from "../auth/tokens";
 import { prisma } from "../../config/prisma";
 import { Role } from "../../generated/prisma/enums";
 import type { Prisma } from "../../generated/prisma/client";
 import { httpError } from "../../utils/httpError";
 import { hashPassword } from "../../utils/password";
 import { validateNewPassword } from "../profile/service";
+import { createAuditLog } from "../fees/ledgerService";
 import type { StaffDetails } from "./details";
 
 const staffWithUser = {
   include: {
-    user: {
-      include: {
-        parent: {
-          include: {
-            children: true,
-          },
-        },
-      },
-    },
+    user: true,
   },
 } as const;
 
@@ -35,8 +29,40 @@ export const ACCOUNT_REQUIRED_ROLES = [
   "ACCOUNTANT",
 ];
 
-// The login role a staff category signs in with (prisma/roles_assign.sql applies the same rule
-// to existing staff). See config/permissions.ts for what each role may do.
+// Designation (Staff.staffCategory) is the job title, for HR and ID cards. Login role
+// (User.role) is what the person can do in the software; see config/permissions.ts. They're
+// set separately: a new designation never changes anyone's access.
+export const STAFF_LOGIN_ROLES: Role[] = [Role.TEACHER, Role.ADMIN, Role.PRINCIPAL, Role.ACCOUNTANT];
+
+// allowSuperAdmin: an existing staff member may be made Super Admin from their profile (the
+// limits below still apply); a brand-new staff member can't be created as one.
+export const parseLoginRole = (value: unknown, { allowSuperAdmin = false } = {}): Role | undefined => {
+  if (value === undefined || value === null || value === "") return undefined;
+  if (allowSuperAdmin && value === Role.SUPER_ADMIN) return Role.SUPER_ADMIN;
+  if (!STAFF_LOGIN_ROLES.includes(value as Role)) throw httpError(400, "Choose a valid login role");
+  return value as Role;
+};
+
+// The school runs with at most two Super Admins (so one can cover for the other), and never
+// fewer than one active Super Admin, so nobody can lock the school out of its own settings.
+export const MAX_SUPER_ADMINS = 2;
+const activeSuperAdminCount = (excludeUserId?: number) =>
+  prisma.user.count({ where: { role: Role.SUPER_ADMIN, isActive: true, ...(excludeUserId ? { id: { not: excludeUserId } } : {}) } });
+
+export const assertCanAddSuperAdmin = async () => {
+  if ((await activeSuperAdminCount()) >= MAX_SUPER_ADMINS) {
+    throw httpError(400, `There are already ${MAX_SUPER_ADMINS} Super Admins. Change one of them to another role first.`);
+  }
+};
+
+// Called before a Super Admin loses that access (new role, deactivated, or a no-login designation).
+export const assertNotLastSuperAdmin = async (userId: number) => {
+  if ((await activeSuperAdminCount(userId)) === 0) {
+    throw httpError(400, "This is the only active Super Admin. Make someone else Super Admin first.");
+  }
+};
+
+// The usual login role for a designation: only a starting point for a new staff member.
 export const loginRoleFor = (category: string): Role =>
   category === "PRINCIPAL"
     ? Role.PRINCIPAL
@@ -80,6 +106,7 @@ export const createStaff = async (data: {
   qualifications?: string;
   contact?: string;
   staffCategory?: any;
+  loginRole?: Role;
   details?: StaffDetails;
 }) => {
   await assertUniqueDetails(data.details ?? {});
@@ -100,7 +127,7 @@ export const createStaff = async (data: {
         create: {
           email,
           passwordHash: data.passwordHash,
-          role: loginRoleFor(category),
+          role: data.loginRole ?? loginRoleFor(category),
           name: data.name,
           isActive: needsAccount,
         },
@@ -115,7 +142,8 @@ export const createStaff = async (data: {
 
 export const updateStaff = async (
   id: number,
-  data: { name?: string; email?: string; qualifications?: string; contact?: string; staffCategory?: any; details?: StaffDetails; isExamCoordinator?: boolean }
+  data: { name?: string; email?: string; qualifications?: string; contact?: string; staffCategory?: any; loginRole?: Role; details?: StaffDetails; isExamCoordinator?: boolean },
+  actorId: number
 ) => {
   const details = data.details ?? {};
   await assertUniqueDetails(details, id);
@@ -127,12 +155,23 @@ export const updateStaff = async (
     contact: data.contact,
   };
   const userUpdate: any = {};
+  const current = await prisma.staff.findUnique({ where: { id }, include: { user: { select: { role: true, isActive: true } } } });
+  if (!current) throw httpError(404, "Staff not found");
+  const isSuperAdmin = current.user.role === Role.SUPER_ADMIN;
   if (data.staffCategory) {
     updateData.staffCategory = data.staffCategory;
-    // Login access follows the role: a staff member moved to a no-login role loses it.
-    const current = await prisma.staff.findUniqueOrThrow({ where: { id }, include: { user: { select: { role: true } } } });
+    // Whether someone signs in at all still follows the designation (drivers and guards don't).
     userUpdate.isActive = current.isActive && isAccountRequiredRole(data.staffCategory);
-    if (current.user.role !== Role.SUPER_ADMIN) userUpdate.role = loginRoleFor(data.staffCategory);
+    if (isSuperAdmin && current.user.isActive && !userUpdate.isActive) await assertNotLastSuperAdmin(current.userId);
+  }
+  const roleChange = data.loginRole && data.loginRole !== current.user.role ? data.loginRole : null;
+  if (roleChange) {
+    if (roleChange === Role.SUPER_ADMIN) {
+      if (!current.user.isActive && userUpdate.isActive !== true) throw httpError(400, "This staff member's login is off; turn it on before making them Super Admin");
+      await assertCanAddSuperAdmin();
+    }
+    if (isSuperAdmin) await assertNotLastSuperAdmin(current.userId);
+    userUpdate.role = roleChange;
   }
   if (data.name !== undefined) userUpdate.name = data.name;
   if (data.email !== undefined) userUpdate.email = data.email;
@@ -140,12 +179,21 @@ export const updateStaff = async (
   if (Object.keys(userUpdate).length > 0) {
     updateData.user = { update: userUpdate };
   }
-  return prisma.staff.update({ where: { id }, data: updateData, ...staffWithUser });
+  const updated = await prisma.staff.update({ where: { id }, data: updateData, ...staffWithUser });
+  if (roleChange) {
+    await createAuditLog({ action: "CHANGE_LOGIN_ROLE", entityType: "User", entityId: current.userId, userId: actorId, oldValues: { role: current.user.role }, newValues: { role: roleChange } });
+  }
+  return updated;
 };
 
 // Employment status. The login is enabled only for roles that sign in.
 export const setStaffActive = async (id: number, isActive: boolean) => {
-  const staff = await prisma.staff.findUniqueOrThrow({ where: { id } });
+  const staff = await prisma.staff.findUniqueOrThrow({ where: { id }, include: { user: { select: { role: true, isActive: true } } } });
+  const loginOn = isActive && isAccountRequiredRole(staff.staffCategory);
+  if (staff.user.role === Role.SUPER_ADMIN) {
+    if (staff.user.isActive && !loginOn) await assertNotLastSuperAdmin(staff.userId);
+    if (!staff.user.isActive && loginOn) await assertCanAddSuperAdmin();
+  }
   return prisma.staff.update({
     where: { id },
     data: { isActive, user: { update: { isActive: isActive && isAccountRequiredRole(staff.staffCategory) } } },
@@ -162,7 +210,7 @@ export const resetStaffPassword = async (id: number, password: unknown) => {
   const staff = await prisma.staff.findUnique({ where: { id }, include: { user: true } });
   if (!staff) throw httpError(404, "Staff not found");
   if (staff.user.role === Role.SUPER_ADMIN) throw httpError(400, "A Super Admin's password can only be changed from their own profile");
-  await prisma.user.update({ where: { id: staff.userId }, data: { passwordHash: await hashPassword(password as string) } });
+  await prisma.user.update({ where: { id: staff.userId }, data: { passwordHash: await hashPassword(password as string), ...signOutEverywhere } });
   return { email: staff.user.email };
 };
 

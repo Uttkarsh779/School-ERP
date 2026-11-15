@@ -8,7 +8,7 @@ import { useGetClassRosterQuery } from "../../../../store/api/teaching.api";
 import { useGetMyProfileQuery } from "../../../../store/api/profile.api";
 import { useGetExamProgressQuery, useGetExamsQuery } from "../../../../store/api/exams.api";
 import { EXAM_TYPE_LABEL, useDeleteExamMutation, useGetDateSheetsQuery, useGetExamMetaQuery, useGetSchemesQuery, useSetExamReadyMutation } from "../../../../store/api/examPlan.api";
-import { DateSheetTable } from "../../../../components/shared/DateSheet/DateSheet";
+import { DateSheetTable, PrintDateSheetButton } from "../../../../components/shared/DateSheet/DateSheet";
 import ExamResultsView from "../../admin/Exams/ExamResultsView";
 import ClassResultView from "../../admin/Exams/ClassResultView";
 import MarksEntry from "./MarksEntry";
@@ -16,6 +16,31 @@ import NewClassTestSheet from "./NewClassTestSheet";
 import AssessmentEntry from "./AssessmentEntry";
 import SubjectResults from "./SubjectResults";
 import styles from "./TeacherExams.module.css";
+
+const shortDay = (d: string) => new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", timeZone: "UTC" });
+
+// Exam type, term and marks deadline as small tags (same look as the coordinator's page).
+const ExamTags = ({ exam, subjectName }: { exam: IExam; subjectName?: string }) => {
+  const late = !!exam.marksDeadline && !exam.isLocked && new Date(exam.marksDeadline) < new Date();
+  return (
+    <>
+      <Badge tone={exam.type === "TERM_EXAM" || !exam.type ? "primary" : exam.type === "CLASS_TEST" ? "neutral" : "info"}>{EXAM_TYPE_LABEL[exam.type ?? "TERM_EXAM"]}</Badge>
+      {exam.type === "CLASS_TEST" ? (
+        <>
+          {subjectName && <Badge tone="neutral">{subjectName}</Badge>}
+          {exam.testDate && <span>{shortDay(exam.testDate)}</span>}
+        </>
+      ) : (
+        <Badge tone="neutral">Term {exam.term ?? 1}</Badge>
+      )}
+      {exam.marksDeadline && !exam.isLocked && (
+        <span className={late ? styles.lateText : undefined}>
+          {late ? "Deadline was" : "Marks by"} {shortDay(exam.marksDeadline)}
+        </span>
+      )}
+    </>
+  );
+};
 
 const classLabel = (c?: { className: string; section: string } | null) => (c ? `${c.className} - ${c.section}` : "");
 
@@ -208,19 +233,21 @@ const TeacherExamsPage = () => {
         <span className={styles.roleIcon}>
           <Icon name={isClassTeacher ? "star" : "edit"} size={16} />
         </span>
-        <span>
-          {isClassTeacher ? (
-            <>
-              <b>You&apos;re the class teacher of {classLabel(cls)}.</b> Follow every subject&apos;s marks, mark exams ready, write term remarks and see the term results.
-              {mySubjects.length > 0 && <> You also enter marks for {mySubjects.map((s) => s.name).join(", ")}.</>}
-            </>
-          ) : (
-            <>
-              <b>You teach {mySubjects.length ? mySubjects.map((s) => s.name).join(", ") : "a subject"} in {classLabel(cls)}.</b> Enter and view marks for{" "}
-              {mySubjects.length === 1 ? "this subject" : "these subjects"} only, create class tests and fill the periodic assessment. The exam coordinator plans term exams and periodic tests.
-            </>
-          )}
+        <span className={styles.roleBody}>
+          <b>{isClassTeacher ? `Class teacher of ${classLabel(cls)}` : `Subject teacher in ${classLabel(cls)}`}</b>
+          <span className={styles.roleSub}>
+            {isClassTeacher ? "Follow all subjects, mark exams ready, write term remarks" : "Enter marks for your subjects and create class tests"}
+          </span>
         </span>
+        {mySubjects.length > 0 && (
+          <span className={styles.roleChips} aria-label="Your subjects">
+            {mySubjects.map((s) => (
+              <span key={s.id} className={styles.roleChip}>
+                {s.name}
+              </span>
+            ))}
+          </span>
+        )}
       </div>
 
       <section className={styles.panel}>
@@ -266,11 +293,7 @@ const TeacherExamsPage = () => {
                     <span className={styles.examMain}>
                       <span className={styles.examName}>{e.name}</span>
                       <span className={styles.examMeta}>
-                        {EXAM_TYPE_LABEL[e.type ?? "TERM_EXAM"]}
-                        {e.type === "CLASS_TEST"
-                          ? ` · ${subjects?.find((s) => s.id === e.subjectId)?.name ?? ""}${e.testDate ? ` · ${new Date(e.testDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", timeZone: "UTC" })}` : ""}`
-                          : ` · Term ${e.term ?? 1}`}
-                        {e.marksDeadline && !e.isLocked ? ` · ${deadlinePassed(e) ? "deadline was" : "marks by"} ${deadlineText(e)}` : ""}
+                        <ExamTags exam={e} subjectName={subjects?.find((s) => s.id === e.subjectId)?.name} />
                       </span>
                     </span>
                     <Badge tone={st.tone}>{st.label}</Badge>
@@ -295,7 +318,7 @@ const TeacherExamsPage = () => {
                 </span>
                 <span>
                   <b>{s.name} · periodic assessment</b>
-                  <small>Notebook, enrichment and the final mark out of {scheme?.paMax ?? 20}</small>
+                  <small>Out of {scheme?.paMax ?? 20}, term by term</small>
                 </span>
               </button>
             ))}
@@ -402,11 +425,10 @@ const ExamDetail = ({
       <div className={styles.detailHead}>
         <div>
           <h1 className={styles.detailTitle}>{exam.name}</h1>
-          <p className={styles.muted} style={{ margin: "0.15rem 0 0" }}>
-            {classText} · {EXAM_TYPE_LABEL[exam.type ?? "TERM_EXAM"]}
-            {exam.type !== "CLASS_TEST" ? ` · Term ${exam.term ?? 1}` : " · progress only, students see marks at once"}
-            {exam.marksDeadline && !exam.isLocked ? ` · marks by ${deadlineText(exam)}` : ""}
-          </p>
+          <div className={styles.examMeta} style={{ marginTop: "0.35rem" }}>
+            <span className={styles.classTag}>{classText}</span>
+            <ExamTags exam={exam} />
+          </div>
         </div>
         <Badge tone={st.tone}>{st.label}</Badge>
       </div>
@@ -430,7 +452,10 @@ const ExamDetail = ({
 
       {dateSheet && (
         <section className={styles.panel}>
-          <h2 className={styles.panelTitle}>Date sheet</h2>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+            <h2 className={styles.panelTitle}>Date sheet</h2>
+            <PrintDateSheetButton exam={dateSheet} />
+          </div>
           <DateSheetTable exam={dateSheet} />
         </section>
       )}

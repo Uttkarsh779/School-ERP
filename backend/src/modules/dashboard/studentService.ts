@@ -4,7 +4,7 @@ import { getExamAnalysis } from "../exams/analysisService";
 import { percentage } from "../attendance/reportService";
 
 // Everything the student dashboard + profile need, for the logged-in student only:
-// profile extras (class teacher, session, guardians, transport), today's timetable,
+// profile extras (class teacher, session, transport), today's timetable,
 // attendance (this month / overall / recent days), fee dues (same calculation as the Fees
 // page), open homework and the latest exam result.
 //
@@ -40,12 +40,11 @@ export const getStudentDashboard = async (userId: number) => {
     })
     .then((exam) => (exam ? getExamAnalysis(exam.id) : null));
 
-  const [classSection, parents, transportAssignments, slots, monthRecords, overall, recentRecords, homework] = await Promise.all([
+  const [classSection, transportAssignments, slots, monthRecords, overall, recentRecords, homework] = await Promise.all([
     prisma.classSection.findUnique({
       where: { id: classSectionId },
       include: { session: { select: { id: true, name: true } }, classTeacher: { select: { user: { select: { name: true } } } } },
     }),
-    prisma.parentStudent.findMany({ where: { studentId: base.id }, include: { parent: { select: { name: true, contact: true, email: true } } } }),
     prisma.studentTransportAssignment.findMany({
       where: { studentId: base.id, status: "ACTIVE" },
       orderBy: { startDate: "desc" },
@@ -76,7 +75,7 @@ export const getStudentDashboard = async (userId: number) => {
       include: { subject: { select: { name: true } } },
     }),
   ]);
-  const student = { ...base, classSection, parents, transportAssignments };
+  const student = { ...base, classSection, transportAssignments };
 
   const counts = (rows: any[]) => {
     const c = { PRESENT: 0, ABSENT: 0, LATE: 0, LEAVE: 0 } as Record<string, number>;
@@ -155,13 +154,6 @@ export const getStudentDashboard = async (userId: number) => {
     profileExtras: {
       sessionName: cs?.session?.name ?? null,
       classTeacherName: cs?.classTeacher?.user?.name ?? null,
-      guardians: ((student as any).parents ?? []).map((link: any) => ({
-        name: link.parent?.name ?? "—",
-        relationship: link.relationshipType ?? null,
-        contact: link.parent?.contact ?? null,
-        email: link.parent?.email ?? null,
-        isPrimary: link.isPrimary,
-      })),
       transport: transport
         ? { villageName: transport.village?.name ?? null, startDate: transport.startDate, policy: transport.policy }
         : null,

@@ -8,46 +8,51 @@ import {
 } from "../modules/transport/transportVillageService";
 import { prisma } from "../config/prisma";
 import { TransportBillingPolicy } from "../modules/transport/transportVillageService";
+import { trackTestRows, uniqueTag } from "./helpers/testData";
 
 test("Transport Billing Policies & Overlap Validation", async (t) => {
+  // Throwaway session (not current), class, student and village; all removed at the end.
+  const rows = trackTestRows();
+  const tag = uniqueTag();
+  try {
   // Setup dummy student
-  const dummyUser = await prisma.user.create({
+  const dummyUser = rows.add("User", await prisma.user.create({
     data: {
-      email: `test_transport_${Date.now()}@school.com`,
+      email: `${tag.toLowerCase()}@test.local`,
       passwordHash: "dummy",
       role: "STUDENT",
       name: "Transport Test Student",
     },
-  });
+  }));
 
-  const session = await prisma.academicSession.create({
+  const session = rows.add("AcademicSession", await prisma.academicSession.create({
     data: {
-      name: `Session_${Date.now()}`,
+      name: `${tag} session`,
       startDate: new Date("2026-06-01"),
       endDate: new Date("2027-05-31"),
-      isCurrent: true,
+      isCurrent: false,
     },
-  });
+  }));
 
-  const classSection = await prisma.classSection.create({
+  const classSection = rows.add("ClassSection", await prisma.classSection.create({
     data: {
       sessionId: session.id,
-      className: "Class 8",
-      section: `T${Date.now()}`,
+      className: "ZZ Test",
+      section: tag,
     },
-  });
+  }));
 
-  const student = await prisma.student.create({
+  const student = rows.add("Student", await prisma.student.create({
     data: {
       userId: dummyUser.id,
-      admissionNo: `ADM_TR_${Date.now()}`,
+      admissionNo: `${tag}-ADM`,
       name: "Rahul Transport",
-      rollNo: `R_${Date.now()}`,
+      rollNo: "1",
       classSectionId: classSection.id,
     },
-  });
+  }));
 
-  const village = await createVillage({ name: `Village_${Date.now()}`, monthlyFee: 1200 });
+  const village = rows.add("TransportVillage", await createVillage({ name: `${tag} village`, monthlyFee: 1200 }));
 
   await t.test("1. Reject Overlapping Transport Assignments", async () => {
     await assignStudentTransport({
@@ -108,4 +113,8 @@ test("Transport Billing Policies & Overlap Validation", async (t) => {
     const octFee = await calculateTransportFeeForPeriod(student.id, 2026, 10);
     assert.strictEqual(octFee, 0);
   });
+  } finally {
+    await rows.remove();
+    await prisma.$disconnect();
+  }
 });

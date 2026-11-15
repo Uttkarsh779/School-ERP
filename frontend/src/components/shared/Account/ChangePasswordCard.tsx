@@ -2,6 +2,8 @@ import { useState } from "react";
 import { toast } from "react-toastify";
 import { Button, Card, Input } from "../../ui";
 import { useChangePasswordMutation } from "../../../store/api/profile.api";
+import { useAppDispatch, useAppSelector } from "../../../store/store";
+import { setTokens } from "../../../store/reducers/authReducer";
 
 const errorOf = (err: unknown, fallback: string) =>
   (err as { data?: { message?: string } })?.data?.message ?? fallback;
@@ -10,6 +12,8 @@ const errorOf = (err: unknown, fallback: string) =>
 const ChangePasswordCard = () => {
   const [form, setForm] = useState({ current: "", next: "", confirm: "" });
   const [changePassword, { isLoading }] = useChangePasswordMutation();
+  const dispatch = useAppDispatch();
+  const user = useAppSelector((s) => s.auth.user);
 
   const rules = {
     length: form.next.length >= 8,
@@ -22,8 +26,10 @@ const ChangePasswordCard = () => {
   const submit = async () => {
     if (!ok) return;
     try {
-      await changePassword({ currentPassword: form.current, newPassword: form.next }).unwrap();
-      toast.success("Password changed. Use the new password next time you sign in.");
+      const res = await changePassword({ currentPassword: form.current, newPassword: form.next }).unwrap();
+      // The old tokens stop working at the next refresh; keep this device signed in.
+      if (res?.data?.accessToken) dispatch(setTokens({ ...res.data, user }));
+      toast.success("Password changed. You've been signed out on your other devices.");
       setForm({ current: "", next: "", confirm: "" });
     } catch (e) {
       toast.error(errorOf(e, "Couldn't change the password"));

@@ -2,6 +2,7 @@ import { prisma } from "../../config/prisma";
 import { httpError } from "../../utils/httpError";
 import { computeMonthBill, loadBillingContext, periodCodeFor, syncMonthInvoice } from "./billingService";
 import { createAuditLog } from "./ledgerService";
+import { publicMessage } from "../../utils/publicError";
 
 // Correcting fee mistakes the way school ERPs do: nothing is deleted. Every correction keeps
 // the original record, marks it cancelled/reversed with who did it and why, puts the
@@ -254,7 +255,7 @@ const bulk = async (invoices: Array<{ id: number; invoiceNumber: string; student
       await run(inv.id);
       done++;
     } catch (err: any) {
-      skipped.push({ invoiceNumber: inv.invoiceNumber, student: inv.student.name, reason: err?.message ?? "Failed" });
+      skipped.push({ invoiceNumber: inv.invoiceNumber, student: inv.student.name, reason: publicMessage(err, "Failed") });
     }
   }
   return { done, skipped };

@@ -8,7 +8,6 @@ const ROLE_LABELS: Record<string, string> = {
   ADMIN: "For Admins",
   TEACHER: "For Teachers",
   STUDENT: "For Students",
-  PARENT: "For Parents",
 };
 
 const formatDate = (value: string) => {

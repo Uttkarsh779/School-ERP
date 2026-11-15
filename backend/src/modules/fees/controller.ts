@@ -17,8 +17,9 @@ import { FeeMode, LateFeeType, PaymentStatus } from "../../generated/prisma/enum
 import { parseSlabs, receiptNumberFor } from "./lateFeeService";
 import { onPaymentReceived } from "../notifications/events";
 import { can, isSchoolWide } from "../../config/permissions";
+import { publicMessage, sendError } from "../../utils/publicError";
 
-// For STUDENT/PARENT callers, the student ids they may see financial data for (null =
+// For STUDENT callers, the student ids they may see financial data for (null =
 // staff, unrestricted). Used to scope list endpoints that are otherwise "all students".
 const ownStudentIds = async (req: CustomRequest): Promise<number[] | null> => {
   const role = req.user?.role;
@@ -27,14 +28,10 @@ const ownStudentIds = async (req: CustomRequest): Promise<number[] | null> => {
     const s = await prisma.student.findUnique({ where: { userId: req.user!.id }, select: { id: true } });
     return s ? [s.id] : [];
   }
-  if (role === "PARENT") {
-    const p = await prisma.parentGuardian.findUnique({ where: { userId: req.user!.id }, include: { children: true } });
-    return p ? p.children.map((c: any) => c.studentId) : [];
-  }
   return [];
 };
 
-// Helper to check ownership for STUDENT or PARENT
+// Helper to check ownership for STUDENT
 const verifyStudentAccess = async (req: CustomRequest, studentId: number): Promise<boolean> => {
   if (!req.user) return false;
   if (isSchoolWide(req.user.role)) return true;
@@ -42,14 +39,6 @@ const verifyStudentAccess = async (req: CustomRequest, studentId: number): Promi
   if (req.user.role === "STUDENT") {
     const student = await prisma.student.findUnique({ where: { userId: req.user.id } });
     return student?.id === studentId;
-  }
-
-  if (req.user.role === "PARENT") {
-    const parent = await prisma.parentGuardian.findUnique({
-      where: { userId: req.user.id },
-      include: { children: true },
-    });
-    return parent?.children.some((c: any) => c.studentId === studentId) ?? false;
   }
 
   return false;
@@ -706,17 +695,6 @@ export const postAssignTransport = async (req: CustomRequest, res: Response) => 
   res.json({ success: true, data: assignment });
 };
 
-export const postDiscontinueTransport = async (req: CustomRequest, res: Response) => {
-  const { assignmentId, discontinuedAt, reason, policy } = req.body;
-  const assignment = await transportVillageService.discontinueStudentTransport({
-    assignmentId: Number(assignmentId),
-    discontinuedAt: new Date(discontinuedAt),
-    reason,
-    policy,
-  });
-  res.json({ success: true, data: assignment });
-};
-
 // Collection Period Engine Controllers
 export const getCollectionPeriodOverview = async (req: CustomRequest, res: Response) => {
   const month = req.query.month ? Number(req.query.month) : undefined;
@@ -770,7 +748,7 @@ export const deleteTransportVillage = async (req: CustomRequest, res: Response) 
     await transportVillageService.deleteVillage(villageId);
     res.json({ success: true, message: "Location deleted successfully" });
   } catch (err: any) {
-    res.status(400).json({ success: false, message: err.message || "Failed to delete transport location" });
+    sendError(res, err, "Failed to delete transport location");
   }
 };
 
@@ -780,7 +758,7 @@ export const deleteTransportAssignment = async (req: CustomRequest, res: Respons
     await transportVillageService.deleteStudentTransportAssignment(assignmentId);
     res.json({ success: true, message: "Transport assignment deleted successfully" });
   } catch (err: any) {
-    res.status(400).json({ success: false, message: err.message || "Failed to delete transport assignment" });
+    sendError(res, err, "Failed to delete transport assignment");
   }
 };
 
@@ -812,7 +790,7 @@ export const postLateFeeRule = async (req: CustomRequest, res: Response) => {
     try {
       parseSlabs(slabsJson);
     } catch (e) {
-      res.status(400).json({ success: false, message: (e as Error).message });
+      res.status(400).json({ success: false, message: publicMessage(e, "The fine slabs aren't valid") });
       return;
     }
   }
@@ -838,7 +816,7 @@ export const getStudentMonthsChart = async (req: CustomRequest, res: Response) =
     const result = await multiMonthPaymentService.getStudentMonthsChart(studentId, sessionId);
     res.json({ success: true, data: result });
   } catch (error: any) {
-    res.status(400).json({ success: false, message: error.message || "Failed to load fee chart" });
+    sendError(res, error, "Failed to load fee chart");
   }
 };
 
@@ -859,7 +837,7 @@ export const postMultiMonthPayment = async (req: CustomRequest, res: Response) =
     onPaymentReceived(result.paymentId);
     res.status(201).json({ success: true, data: result });
   } catch (error: any) {
-    res.status(400).json({ success: false, message: error.message || "Failed to record payment" });
+    sendError(res, error, "Failed to record payment");
   }
 };
 

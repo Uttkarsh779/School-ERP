@@ -1,5 +1,6 @@
 import type { Response } from "express";
 import type { CustomRequest } from "../../middleware/auth";
+import { isSchoolWide } from "../../config/permissions";
 import { endStudentTransport } from "./endTransportService";
 import {
   assignStudentTransport,
@@ -32,9 +33,11 @@ export const patchTransportRoute = async (req: CustomRequest, res: Response): Pr
   res.status(200).json({ success: true, data: route });
 };
 
-export const getVehicles = async (_req: CustomRequest, res: Response): Promise<void> => {
+export const getVehicles = async (req: CustomRequest, res: Response): Promise<void> => {
   const vehicles = await listVehicles();
-  res.status(200).json({ success: true, data: vehicles });
+  // Families and teachers need the bus and driver, not the owner's personal details.
+  const office = isSchoolWide(req.user?.role);
+  res.status(200).json({ success: true, data: office ? vehicles : vehicles.map(({ ownerName: _name, ownerContact: _contact, ...v }: any) => v) });
 };
 
 export const postVehicle = async (req: CustomRequest, res: Response): Promise<void> => {

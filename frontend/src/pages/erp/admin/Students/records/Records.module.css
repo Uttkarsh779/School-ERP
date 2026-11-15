@@ -1,0 +1,274 @@
+/* Student documents and health tabs (also used by the teacher and family views). */
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.note {
+  margin: 0 0 0.9rem;
+  font-size: 0.84rem;
+  color: var(--erp-text-muted);
+}
+
+.muted {
+  font-size: 0.82rem;
+  color: var(--erp-text-muted);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin-top: 1.25rem;
+}
+
+.rowActions {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.7rem 0;
+  border-bottom: 1px solid var(--erp-border);
+}
+
+.row:last-child {
+  border-bottom: none;
+}
+
+.rowMain {
+  flex: 1;
+  min-width: 0;
+}
+
+.rowTitle {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+/* Checklist of expected documents */
+.checklist {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: 1px solid transparent;
+}
+
+.chipVERIFIED {
+  background: var(--erp-success-bg);
+  color: var(--erp-success);
+}
+
+.chipON_FILE {
+  background: var(--erp-warning-bg);
+  color: var(--erp-warning);
+}
+
+.chipMISSING {
+  background: var(--erp-danger-bg);
+  color: var(--erp-danger);
+}
+
+/* Forms */
+.fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem 0.9rem;
+}
+
+.wide {
+  grid-column: 1 / -1;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--erp-text);
+}
+
+.textarea {
+  font-family: var(--erp-font);
+  font-size: 0.92rem;
+  color: var(--erp-text);
+  background: var(--erp-surface);
+  border: 1px solid var(--erp-border);
+  border-radius: var(--erp-radius-sm);
+  padding: 0.6rem 0.75rem;
+  min-height: 3.2rem;
+  resize: vertical;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.textarea:focus {
+  outline: none;
+  border-color: var(--erp-primary-600);
+  box-shadow: 0 0 0 3px var(--erp-primary-100);
+}
+
+.fileInput {
+  font: inherit;
+  font-size: 0.88rem;
+  padding: 0.6rem;
+  border: 1px dashed var(--erp-border);
+  border-radius: var(--erp-radius-sm);
+  background: var(--erp-bg);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.sectionTitle {
+  grid-column: 1 / -1;
+  margin: 0.4rem 0 -0.2rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--erp-text-muted);
+}
+
+/* Health summary */
+.alert {
+  display: flex;
+  gap: 0.7rem;
+  align-items: flex-start;
+  padding: 0.8rem 0.95rem;
+  border-radius: var(--erp-radius-md);
+  background: var(--erp-danger-bg);
+  color: var(--erp-text);
+  border: 1px solid color-mix(in srgb, var(--erp-danger) 30%, transparent);
+  font-size: 0.88rem;
+}
+
+.alertIcon {
+  color: var(--erp-danger);
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+}
+
+.alert dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.2rem 0.7rem;
+}
+
+.alert dt {
+  font-weight: 700;
+}
+
+.alert dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.facts {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
+  gap: 0.8rem 1.2rem;
+}
+
+.facts dt {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--erp-text-muted);
+}
+
+.facts dd {
+  margin: 0.15rem 0 0;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.tableWrap {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.table th,
+.table td {
+  text-align: left;
+  padding: 0.55rem 0.5rem;
+  border-bottom: 1px solid var(--erp-border);
+  white-space: nowrap;
+}
+
+.table th {
+  font-size: 0.78rem;
+  color: var(--erp-text-muted);
+  font-weight: 600;
+}
+
+.table td.wrap {
+  white-space: normal;
+  min-width: 10rem;
+}
+
+/* Document preview */
+.preview {
+  display: flex;
+  justify-content: center;
+  background: var(--erp-bg);
+  border-radius: var(--erp-radius-md);
+  min-height: 200px;
+  max-height: 70vh;
+  overflow: auto;
+}
+
+.preview img {
+  max-width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+
+.preview iframe {
+  width: 100%;
+  height: 70vh;
+  border: 0;
+}
+
+@media (max-width: 640px) {
+  .fields {
+    grid-template-columns: 1fr;
+  }
+
+  .row {
+    flex-wrap: wrap;
+  }
+
+  .rowActions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}

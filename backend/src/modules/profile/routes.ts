@@ -26,8 +26,8 @@ router.patch(
 router.post(
   "/change-password",
   asyncHandler(async (req: CustomRequest, res: Response) => {
-    await changeMyPassword(req.user!.id, req.body?.currentPassword, req.body?.newPassword);
-    res.json({ success: true, message: "Password changed" });
+    const tokens = await changeMyPassword(req.user!.id, req.body?.currentPassword, req.body?.newPassword);
+    res.json({ success: true, message: "Password changed. Other devices have been signed out.", data: tokens });
   })
 );
 

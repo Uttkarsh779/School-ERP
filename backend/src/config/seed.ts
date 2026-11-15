@@ -57,9 +57,7 @@ export const runFullResetAndSeed = async () => {
   await prisma.studentTransportAssignment.deleteMany({});
   await prisma.villageFeeHistory.deleteMany({});
   await prisma.transportVillage.deleteMany({});
-  await prisma.parentStudent.deleteMany({});
   await prisma.student.deleteMany({});
-  await prisma.parentGuardian.deleteMany({});
   await prisma.staff.deleteMany({});
   await prisma.notice.deleteMany({});
   await prisma.classSection.deleteMany({});
@@ -147,7 +145,6 @@ export const runFullResetAndSeed = async () => {
 
   // 6. Create 5 Students per Class (50 Students Total)
   const studentPasswordHash = await hashPassword("student123");
-  const parentPasswordHash = await hashPassword("parent123");
 
   const studentNamePool = [
     { first: "Aarav", last: "Sharma", gender: "MALE" },
@@ -174,7 +171,6 @@ export const runFullResetAndSeed = async () => {
       const admNo = `ADM2026${String(overallStudentCount).padStart(3, "0")}`;
       const rollNo = sIndex;
       const studentEmail = `student${overallStudentCount}@school.com`;
-      const parentEmail = `parent${overallStudentCount}@school.com`;
 
       const birthYear = 2026 - (5 + c);
       const dob = new Date(`${birthYear}-05-15`);
@@ -188,7 +184,7 @@ export const runFullResetAndSeed = async () => {
         },
       });
 
-      const studentRecord = await prisma.student.create({
+      await prisma.student.create({
         data: {
           userId: sUser.id,
           classSectionId: cs.id,
@@ -205,28 +201,6 @@ export const runFullResetAndSeed = async () => {
         },
       });
 
-      const pUser = await prisma.user.create({
-        data: {
-          email: parentEmail,
-          passwordHash: parentPasswordHash,
-          role: Role.PARENT,
-          name: `Ramesh ${nameObj.last}`,
-        },
-      });
-
-      const parentGuardian = await prisma.parentGuardian.create({
-        data: {
-          userId: pUser.id,
-          contact: `98100${String(10000 + overallStudentCount)}`,
-        },
-      });
-
-      await prisma.parentStudent.create({
-        data: {
-          parentId: parentGuardian.id,
-          studentId: studentRecord.id,
-        },
-      });
     }
   }
 

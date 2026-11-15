@@ -18,11 +18,13 @@ export const PERMISSIONS = {
 
   "students.view": [SA, AD, PR, AC],
   "students.edit": [SA, AD], // admit, edit, photos, logins, mark left
-  "families.view": [SA, AD, PR, AC],
-  "families.edit": [SA, AD],
   "staff.view": [SA, AD, PR], // staff create/edit stay Super Admin only
   "leaves.manage": [SA, AD, PR], // every leave request; approve or reject
   certificates: [SA, AD, PR], // TC, bonafide, character … and the register
+  "documents.view": [SA, AD, PR], // scanned student documents (birth certificate, Aadhaar …); every view is logged
+  "documents.edit": [SA, AD], // upload, verify, remove
+  "health.view": [SA, AD, PR], // full health record (teachers get a short alert through /teaching)
+  "health.edit": [SA, AD, PR],
 
   "academics.view": [SA, AD, PR, AC], // sessions, classes, subjects (lists)
   "academics.edit": [SA, AD, PR], // classes, subjects, subject teachers, timetable
@@ -44,6 +46,14 @@ export const PERMISSIONS = {
   accounts: [SA, AD, AC], // expense and income vouchers (voiding is Super Admin)
   "transport.view": [SA, AD, PR, AC],
   "transport.edit": [SA, AD],
+  "inventory.view": [SA, AD, PR, AC], // school stock: items, stock register, who holds what
+  "inventory.edit": [SA, AD, AC], // stock in, issue, return, adjust, write off, void
+
+  "privacy.manage": [SA, AD, PR], // consent records, paper consent, families' data requests
+  "privacy.settings": [SA], // the privacy notice and grievance officer
+  "exports.students": [SA, AD, PR], // student lists, UDISE+ and CBSE LOC sheets
+  "exports.fees": [SA, AD, PR, AC],
+  "exports.staff": [SA], // staff records carry ID numbers and bank details
 } as const;
 
 export type Permission = keyof typeof PERMISSIONS;

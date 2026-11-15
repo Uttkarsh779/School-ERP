@@ -3,7 +3,6 @@ import type { CustomRequest } from "../../middleware/auth";
 import { findStaffByUserId } from "../staff/service";
 import { isClassTeacherOfSection } from "../classSections/service";
 import { getStudentByUserId } from "../students/service";
-import { getParentByUserId } from "../parents/service";
 import { getAllocatedStaffId } from "../subjects/service";
 import {
   deleteTimetableSlot,
@@ -12,9 +11,10 @@ import {
   upsertTimetableSlot,
 } from "./service";
 import { isSchoolWide } from "../../config/permissions";
+import { sendError } from "../../utils/publicError";
 
 // SUPER_ADMIN/ADMIN see any class; TEACHER only their own class; STUDENT only their
-// own class; PARENT only a linked child's class.
+// own class.
 const canViewClassTimetable = async (req: CustomRequest, classSectionId: number): Promise<boolean> => {
   const role = req.user?.role;
   if (isSchoolWide(role)) return true;
@@ -27,10 +27,6 @@ const canViewClassTimetable = async (req: CustomRequest, classSectionId: number)
   if (role === "STUDENT") {
     const student = await getStudentByUserId(req.user.id);
     return student?.classSectionId === classSectionId;
-  }
-  if (role === "PARENT") {
-    const parent = await getParentByUserId(req.user.id);
-    return !!parent?.children.some((link: any) => link.student?.classSectionId === classSectionId);
   }
   return false;
 };
@@ -92,7 +88,7 @@ export const postTimetableSlot = async (req: CustomRequest, res: Response): Prom
     }
     res.status(200).json({ success: true, data: slot, ...(warning ? { warning } : {}) });
   } catch (err: any) {
-    res.status(400).json({ success: false, message: err?.message || "Failed to save timetable slot" });
+    sendError(res, err, "Failed to save timetable slot");
   }
 };
 

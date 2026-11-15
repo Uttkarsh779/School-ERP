@@ -507,34 +507,7 @@ async function main() {
   students.forEach((s, i) => planByStudentId.set(s.id, plans[i]));
   const studentIdOf = (p: StudentPlan) => students[plans.indexOf(p)].id;
 
-  // Parents
-  const parentFamilies = families.filter((f) => !f.staffParent);
-  const guardians = await insertReturning(
-    prisma.parentGuardian,
-    families.map((f) => {
-      const staffUserId = f.staffParent?.userId;
-      const name = f.relationship === "Mother" ? f.mother : f.father;
-      return {
-        userId: staffUserId ?? null, // family record only — a staff parent links to their staff user
-        name,
-        email: staffUserId ? null : `${f.father.toLowerCase().replace(/[^a-z]+/g, ".")}${f.idx}@example.com`,
-        contact: f.relationship === "Mother" ? f.motherContact : f.fatherContact,
-        address: f.address,
-      };
-    })
-  );
-  const guardianByFamily = new Map<Family, any>(families.map((f, i) => [f, guardians[i]]));
-  await insert(
-    prisma.parentStudent,
-    plans.map((p) => ({
-      parentId: guardianByFamily.get(p.kid.family).id,
-      studentId: studentIdOf(p),
-      relationshipType: p.kid.family.staffParent ? "Staff Parent" : p.kid.family.relationship,
-      isPrimary: true,
-      siblingOrder: p.kid.order,
-    }))
-  );
-  step(`Created ${students.length} students (${studentUsers.length} with logins), ${families.length} families, ${families.filter((f) => f.kids > 1).length} with siblings`);
+  step(`Created ${students.length} students (${studentUsers.length} with logins), ${families.filter((f) => f.kids > 1).length} sets of siblings`);
 
   // ---------- transport: routes, vehicles, villages, assignments
   const routes = await insertReturning(prisma.transportRoute, [
@@ -703,12 +676,22 @@ async function main() {
     { plan: topPlans[1], type: "SCHOLARSHIP", calc: "PERCENTAGE", value: 50, heads: [tuitionId], reason: "Merit Scholarship - district olympiad", scheme: scheme("SCHOLARSHIP") },
     { plan: planByStudentId.get(busActive[2].studentId)!, type: "TRANSPORT_CONCESSION", calc: "PERCENTAGE", value: 50, heads: [transportId], reason: "Long distance - 50% bus concession", scheme: scheme("TRANSPORT_CONCESSION") },
     { plan: plans.find((p) => p.payProfile === "PARTIAL" && p.joinMonthIdx === 0)!, type: "SPECIAL_CONCESSION", calc: "FIXED_AMOUNT", value: 500, heads: [tuitionId], reason: "Financial hardship (single parent)", scheme: scheme("SPECIAL_CONCESSION") },
-  ];
+  ] as Array<{ plan: StudentPlan; type: string; calc: string; value: number; heads: number[]; reason: string; scheme: any; staffId?: number }>;
+  // Sibling and staff-child discounts are given to each student by hand (no family records),
+  // using the rate the scheme lists for that sibling order / staff category.
+  for (const p of plans) {
+    const siblingCfg = p.kid.order > 1 ? JSON.parse(scheme("SIBLING_DISCOUNT").configJson)[String(p.kid.order)] : null;
+    if (siblingCfg) concessionDefs.push({ plan: p, type: "SIBLING_DISCOUNT", calc: "PERCENTAGE", value: siblingCfg.value, heads: [tuitionId], reason: "Sibling Discount", scheme: scheme("SIBLING_DISCOUNT") });
+    const staffParent = p.kid.family.staffParent;
+    const staffCfg = staffParent ? JSON.parse(scheme("STAFF_CHILD").configJson)[staffParent.staffCategory] : null;
+    if (staffParent && staffCfg) concessionDefs.push({ plan: p, type: "STAFF_CHILD", calc: "PERCENTAGE", value: staffCfg.value, heads: [tuitionId], reason: `Staff Child Concession (${staffParent.staffCategory})`, scheme: scheme("STAFF_CHILD"), staffId: staffParent.id });
+  }
   const studentConcessions = await insertReturning(
     prisma.studentConcession,
     concessionDefs.map((c) => ({
       studentId: studentIdOf(c.plan),
       concessionSchemeId: c.scheme.id,
+      staffId: c.staffId ?? null,
       type: c.type,
       calculationType: c.calc,
       value: c.value,
@@ -772,16 +755,8 @@ async function main() {
       for (const { c, sc } of mine.filter(({ c }) => c.type === "SCHOLARSHIP")) {
         for (const h of c.heads) if ((remaining.get(h) ?? 0) > 0) apply(h, c.calc === "PERCENTAGE" ? c.value : null, c.calc === "PERCENTAGE" ? null : c.value, c.type, c.reason, sc.id);
       }
-      if (p.kid.order > 1) {
-        const cfg = JSON.parse(scheme("SIBLING_DISCOUNT").configJson)[String(p.kid.order)];
-        if (cfg) for (const h of [tuitionId]) if ((remaining.get(h) ?? 0) > 0) apply(h, cfg.value, null, "SIBLING_DISCOUNT", "Sibling Discount", null);
-      }
-      const staffParent = p.kid.family.staffParent;
-      if (staffParent && staffParent.isActive) {
-        const cfg = JSON.parse(scheme("STAFF_CHILD").configJson)[staffParent.staffCategory];
-        if (cfg) for (const h of [tuitionId]) if ((remaining.get(h) ?? 0) > 0) apply(h, cfg.value, null, "STAFF_CHILD", `Staff Child Concession (${staffParent.staffCategory})`, null);
-      }
       for (const { c, sc } of mine.filter(({ c }) => c.type !== "SCHOLARSHIP")) {
+        if (c.type === "STAFF_CHILD" && !p.kid.family.staffParent?.isActive) continue;
         for (const h of c.heads) if ((remaining.get(h) ?? 0) > 0) apply(h, c.calc === "PERCENTAGE" ? c.value : null, c.calc === "PERCENTAGE" ? null : c.value, c.type, c.reason, sc.id);
       }
 

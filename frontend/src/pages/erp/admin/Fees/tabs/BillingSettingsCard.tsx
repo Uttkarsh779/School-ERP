@@ -7,24 +7,25 @@ import styles from "../Fees.module.css";
 
 const ordinal = (n: number) => `${n}${n % 10 === 1 && n !== 11 ? "st" : n % 10 === 2 && n !== 12 ? "nd" : n % 10 === 3 && n !== 13 ? "rd" : "th"}`;
 
-// Automatic monthly bills: on/off, the day of the month they're generated, and the
-// transport fee's due day. Fee items keep the due day set in each fee structure.
+// Automatic monthly bills: on/off, the day of the month they're generated, and the one day
+// the whole bill is due (every fee and transport together).
 const BillingSettingsCard = () => {
   const { data: settings, isLoading } = useGetBillingSettingsQuery();
   const [save, { isLoading: saving }] = useUpdateBillingSettingsMutation();
-  const [form, setForm] = useState({ autoGenerate: false, generateDay: "1", transportDueDay: "10" });
+  const [form, setForm] = useState({ autoGenerate: false, generateDay: "1", dueDay: "10" });
 
   useEffect(() => {
-    if (settings) setForm({ autoGenerate: settings.autoGenerate, generateDay: String(settings.generateDay), transportDueDay: String(settings.transportDueDay) });
+    if (settings) setForm({ autoGenerate: settings.autoGenerate, generateDay: String(settings.generateDay), dueDay: String(settings.dueDay) });
   }, [settings]);
 
   const submit = async () => {
     const generateDay = Number(form.generateDay);
-    const transportDueDay = Number(form.transportDueDay);
+    const dueDay = Number(form.dueDay);
     if (!Number.isInteger(generateDay) || generateDay < 1 || generateDay > 28) return toast.error("Generation day must be between 1 and 28");
-    if (!Number.isInteger(transportDueDay) || transportDueDay < 1 || transportDueDay > 28) return toast.error("Transport due day must be between 1 and 28");
+    if (!Number.isInteger(dueDay) || dueDay < 1 || dueDay > 28) return toast.error("Fee due day must be between 1 and 28");
+    if (form.autoGenerate && dueDay < generateDay) return toast.error("The fee due day can't be before the day bills are generated");
     try {
-      await save({ autoGenerate: form.autoGenerate, generateDay, transportDueDay }).unwrap();
+      await save({ autoGenerate: form.autoGenerate, generateDay, dueDay }).unwrap();
       toast.success(form.autoGenerate ? `Bills will be generated automatically on the ${ordinal(generateDay)} of every month` : "Billing settings saved");
     } catch (e) {
       toast.error(getErrorMessage(e, "Couldn't save the settings"));
@@ -61,11 +62,11 @@ const BillingSettingsCard = () => {
               hint="1–28 of every month"
             />
             <Input
-              label="Transport fee due day"
+              label="Fee due day"
               inputMode="numeric"
-              value={form.transportDueDay}
-              onChange={(e) => setForm({ ...form, transportDueDay: e.target.value })}
-              hint="Other fees use the due day in their fee structure"
+              value={form.dueDay}
+              onChange={(e) => setForm({ ...form, dueDay: e.target.value })}
+              hint="1–28. Every fee on the bill, transport included"
             />
           </div>
           {settings?.lastAutoRunSummary && (

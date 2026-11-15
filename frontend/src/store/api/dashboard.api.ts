@@ -117,7 +117,6 @@ export interface StudentDashboard {
   profileExtras?: {
     sessionName: string | null;
     classTeacherName: string | null;
-    guardians: Array<{ name: string; relationship: string | null; contact: string | null; email: string | null; isPrimary: boolean }>;
     transport: { villageName: string | null; startDate: string; policy: string } | null;
   };
   todaySchedule?: Array<{ id: number; periodNumber: number; subjectName: string | null; teacherName: string | null; room: string | null }>;

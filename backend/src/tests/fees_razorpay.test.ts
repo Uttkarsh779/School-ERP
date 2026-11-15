@@ -3,51 +3,57 @@ import { test } from "node:test";
 import crypto from "crypto";
 import { createRazorpayOrderForStudent, verifyAndConfirmRazorpayPayment } from "../modules/fees/razorpayService";
 import { prisma } from "../config/prisma";
+import { trackTestRows, uniqueTag } from "./helpers/testData";
 
 test("Razorpay Payment Pipeline & Webhook Idempotency", async (t) => {
+  // Own session (not current), class, student and fee head; all removed at the end.
+  const rows = trackTestRows();
+  const tag = uniqueTag();
+  try {
   // Setup dummy student & charges
-  const user = await prisma.user.create({
+  const user = rows.add("User", await prisma.user.create({
     data: {
-      email: `rzp_test_${Date.now()}@school.com`,
+      email: `${tag.toLowerCase()}@test.local`,
       passwordHash: "hash",
       role: "STUDENT",
       name: "Razorpay Test Student",
     },
-  });
+  }));
 
-  const session = await prisma.academicSession.create({
+  const session = rows.add("AcademicSession", await prisma.academicSession.create({
     data: {
-      name: `Rzp_Sess_${Date.now()}`,
+      name: `${tag} session`,
       startDate: new Date("2026-06-01"),
       endDate: new Date("2027-05-31"),
+      isCurrent: false,
     },
-  });
+  }));
 
-  const classSection = await prisma.classSection.create({
+  const classSection = rows.add("ClassSection", await prisma.classSection.create({
     data: {
       sessionId: session.id,
-      className: "Class 10",
-      section: `R${Date.now()}`,
+      className: "ZZ Test",
+      section: tag,
     },
-  });
+  }));
 
-  const student = await prisma.student.create({
+  const student = rows.add("Student", await prisma.student.create({
     data: {
       userId: user.id,
-      admissionNo: `RZP_ADM_${Date.now()}`,
+      admissionNo: `${tag}-ADM`,
       name: "Razorpay Student",
-      rollNo: `RZP_${Date.now()}`,
+      rollNo: "1",
       classSectionId: classSection.id,
     },
-  });
+  }));
 
-  const feeHead = await prisma.feeHead.create({
+  const feeHead = rows.add("FeeHead", await prisma.feeHead.create({
     data: {
-      name: `Rzp_Fee_${Date.now()}`,
-      code: `RZP_${Date.now()}`,
+      name: `${tag} fee`,
+      code: `${tag}_FEE`,
       description: "Test fee",
     },
-  });
+  }));
 
   await prisma.feeCharge.create({
     data: {
@@ -114,4 +120,10 @@ test("Razorpay Payment Pipeline & Webhook Idempotency", async (t) => {
     const paymentCount = await prisma.payment.count({ where: { studentId: student.id } });
     assert.strictEqual(paymentCount, 1);
   });
+  } finally {
+    // Payment notifications are built in the background; let that finish first.
+    await new Promise((r) => setTimeout(r, 1500));
+    await rows.remove();
+    await prisma.$disconnect();
+  }
 });

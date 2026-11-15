@@ -11,7 +11,7 @@ const TUITION = 1;
 const COMPUTER = 2;
 const TRANSPORT = 9;
 
-const noConcessions: ConcessionContext = { studentConcessions: [], siblingScheme: null, staffScheme: null, siblingOrder: 1, staffMember: null };
+const noConcessions: ConcessionContext = { studentConcessions: [] };
 
 const ctxFor = (overrides: Partial<BillingContext["student"]> = {}, concessions = noConcessions, policy = "FULL_MONTH"): BillingContext => ({
   sessionId: 1,
@@ -39,6 +39,15 @@ describe("monthly bill", () => {
     assert.strictEqual(bill.total, 9800);
     const may = computeMonthBill(ctxFor(), 5, 2026);
     assert.strictEqual(may.total, 3800, "annual charge only in April");
+  });
+
+  test("every fee on a bill, transport included, is due on the same day", () => {
+    const ctx = ctxFor();
+    ctx.dueDay = 7;
+    ctx.feeStructure.items[0].dueDateDay = 25; // an old per-fee day is ignored
+    const bill = computeMonthBill(ctx, 4, 2026);
+    assert.ok(bill.lines.length > 1);
+    assert.ok(bill.lines.every((l) => l.dueDate.getDate() === 7));
   });
 
   test("students are not billed for months before their admission", () => {
@@ -90,12 +99,18 @@ describe("concessions", () => {
   });
 
   test("staff-child discount follows employment, not login access", () => {
-    const staffScheme = { id: 3, type: "STAFF_CHILD", applicableHeads: [TUITION], configJson: JSON.stringify({ DRIVER: { value: 40, calculationType: "PERCENTAGE" } }) };
     const driver = { id: 7, staffCategory: "DRIVER", isActive: true }; // drivers have no login
-    const employed = applyConcessions({ ...noConcessions, staffScheme, staffMember: driver }, 5, 2026, items);
+    const conc = { id: 9, type: "STAFF_CHILD", calculationType: "PERCENTAGE", value: 40, applicableHeads: [TUITION], staffId: driver.id, staff: driver, reason: "Staff child" };
+    const employed = applyConcessions({ studentConcessions: [conc] }, 5, 2026, items);
     assert.deepStrictEqual(employed.map((a) => [a.feeHeadId, a.amount]), [[TUITION, 800]]);
-    const left = applyConcessions({ ...noConcessions, staffScheme, staffMember: { ...driver, isActive: false } }, 5, 2026, items);
+    const left = applyConcessions({ studentConcessions: [{ ...conc, staff: { ...driver, isActive: false } }] }, 5, 2026, items);
     assert.strictEqual(left.length, 0);
+  });
+
+  test("a hand-assigned sibling discount applies like any other concession", () => {
+    const conc = { id: 11, type: "SIBLING_DISCOUNT", calculationType: "PERCENTAGE", value: 25, applicableHeads: [TUITION], reason: "Sibling Discount" };
+    const applied = applyConcessions({ studentConcessions: [conc] }, 5, 2026, items);
+    assert.deepStrictEqual(applied.map((a) => [a.feeHeadId, a.amount]), [[TUITION, 500]]);
   });
 });
 

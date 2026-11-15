@@ -4,6 +4,10 @@ import type { TableColumn } from "../../../../components/ui";
 import { useGetExamAnalysisQuery, useGetExamAuditQuery } from "../../../../store/api/exams.api";
 import type { ExamAnalysisStudent, ExamAuditEntry, ExamResultStatus, ExamSubjectStats } from "../../../../store/api/exams.api";
 import { usePrintReportCards } from "../../../../components/shared/Print/usePrintReportCards";
+import { printMarksRegister } from "../../../../components/shared/Print/marksRegisterPrint";
+import ExportButton from "../../../../components/shared/ExportButton";
+import { useGetPublicWebsiteDataQuery } from "../../../../store/api/cms.api";
+import { useCan } from "../../../../store/permissions";
 import styles from "./ExamResultsView.module.css";
 
 const STATUS_META: Record<ExamResultStatus, { label: string; tone: "success" | "danger" | "warning" | "neutral" | "info" }> = {
@@ -81,6 +85,8 @@ const ExamResultsView = ({ examId, onBack }: { examId: number; onBack: () => voi
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [viewing, setViewing] = useState<ExamAnalysisStudent | null>(null);
   const { print, isPrinting } = usePrintReportCards();
+  const { data: site } = useGetPublicWebsiteDataQuery();
+  const can = useCan();
 
   const subjectName = useMemo(() => new Map((data?.subjects ?? []).map((s) => [s.id, s.name])), [data?.subjects]);
 
@@ -115,9 +121,15 @@ const ExamResultsView = ({ examId, onBack }: { examId: number; onBack: () => voi
         )}
       </div>
       {data?.scope === "FULL" && (
-        <Button type="button" variant="outline" icon={<Icon name="printer" size={16} />} isLoading={isPrinting} onClick={() => print({ examId })}>
-          Print report cards
-        </Button>
+        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+          <Button type="button" variant="outline" icon={<Icon name="printer" size={16} />} isLoading={isPrinting} onClick={() => print({ examId })}>
+            Print report cards
+          </Button>
+          <Button type="button" variant="outline" icon={<Icon name="printer" size={16} />} onClick={() => printMarksRegister(data, { school: site?.settings })}>
+            Print marks register
+          </Button>
+          {can("exams.coordinate") && <ExportButton path="marks-register" params={{ examId }} size="md" label="Marks register (Excel)" />}
+        </div>
       )}
     </div>
   );
@@ -296,13 +308,24 @@ const ExamResultsView = ({ examId, onBack }: { examId: number; onBack: () => voi
         )}
 
         <Card title="How results are worked out">
-          <ul className={styles.rules}>
-            <li>A subject is passed at <strong>{data.passPercentage}%</strong> or more of its max marks.</li>
-            <li><strong>AB</strong> (absent) counts as 0 and as not passed for that subject.</li>
-            <li><strong>Fail</strong>: below the pass mark, or absent, in any subject.</li>
-            <li><strong>Rank</strong> is by total marks among students with every subject entered; ties share a rank (1, 2, 2, 4).</li>
-            <li>Students absent in every subject, or with marks still pending, are not ranked.</li>
-          </ul>
+          <dl className={styles.rules}>
+            <div>
+              <dt>Pass</dt>
+              <dd>{data.passPercentage}% or more in each subject</dd>
+            </div>
+            <div>
+              <dt>AB</dt>
+              <dd>Absent: counts as 0, not passed</dd>
+            </div>
+            <div>
+              <dt>Fail</dt>
+              <dd>Below the pass mark, or absent, in any subject</dd>
+            </div>
+            <div>
+              <dt>Rank</dt>
+              <dd>By total, ties share a rank (1, 2, 2, 4). Only students with every subject entered</dd>
+            </div>
+          </dl>
         </Card>
       </div>
 

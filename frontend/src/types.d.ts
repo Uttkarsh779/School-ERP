@@ -17,7 +17,7 @@ interface Base {
   updated_at?: string;
 }
 
-type UserRole = "SUPER_ADMIN" | "ADMIN" | "PRINCIPAL" | "ACCOUNTANT" | "TEACHER" | "STUDENT" | "PARENT";
+type UserRole = "SUPER_ADMIN" | "ADMIN" | "PRINCIPAL" | "ACCOUNTANT" | "TEACHER" | "STUDENT";
 
 interface IUser extends Base {
   email: string;
@@ -110,32 +110,10 @@ interface IStudent {
   createdAt: string;
 }
 
-interface IParentStudentLink {
-  id: number;
-  parentId: number;
-  studentId: number;
-  student: IStudent;
-  relationshipType?: string | null;
-  isPrimary?: boolean;
-}
-
-interface IParentGuardian {
-  id: number;
-  userId?: number | null;
-  name: string;
-  email?: string | null;
-  contact?: string | null;
-  address?: string | null;
-  user?: IUser | null;
-  children: IParentStudentLink[];
-  familyTotalDue?: number;
-}
-
 interface IAdminDashboardCounts {
   studentCount: number;
   staffCount: number;
   classSectionCount: number;
-  parentCount: number;
   transportVillagesCount?: number;
   transportStudentsCount?: number;
   financialSummary?: {

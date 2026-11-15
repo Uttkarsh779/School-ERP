@@ -8,6 +8,7 @@ import {
   getStaffById,
   isAccountRequiredRole,
   listStaff,
+  parseLoginRole,
   setStaffActive,
   updateStaff,
 } from "./service";
@@ -61,20 +62,26 @@ export const postStaff = async (req: CustomRequest, res: Response): Promise<void
     }
   }
 
+  const loginRole = parseLoginRole(req.body.loginRole);
   const pwd = password || "Staff@12345";
   const passwordHash = await hashPassword(pwd);
   const details = parseStaffDetails(req.body);
-  const staff = await createStaff({ email, passwordHash, name, qualifications, contact, staffCategory: category, details });
+  const staff = await createStaff({ email, passwordHash, name, qualifications, contact, staffCategory: category, loginRole, details });
   res.status(201).json({ success: true, data: sanitize(staff, req) });
 };
 
 export const patchStaff = async (req: CustomRequest, res: Response): Promise<void> => {
   const { name, email, qualifications, contact, staffCategory, isExamCoordinator } = req.body;
   const details = parseStaffDetails(req.body);
-  const staff = await updateStaff(Number(req.params.id), {
-    name, email, qualifications, contact, staffCategory, details,
-    isExamCoordinator: typeof isExamCoordinator === "boolean" ? isExamCoordinator : undefined,
-  });
+  const staff = await updateStaff(
+    Number(req.params.id),
+    {
+      name, email, qualifications, contact, staffCategory, details,
+      loginRole: parseLoginRole(req.body.loginRole, { allowSuperAdmin: true }),
+      isExamCoordinator: typeof isExamCoordinator === "boolean" ? isExamCoordinator : undefined,
+    },
+    req.user!.id
+  );
   res.status(200).json({ success: true, data: sanitize(staff, req) });
 };
 

@@ -5,110 +5,6 @@
   gap: 1rem;
 }
 
-/* Header card */
-.hero {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  padding: 1.25rem;
-  border: 1px solid var(--erp-border);
-  border-radius: var(--erp-radius-lg);
-  box-shadow: var(--erp-shadow-sm);
-  background: linear-gradient(135deg, var(--erp-primary-50) 0%, var(--erp-surface) 55%);
-}
-
-.heroTop {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  min-width: 0;
-}
-
-.avatar {
-  width: 4.75rem;
-  height: 4.75rem;
-  border-radius: 50%;
-  flex-shrink: 0;
-  display: grid;
-  place-items: center;
-  object-fit: cover;
-  background: var(--erp-primary-600);
-  color: #fff;
-  font-size: 1.9rem;
-  font-weight: 800;
-  border: 3px solid var(--erp-surface);
-  box-shadow: 0 6px 16px rgba(234, 88, 12, 0.18);
-}
-
-.heroMain {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.45rem;
-}
-
-.name {
-  margin: 0;
-  font-size: 1.45rem;
-  font-weight: 800;
-  line-height: 1.2;
-  color: var(--erp-text);
-  overflow-wrap: anywhere;
-}
-
-.chips {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-.chip {
-  padding: 0.18rem 0.6rem;
-  border-radius: 999px;
-  background: var(--erp-surface);
-  border: 1px solid var(--erp-border);
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--erp-text-muted);
-  white-space: nowrap;
-}
-
-.chipStrong {
-  background: var(--erp-primary-600);
-  border-color: var(--erp-primary-600);
-  color: #fff;
-}
-
-.tiles {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.6rem;
-}
-
-.tile {
-  display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
-  min-width: 0;
-  padding: 0.65rem 0.85rem;
-  border: 1px solid var(--erp-border);
-  border-radius: var(--erp-radius-md);
-  background: var(--erp-surface);
-}
-
-.tile span {
-  font-size: 0.74rem;
-  font-weight: 600;
-  color: var(--erp-text-muted);
-}
-
-.tile strong {
-  font-size: 1rem;
-  font-weight: 700;
-  overflow-wrap: anywhere;
-}
-
 .officeNote {
   display: flex;
   align-items: center;
@@ -189,20 +85,6 @@
 }
 
 @media (max-width: 760px) {
-  .hero {
-    padding: 1rem;
-  }
-
-  .avatar {
-    width: 4rem;
-    height: 4rem;
-    font-size: 1.6rem;
-  }
-
-  .name {
-    font-size: 1.25rem;
-  }
-
   .grid {
     grid-template-columns: 1fr;
     gap: 0.85rem;

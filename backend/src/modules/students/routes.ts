@@ -14,7 +14,7 @@ import {
   postStudentsBulkImport,
 } from "./controller";
 import { getStudentHistory } from "./historyService";
-import { setStudentPhoto } from "./service";
+import { findIdConflict, idConflictMessage, setStudentPhoto, suggestNextAdmissionNo } from "./service";
 import type { CustomRequest } from "../../middleware/auth";
 import type { Response } from "express";
 
@@ -28,6 +28,30 @@ router.use(authenticateToken);
 // child, student = self), checked inside the controller — see getStudents/getStudent.
 router.get("/", allow("students.view", "TEACHER"), asyncHandler(getStudents));
 router.get("/me", authorizeRoles(["STUDENT"]), asyncHandler(getMyStudentProfile));
+// Suggested admission number for the New Student form (before the "/:id" routes).
+router.get(
+  "/next-admission-no",
+  allow("students.edit"),
+  asyncHandler(async (_req: CustomRequest, res: Response) => {
+    res.json({ success: true, data: { admissionNo: await suggestNextAdmissionNo() } });
+  })
+);
+// Live check for the student form: is this Aadhaar / APAAR ID already on another student?
+// ?aadharNumber=...&apaarId=...&exceptId=<student being edited>
+router.get(
+  "/check-ids",
+  allow("students.edit"),
+  asyncHandler(async (req: CustomRequest, res: Response) => {
+    const exceptId = Number(req.query.exceptId) || undefined;
+    const data: Record<string, { message: string } | null> = {};
+    for (const key of ["aadharNumber", "apaarId"] as const) {
+      if (typeof req.query[key] !== "string") continue;
+      const other = await findIdConflict(key, req.query[key], exceptId);
+      data[key] = other ? { message: idConflictMessage(key, other) } : null;
+    }
+    res.json({ success: true, data });
+  })
+);
 // Office-only full history (attendance, exams, fees, transport) for the student 360° view.
 router.get(
   "/:id/history",
@@ -44,7 +68,7 @@ router.get(
 );
 router.get(
   "/:id",
-  allow("students.view", "TEACHER", "PARENT", "STUDENT"),
+  allow("students.view", "TEACHER", "STUDENT"),
   asyncHandler(getStudent)
 );
 

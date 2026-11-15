@@ -28,19 +28,7 @@ export interface BackupRecord {
   createdAt: string;
 }
 
-// Saves the downloaded file in the browser (name from the server's Content-Disposition).
-const saveFile = async (res: Response) => {
-  if (!res.ok) return res.json();
-  const blob = await res.blob();
-  const name = /filename="([^"]+)"/.exec(res.headers.get("content-disposition") ?? "")?.[1] ?? "backup.json.gz";
-  const url = URL.createObjectURL(blob);
-  const a = Object.assign(document.createElement("a"), { href: url, download: name });
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-  return { saved: name };
-};
+import { saveFile } from "./download";
 
 export const settingsApi = erpApi.injectEndpoints({
   endpoints: (builder) => ({

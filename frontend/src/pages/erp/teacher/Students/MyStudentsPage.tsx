@@ -6,8 +6,16 @@ import { useGetMyClassSectionsQuery } from "../../../../store/api/classSections.
 import { useGetClassRosterQuery, useGetTeacherStudentOverviewQuery, type ClassRoster } from "../../../../store/api/teaching.api";
 import { formatPct, monthLabel, pctTone } from "../../admin/Attendance/attendanceFormat";
 import styles from "./MyStudentsPage.module.css";
+import StudentSummaryCard from "../../../../components/shared/StudentSummaryCard/StudentSummaryCard";
 // Same detail cards as the admin student profile, so both portals look alike.
 import card from "../../../../components/shared/StudentProfileView/StudentProfileView.module.css";
+import HealthAlertBox, { hasHealthAlert } from "../../admin/Students/records/HealthAlert";
+import type { HealthAlert } from "../../../../store/api/studentRecords.api";
+
+const healthSummary = (a: HealthAlert | null) =>
+  [a?.allergies && `Allergies: ${a.allergies}`, a?.conditions && `Conditions: ${a.conditions}`, a?.emergencyMedicine && `Emergency medicine: ${a.emergencyMedicine}`, a?.dietary && `Diet: ${a.dietary}`]
+    .filter(Boolean)
+    .join(" · ");
 
 const ageOf = (dob?: string | null) => {
   if (!dob) return null;
@@ -56,7 +64,14 @@ const MyStudentsPage = () => {
         <button type="button" className={styles.studentCell} onClick={() => setViewing(s.id)}>
           {s.photoUrl ? <img src={s.photoUrl} alt="" className={styles.thumb} /> : <span className={styles.thumbFallback}>{s.name.charAt(0)}</span>}
           <span>
-            <span className={styles.name}>{s.name}</span>
+            <span className={styles.name}>
+              {s.name}
+              {hasHealthAlert(s.healthAlert) && (
+                <span className={styles.healthFlag} title={healthSummary(s.healthAlert)} aria-label={`Health alert: ${healthSummary(s.healthAlert)}`}>
+                  <Icon name="heart" size={13} />
+                </span>
+              )}
+            </span>
             <span className={styles.muted}>Adm {s.admissionNo}</span>
           </span>
         </button>
@@ -153,41 +168,23 @@ const StudentModal = ({ studentId, onClose }: { studentId: number; onClose: () =
         <p className={styles.muted}>Couldn't load this student.</p>
       ) : (
         <div className={styles.modalBody}>
-          <div className={styles.hero}>
-            <div className={styles.heroTop}>
-              {data.profile.photoUrl ? (
-                <img src={data.profile.photoUrl} alt="" className={styles.heroAvatar} />
-              ) : (
-                <span className={styles.heroAvatar}>{data.profile.name.charAt(0)}</span>
-              )}
-              <div className={styles.heroMain}>
-                <div className={styles.heroName}>{data.profile.name}</div>
-                <div className={styles.heroChips}>
-                  <span className={`${styles.heroChip} ${styles.heroChipStrong}`}>{data.profile.classSection}</span>
-                  {data.profile.rollNo && <span className={styles.heroChip}>Roll {data.profile.rollNo}</span>}
-                  <span className={styles.heroChip}>Adm {data.profile.admissionNo}</span>
-                </div>
-              </div>
-            </div>
-            <div className={styles.heroStats}>
-              {(() => {
-                const pct = data.attendance?.overall.percentage ?? null;
-                const latest = data.exams[0];
-                return (
-                  <>
-                    <button type="button" className={styles.heroStat} onClick={() => setTab("attendance")}>
-                      <span>Attendance</span>
-                      <strong className={pct == null ? "" : pct >= 85 ? styles.good : pct >= 75 ? styles.warn : styles.bad}>{formatPct(pct)}</strong>
-                    </button>
-                    <button type="button" className={styles.heroStat} onClick={() => setTab("exams")}>
-                      <span>{latest ? latest.examName : "Latest exam"}</span>
-                      <strong>{latest?.percentage != null ? `${latest.percentage}%` : "No marks"}</strong>
-                    </button>
-                  </>
-                );
-              })()}
-            </div>
-          </div>
+          <StudentSummaryCard
+            heading="h2"
+            name={data.profile.name}
+            photoUrl={data.profile.photoUrl}
+            classLabel={data.profile.classSection}
+            meta={`${data.profile.rollNo ? `Roll ${data.profile.rollNo} · ` : ""}Adm ${data.profile.admissionNo}`}
+            facts={(() => {
+              const pct = data.attendance?.overall.percentage ?? null;
+              const latest = data.exams[0];
+              return [
+                { label: "Attendance", value: formatPct(pct), tone: pct == null ? undefined : pct >= 85 ? "good" : pct >= 75 ? "warn" : "bad", onClick: () => setTab("attendance") },
+                { label: latest ? latest.examName : "Latest exam", value: latest?.percentage != null ? `${latest.percentage}%` : "No marks", onClick: () => setTab("exams") },
+              ];
+            })()}
+          />
+
+          <HealthAlertBox alert={data.healthAlert} />
 
           <div className={styles.tabs} role="tablist">
             {(["profile", "attendance", "exams"] as const).map((t) => (
@@ -237,7 +234,6 @@ const StudentModal = ({ studentId, onClose }: { studentId: number; onClose: () =
                     [
                       ["Father", data.profile.fatherName, data.access === "CLASS_TEACHER" ? data.profile.fatherContact : null],
                       ["Mother", data.profile.motherName, data.access === "CLASS_TEACHER" ? data.profile.motherContact : null],
-                      ...data.profile.guardians.map((g) => [g.relationship ? `Guardian · ${g.relationship}` : "Guardian", g.name, data.access === "CLASS_TEACHER" ? g.contact : null] as const),
                     ] as ReadonlyArray<readonly [string, string | null | undefined, string | null | undefined]>
                   ).map(([relation, name, phone], i) => (
                     <div key={`${relation}-${i}`} className={card.parent}>

@@ -55,7 +55,7 @@ export interface BillingContext {
   transportAssignments: any[];
   transportHead: { id: number; name: string; code: string };
   concessions: ConcessionContext;
-  transportDueDay?: number; // Fees → Settings → Monthly bills (default 10th)
+  dueDay?: number; // Fees → Settings → Monthly bills (default 10th); one day for the whole bill
 }
 
 const getOrCreateTransportHead = async (db: any) =>
@@ -98,9 +98,9 @@ export const loadBillingContext = async (db: any, studentId: number, sessionId: 
     loadTransportContext(db, studentId),
     getOrCreateTransportHead(db),
     loadConcessionContext(db, studentId),
-    db.feeBillingSetting.findUnique({ where: { id: 1 }, select: { transportDueDay: true } }),
+    db.feeBillingSetting.findUnique({ where: { id: 1 }, select: { dueDay: true } }),
   ]);
-  return { sessionId, student, feeStructure, transportAssignments, transportHead, concessions, transportDueDay: settings?.transportDueDay ?? 10 };
+  return { sessionId, student, feeStructure, transportAssignments, transportHead, concessions, dueDay: settings?.dueDay ?? 10 };
 };
 
 const dayStart = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
@@ -113,6 +113,8 @@ export const computeMonthBill = (ctx: BillingContext, month: number, year: numbe
   const monthStart = new Date(year, month - 1, 1);
   const monthEnd = new Date(year, month, 0);
   const daysInMonth = monthEnd.getDate();
+  // The school bills everything together, so a month's bill has one due date.
+  const dueDate = new Date(year, month - 1, Math.min(ctx.dueDay ?? 10, daysInMonth));
 
   if (!student.isActive) return empty("Student is not active (withdrawn / left)", true);
   const admission = student.admissionDate ? dayStart(new Date(student.admissionDate)) : null;
@@ -141,7 +143,7 @@ export const computeMonthBill = (ctx: BillingContext, month: number, year: numbe
       headName: item.feeHead?.name ?? "Fee",
       code: item.feeHead?.code ?? "FEE",
       amount,
-      dueDate: new Date(year, month - 1, Math.min(item.dueDateDay ?? 10, daysInMonth)),
+      dueDate,
     });
   }
 
@@ -153,7 +155,7 @@ export const computeMonthBill = (ctx: BillingContext, month: number, year: numbe
       headName: ctx.transportHead.name,
       code: ctx.transportHead.code,
       amount: transport,
-      dueDate: new Date(year, month - 1, Math.min(ctx.transportDueDay ?? 10, daysInMonth)),
+      dueDate,
     });
   }
 

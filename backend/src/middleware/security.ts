@@ -47,3 +47,45 @@ export const loginLimiters = [
     message: tooMany,
   }),
 ];
+
+// Forgot password: a code request per account at most 5 times / hour, 30 per address. Each
+// request costs an email/SMS, so these count whether or not they succeed.
+const resetId = (req: Request) => `${String(req.body?.mode ?? "")}:${String(req.body?.identifier ?? "").trim().toLowerCase()}`;
+const limited = (message: string) => ({ success: false, message });
+export const forgotPasswordLimiters = [
+  rateLimit({
+    windowMs: 60 * 60 * 1000,
+    limit: 5,
+    keyGenerator: (req) => `reset-req:${resetId(req)}`,
+    standardHeaders: "draft-7",
+    legacyHeaders: false,
+    message: limited("Too many code requests for this account. Please try again in an hour."),
+  }),
+  rateLimit({
+    windowMs: 60 * 60 * 1000,
+    limit: 30,
+    standardHeaders: "draft-7",
+    legacyHeaders: false,
+    message: limited("Too many code requests. Please try again in an hour."),
+  }),
+];
+// Entering the code: each code already dies after 5 wrong tries; this caps guessing across codes.
+export const resetPasswordLimiters = [
+  rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 10,
+    skipSuccessfulRequests: true,
+    keyGenerator: (req) => `reset-try:${resetId(req)}`,
+    standardHeaders: "draft-7",
+    legacyHeaders: false,
+    message: limited("Too many wrong codes. Please wait 15 minutes and ask for a new code."),
+  }),
+  rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 50,
+    skipSuccessfulRequests: true,
+    standardHeaders: "draft-7",
+    legacyHeaders: false,
+    message: limited("Too many attempts. Please wait 15 minutes and try again."),
+  }),
+];

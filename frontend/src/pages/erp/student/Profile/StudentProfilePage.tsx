@@ -4,9 +4,12 @@ import { Badge, EmptyState, Icon, PageHeader, Spinner } from "../../../../compon
 import { useGetMyStudentProfileQuery } from "../../../../store/api/students.api";
 import { useGetStudentDashboardQuery } from "../../../../store/api/dashboard.api";
 import ChangePasswordCard from "../../../../components/shared/Account/ChangePasswordCard";
+import YourDataCard from "../../../../components/shared/Privacy/YourDataCard";
+import StudentSummaryCard from "../../../../components/shared/StudentSummaryCard/StudentSummaryCard";
 // Same detail cards as the admin and teacher student profiles, so all portals look alike.
 import card from "../../../../components/shared/StudentProfileView/StudentProfileView.module.css";
 import styles from "./StudentProfilePage.module.css";
+import { MyDocuments, MyHealth } from "./MyRecords";
 
 const GENDER: Record<string, string> = { MALE: "Male", FEMALE: "Female", OTHER: "Other" };
 
@@ -103,35 +106,19 @@ const StudentProfilePage = () => {
 
   return (
     <div className={styles.container}>
-      {/* Header card: who I am, my class, my session and class teacher */}
-      <section className={styles.hero}>
-        <div className={styles.heroTop}>
-          {profile.photoUrl ? (
-            <img src={profile.photoUrl} alt="" className={styles.avatar} />
-          ) : (
-            <span className={styles.avatar}>{profile.name.charAt(0).toUpperCase()}</span>
-          )}
-          <div className={styles.heroMain}>
-            <h1 className={styles.name}>{profile.name}</h1>
-            <div className={styles.chips}>
-              {classLabel && <span className={`${styles.chip} ${styles.chipStrong}`}>{classLabel}</span>}
-              {profile.rollNo && <span className={styles.chip}>Roll {profile.rollNo}</span>}
-              <span className={styles.chip}>Adm {profile.admissionNo}</span>
-              <Badge tone={profile.isActive ? "success" : "neutral"}>{profile.isActive ? "Active" : "Inactive"}</Badge>
-            </div>
-          </div>
-        </div>
-        <div className={styles.tiles}>
-          <div className={styles.tile}>
-            <span>Session</span>
-            <strong>{extras?.sessionName ?? "…"}</strong>
-          </div>
-          <div className={styles.tile}>
-            <span>Class teacher</span>
-            <strong>{extras ? extras.classTeacherName ?? "Not assigned" : "…"}</strong>
-          </div>
-        </div>
-      </section>
+      <StudentSummaryCard
+        heading="h1"
+        name={profile.name}
+        photoUrl={profile.photoUrl}
+        classLabel={classLabel}
+        badge={<Badge tone={profile.isActive ? "success" : "neutral"}>{profile.isActive ? "Active" : "Inactive"}</Badge>}
+        facts={[
+          { label: "Admission No", value: profile.admissionNo },
+          { label: "Roll No", value: profile.rollNo || "—" },
+          { label: "Session", value: extras?.sessionName ?? "…" },
+          { label: "Class teacher", value: extras ? extras.classTeacherName ?? "Not assigned" : "…" },
+        ]}
+      />
 
       <p className={styles.officeNote}>
         <Icon name="fileText" size={14} /> This is your school record. To correct anything, please contact the school office.
@@ -156,19 +143,10 @@ const StudentProfilePage = () => {
           </div>
         </InfoCard>
 
-        <InfoCard icon="familyCheck" title="Parents & guardians">
+        <InfoCard icon="familyCheck" title="Parents">
           <div className={card.parents}>
             <Person relation="Father" name={profile.fatherName} phone={profile.fatherContact} />
             <Person relation="Mother" name={profile.motherName} phone={profile.motherContact} />
-            {(extras?.guardians ?? []).map((g, i) => (
-              <Person
-                key={i}
-                relation={g.relationship ? `Guardian · ${g.relationship}` : "Guardian"}
-                name={g.name}
-                phone={g.contact ?? g.email}
-                badge={g.isPrimary ? <Badge tone="primary">Primary</Badge> : undefined}
-              />
-            ))}
           </div>
         </InfoCard>
 
@@ -218,6 +196,16 @@ const StudentProfilePage = () => {
             <Field label="APAAR ID" value={mask(profile.apaarId)} />
           </div>
         </InfoCard>
+
+        <InfoCard icon="heart" title="Health" note="Kept by the school office">
+          <MyHealth />
+        </InfoCard>
+
+        <InfoCard icon="fileText" title="Documents on file">
+          <MyDocuments />
+        </InfoCard>
+
+        <YourDataCard />
 
         <ChangePasswordCard />
       </div>

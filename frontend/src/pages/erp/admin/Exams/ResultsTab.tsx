@@ -25,8 +25,14 @@ const ResultsTab = ({ sessionId }: { sessionId?: number }) => {
     if (c.published.some((p) => p.term === t)) return <Badge tone="success">Published</Badge>;
     if (t === 0) return <span className={styles.admitHint}>—</span>;
     const e = c.examStatus.find((x) => x.term === t);
-    if (!e?.exams) return <span className={styles.admitHint}>No exams</span>;
-    return e.locked === e.exams ? <Badge tone="info">Ready to publish</Badge> : <span className={styles.admitHint}>Marks open ({e.locked}/{e.exams} locked)</span>;
+    if (!e?.exams) return <span className={styles.admitHint}>—</span>;
+    return e.locked === e.exams ? (
+      <Badge tone="info">Ready to publish</Badge>
+    ) : (
+      <Badge tone="neutral">
+        Marks open · {e.locked}/{e.exams} locked
+      </Badge>
+    );
   };
   const toggle = (id: number) => setPicked((p) => {
     const n = new Set(p);
@@ -119,7 +125,7 @@ const ResultsTab = ({ sessionId }: { sessionId?: number }) => {
                       <>
                         <td>{status(c, 1)}</td>
                         <td colSpan={2}>
-                          <span className={styles.admitHint}>One result for the year</span>
+                          <Badge tone="neutral">Yearly result</Badge>
                         </td>
                       </>
                     ) : (

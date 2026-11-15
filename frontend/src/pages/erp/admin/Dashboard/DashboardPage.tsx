@@ -126,7 +126,6 @@ const DashboardPage = () => {
         <StatCard label="Active students" value={data.studentCount} icon={<Icon name="graduationCap" />} />
         <StatCard label="Staff" value={data.staffCount} icon={<Icon name="users" />} />
         <StatCard label="Class sections" value={data.classSectionCount} icon={<Icon name="layers" />} />
-        <StatCard label="Families" value={data.parentCount} icon={<Icon name="familyCheck" />} />
       </div>
 
       {/* TODAY */}

@@ -138,18 +138,24 @@ const ClassResultView = ({ classSectionId, onBack }: { classSectionId: number; o
           {incomplete > 0 && !data.published && (
             <div className={styles.resultWarn}>
               <strong>
-                {incomplete} student{incomplete === 1 ? " has" : "s have"} missing marks.
-              </strong>{" "}
+                {incomplete} student{incomplete === 1 ? " has" : "s have"} missing marks
+              </strong>
               {missing.length > 0 ? (
-                <ul className={styles.missingList}>
-                  {missing.map((m) => (
-                    <li key={m.subject}>
-                      <b>{m.subject}</b>: {m.students} student{m.students === 1 ? "" : "s"} ({m.parts})
-                    </li>
-                  ))}
-                </ul>
+                <>
+                  <div className={styles.missingChips}>
+                    {missing.map((m) => (
+                      <span key={m.subject} className={styles.missingChip} title={m.parts}>
+                        {m.subject} <b>{m.students}</b>
+                      </span>
+                    ))}
+                  </div>
+                  {(() => {
+                    const parts = [...new Set(missing.flatMap((m) => m.parts.split(", ")))];
+                    return <small className={styles.missingParts}>Missing: {parts.join(", ")}</small>;
+                  })()}
+                </>
               ) : (
-                "Their result shows as incomplete."
+                " Their result shows as incomplete."
               )}
             </div>
           )}

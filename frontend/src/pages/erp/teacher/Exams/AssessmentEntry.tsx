@@ -95,12 +95,24 @@ const AssessmentEntry = ({ classSectionId, subject, terms, onBack }: { classSect
         <EmptyState title="Couldn't load the marks" action={<Button onClick={() => refetch()}>Retry</Button>} />
       ) : (
         <>
-          <div className={styles.notice}>
-            Out of <b>{data.scheme.paMax}</b>:{" "}
-            {data.scheme.paComponents.map((c) => `${c.label} ${c.max}${c.source === "TESTS" ? (c.rule === "BEST" ? ` (best ${c.best ?? 2} tests)` : " (average of tests)") : ""}`).join(" + ")}.
-            {" "}Periodic tests counted: {data.exams.tests.join(", ") || "none yet"}. Type a final mark to adjust a student&apos;s total; leave it empty to use the suggested one.
-            {data.published && <b> The result is published, so these marks can&apos;t change now.</b>}
+          <div className={styles.formula}>
+            <span className={styles.formulaTotal}>
+              Out of <b>{data.scheme.paMax}</b> =
+            </span>
+            {data.scheme.paComponents.map((c, i) => (
+              <span key={c.key} className={styles.formulaPart}>
+                {i > 0 && <span className={styles.formulaPlus}>+</span>}
+                <span className={styles.formulaChip}>
+                  {c.label} <b>{c.max}</b>
+                  {c.source === "TESTS" && <small>{c.rule === "BEST" ? `best ${c.best ?? 2}` : "average"}</small>}
+                </span>
+              </span>
+            ))}
           </div>
+          <p className={styles.formulaHint}>
+            Tests counted: {data.exams.tests.join(", ") || "none yet"} · Type a final mark only to change the suggested one.
+          </p>
+          {data.published && <div className={styles.notice}>The result is published, so these marks can&apos;t change now.</div>}
           <section className={styles.panel} style={{ overflowX: "auto" }}>
             <table className={styles.paTable}>
               <thead>

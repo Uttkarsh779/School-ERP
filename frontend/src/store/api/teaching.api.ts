@@ -1,4 +1,5 @@
 import { erpApi } from "./erpApi";
+import type { HealthAlert } from "./studentRecords.api";
 import type { StudentHistory } from "./students.api";
 
 interface ApiEnvelope<T> {
@@ -23,6 +24,7 @@ export interface ClassRoster {
     attendanceMonth: number | null;
     attendanceOverall: number | null;
     latestExam: { percentage: number | null; status: string; rank: number | null } | null;
+    healthAlert: HealthAlert | null; // allergies, conditions, emergency medicine, diet
   }>;
 }
 
@@ -46,8 +48,8 @@ export interface TeacherStudentOverview {
     motherContact: string | null;
     contactNumber: string | null;
     address: string | null;
-    guardians: Array<{ name: string; relationship: string | null; contact: string | null; email: string | null }>;
   };
+  healthAlert: HealthAlert | null;
   attendance: StudentHistory["attendance"] | null;
   // Class teachers get full rows; subject teachers get only their subjects (no totals/rank).
   exams: Array<Partial<ExamHistoryRow> & Pick<ExamHistoryRow, "examId" | "examName" | "sessionName" | "className" | "subjects">>;

@@ -1,0 +1,247 @@
+/* Exam group card on the coordinator's page: badges for type/term, a stacked progress bar of
+   where the classes stand (published / locked / open), real buttons for the group actions,
+   and button-looking actions on each class row. */
+
+.head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 300px) 15.5rem;
+  align-items: center;
+  gap: 0.75rem 1.25rem;
+  padding: 0.75rem 1rem 0.75rem 0.5rem;
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+  padding: 0.35rem 0.5rem;
+  border: none;
+  border-radius: var(--erp-radius-sm);
+  background: none;
+  font: inherit;
+  text-align: left;
+  color: var(--erp-text);
+  cursor: pointer;
+}
+.toggle:hover {
+  background: var(--erp-bg);
+}
+.chev {
+  flex: none;
+  color: var(--erp-text-muted);
+  transition: transform 0.15s ease;
+}
+.chevOpen {
+  composes: chev;
+  transform: rotate(90deg);
+}
+.titleBlock {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.titleBlock strong {
+  font-size: 1rem;
+  line-height: 1.25;
+}
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+.deadline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.76rem;
+  color: var(--erp-text-muted);
+}
+.deadlineLate {
+  composes: deadline;
+  color: var(--erp-danger);
+  font-weight: 700;
+}
+
+/* Where the classes stand. */
+.progress {
+  min-width: 0;
+}
+.progressTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-bottom: 0.3rem;
+  font-size: 0.78rem;
+  color: var(--erp-text-muted);
+}
+.progressTop b {
+  color: var(--erp-text);
+  font-size: 0.86rem;
+}
+.bar {
+  display: flex;
+  height: 8px;
+  border-radius: 99px;
+  background: var(--erp-bg);
+  overflow: hidden;
+}
+.barPublished {
+  background: var(--erp-success);
+}
+.barLocked {
+  background: var(--erp-warning);
+}
+.barReady {
+  background: var(--erp-info);
+}
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem 0.7rem;
+  margin-top: 0.35rem;
+  font-size: 0.74rem;
+  color: var(--erp-text-muted);
+}
+.legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  white-space: nowrap;
+}
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.actions {
+  display: flex;
+  gap: 0.4rem;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.classTestNote {
+  font-size: 0.8rem;
+  color: var(--erp-text-muted);
+}
+
+/* Class rows inside an open group. */
+.rowActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  justify-content: flex-end;
+}
+.rowBtn {
+  min-height: 2rem;
+  padding: 0 0.7rem;
+  border: 1px solid var(--erp-border);
+  border-radius: var(--erp-radius-sm);
+  background: var(--erp-surface);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--erp-text);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.rowBtn:hover:not(:disabled) {
+  border-color: var(--erp-primary-500);
+  color: var(--erp-primary-700);
+  background: var(--erp-primary-50);
+}
+.rowBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.rowBtnDanger {
+  composes: rowBtn;
+  color: var(--erp-danger);
+}
+.rowBtnDanger:hover:not(:disabled) {
+  border-color: var(--erp-danger);
+  color: var(--erp-danger);
+  background: var(--erp-danger-bg);
+}
+
+/* "More" menu on a class row. */
+.menuWrap {
+  position: relative;
+  display: inline-flex;
+}
+.rowBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+.menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  min-width: 13rem;
+  padding: 0.3rem;
+  border: 1px solid var(--erp-border);
+  border-radius: var(--erp-radius-md);
+  background: var(--erp-surface);
+  box-shadow: var(--erp-shadow-lg);
+}
+.menuItem {
+  padding: 0.55rem 0.7rem;
+  border: none;
+  border-radius: var(--erp-radius-sm);
+  background: none;
+  font: inherit;
+  font-size: 0.86rem;
+  text-align: left;
+  color: var(--erp-text);
+  cursor: pointer;
+}
+.menuItem:hover:not(:disabled) {
+  background: var(--erp-bg);
+  color: var(--erp-primary-700);
+}
+.menuItem:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.menuItemDanger {
+  composes: menuItem;
+  color: var(--erp-danger);
+}
+.menuItemDanger:hover:not(:disabled) {
+  background: var(--erp-danger-bg);
+  color: var(--erp-danger);
+}
+
+@media (max-width: 900px) {
+  .head {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 0.6rem 0.85rem 0.85rem 0.4rem;
+  }
+  .progress,
+  .actions {
+    padding-left: 2.2rem;
+  }
+  .actions {
+    justify-content: flex-start;
+  }
+}
+@media (max-width: 760px) {
+  .rowActions {
+    justify-content: flex-start;
+  }
+  .menu {
+    left: 0;
+    right: auto;
+  }
+}

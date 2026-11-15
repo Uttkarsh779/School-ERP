@@ -3,6 +3,7 @@ import { Badge, Button, Icon } from "../../../../components/ui";
 import { EXAM_TYPE_LABEL, type PlanGroup } from "../../../../store/api/examPlan.api";
 import { classLabelOf, STATUS_LABEL, statusOf } from "./examStatus";
 import styles from "./AdminExamsPage.module.css";
+import ui from "./ExamGroupCard.module.css";
 
 // One planned exam on the coordinator's page: a header with where every class stands and the
 // actions for all of them, opening onto one row per class.
@@ -46,6 +47,7 @@ interface Props extends ExamRowActions {
 
 const ExamGroupCard = ({ group, open, onToggle, coordinator, publisher, lockingId, onEdit, onLockAll, onPublishAll, ...row }: Props) => {
   const [shown, setShown] = useState(PAGE);
+  const [menuFor, setMenuFor] = useState<number | null>(null);
   const classTests = group.type === "CLASS_TEST";
   const count = group.exams.length;
   const locked = group.exams.filter((e) => e.isLocked).length;
@@ -53,55 +55,99 @@ const ExamGroupCard = ({ group, open, onToggle, coordinator, publisher, lockingI
   const ready = group.exams.filter((e) => e.readyAt && !e.isLocked).length;
   const toLock = group.exams.filter((e) => !e.isLocked);
   const toPublish = group.exams.filter((e) => !e.resultsPublished && (e._count?.results ?? 0) > 0);
+  const lockedOnly = Math.max(0, locked - published);
+  const entering = Math.max(0, count - locked - ready);
   const overdue = !!group.marksDeadline && new Date(group.marksDeadline) < new Date() && locked < count;
 
   return (
     <section className={styles.group}>
-      <div className={styles.groupHead}>
-        <button type="button" className={styles.groupToggle} aria-expanded={open} onClick={onToggle}>
-          <Icon name="chevronRight" size={18} className={open ? styles.groupChevOpen : styles.groupChev} />
-          <span className={styles.groupMain}>
+      <div className={ui.head}>
+        <button type="button" className={ui.toggle} aria-expanded={open} onClick={onToggle}>
+          <Icon name="chevronRight" size={18} className={open ? ui.chevOpen : ui.chev} />
+          <span className={ui.titleBlock}>
             <strong>{classTests ? "Class tests" : group.name}</strong>
-            <span className={styles.examMeta}>
+            <span className={ui.badges}>
               {classTests ? (
-                <span>Set by subject teachers · progress only</span>
+                <span className={ui.classTestNote}>Set by subject teachers · not counted in results</span>
               ) : (
                 <>
-                  <span>{EXAM_TYPE_LABEL[group.type]}</span>
-                  <span>Term {group.term}</span>
-                  {group.marksDeadline && <span className={overdue ? styles.overdue : undefined}>Marks by {shortDate(group.marksDeadline)}</span>}
+                  <Badge tone={group.type === "TERM_EXAM" ? "primary" : "info"}>{EXAM_TYPE_LABEL[group.type]}</Badge>
+                  <Badge tone="neutral">Term {group.term}</Badge>
+                  {group.marksDeadline && (
+                    <span className={overdue ? ui.deadlineLate : ui.deadline}>
+                      <Icon name="calendar" size={13} />
+                      {overdue ? "Marks overdue since" : "Marks by"} {shortDate(group.marksDeadline)}
+                    </span>
+                  )}
                 </>
               )}
             </span>
           </span>
         </button>
-        <div className={styles.groupStats}>
-          <span>
-            {count} {classTests ? "test" : "class"}
-            {count === 1 ? "" : classTests ? "s" : "es"}
-          </span>
-          {!classTests && ready > 0 && <span className={styles.readyPill}>✓ {ready} ready</span>}
-          {!classTests && locked > 0 && <span>{locked} locked</span>}
-          {!classTests && published > 0 && <span>{published} published</span>}
-        </div>
-        {!classTests && (
-          <div className={styles.groupActions}>
+
+        {classTests ? (
+          <div className={ui.progress}>
+            <div className={ui.progressTop}>
+              <span>
+                <b>{count}</b> test{count === 1 ? "" : "s"}
+              </span>
+            </div>
+          </div>
+        ) : (
+          <div className={ui.progress} aria-label={`${published} of ${count} classes published, ${lockedOnly} locked, ${ready} marked ready`}>
+            <div className={ui.progressTop}>
+              <span>
+                <b>{published}</b> of {count} {count === 1 ? "class" : "classes"} published
+              </span>
+            </div>
+            <div className={ui.bar}>
+              <span className={ui.barPublished} style={{ width: `${(published / count) * 100}%` }} />
+              <span className={ui.barLocked} style={{ width: `${((lockedOnly) / count) * 100}%` }} />
+              <span className={ui.barReady} style={{ width: `${(ready / count) * 100}%` }} />
+            </div>
+            <div className={ui.legend}>
+              {lockedOnly > 0 && (
+                <span>
+                  <i className={ui.dot} style={{ background: "var(--erp-warning)" }} />
+                  {lockedOnly} locked
+                </span>
+              )}
+              {ready > 0 && (
+                <span>
+                  <i className={ui.dot} style={{ background: "var(--erp-info)" }} />
+                  {ready} ready to lock
+                </span>
+              )}
+              {entering > 0 && (
+                <span>
+                  <i className={ui.dot} style={{ background: "var(--erp-border)" }} />
+                  {entering} entering marks
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {!classTests ? (
+          <div className={ui.actions}>
             {coordinator && group.plan && (
-              <button type="button" className={styles.quietBtn} onClick={() => onEdit(group.plan!)}>
+              <Button size="sm" variant="ghost" onClick={() => onEdit(group.plan!)}>
                 Edit
-              </button>
+              </Button>
             )}
             {coordinator && toLock.length > 0 && count > 1 && (
-              <button type="button" className={styles.quietBtn} onClick={() => onLockAll(toLock)}>
+              <Button size="sm" variant="outline" onClick={() => onLockAll(toLock)}>
                 Lock all
-              </button>
+              </Button>
             )}
             {publisher && toPublish.length > 0 && count > 1 && (
-              <button type="button" className={styles.quietBtn} onClick={() => onPublishAll(toPublish)}>
+              <Button size="sm" onClick={() => onPublishAll(toPublish)}>
                 Publish all
-              </button>
+              </Button>
             )}
           </div>
+        ) : (
+          <span />
         )}
       </div>
 
@@ -127,35 +173,60 @@ const ExamGroupCard = ({ group, open, onToggle, coordinator, publisher, lockingI
                     {!isClassTest && !noPapers && !hasDateSheet(exam) && <span>No date sheet yet</span>}
                   </div>
                 </div>
-                <div className={styles.examActions}>
-                  <div className={styles.quiet}>
-                    <button type="button" className={styles.quietBtn} onClick={() => row.onProgress(exam)}>
+                <div className={ui.rowActions}>
+                  <>
+                    <button type="button" className={ui.rowBtn} onClick={() => row.onProgress(exam)}>
                       Progress
                     </button>
-                    <button type="button" className={styles.quietBtn} onClick={() => row.onResults(exam)}>
+                    <button type="button" className={ui.rowBtn} onClick={() => row.onResults(exam)}>
                       Results
                     </button>
-                    {coordinator && !isClassTest && (
-                      <button type="button" className={styles.quietBtn} onClick={() => row.onMaxMarks(exam)}>
-                        Max marks
-                      </button>
-                    )}
-                    {coordinator && !isClassTest && (
-                      <button type="button" className={styles.quietBtn} onClick={() => row.onDateSheet(exam)}>
-                        {exam.admitCard ? "Date sheet & cards" : "Date sheet"}
-                      </button>
-                    )}
-                    {coordinator && !isClassTest && status !== "published" && (
-                      <button type="button" className={styles.quietBtn} disabled={lockingId === exam.id} onClick={() => row.onLock(exam)}>
-                        {exam.isLocked ? "Unlock" : "Lock"}
-                      </button>
-                    )}
-                    {coordinator && marks === 0 && status !== "published" && (
-                      <button type="button" className={styles.quietBtn} onClick={() => row.onDelete(exam)}>
-                        Delete
-                      </button>
-                    )}
-                  </div>
+                    {(() => {
+                      // Less frequent actions live in a small menu so each row stays calm.
+                      const more = [
+                        coordinator && !isClassTest && { label: "Max marks", run: () => row.onMaxMarks(exam) },
+                        coordinator && !isClassTest && { label: exam.admitCard ? "Date sheet & admit cards" : "Date sheet", run: () => row.onDateSheet(exam) },
+                        coordinator && !isClassTest && status !== "published" && { label: exam.isLocked ? "Unlock marks" : "Lock marks", run: () => row.onLock(exam), disabled: lockingId === exam.id },
+                        coordinator && marks === 0 && status !== "published" && { label: "Delete", run: () => row.onDelete(exam), danger: true },
+                      ].filter(Boolean) as { label: string; run: () => void; disabled?: boolean; danger?: boolean }[];
+                      if (!more.length) return null;
+                      const isOpen = menuFor === exam.id;
+                      return (
+                        <span className={ui.menuWrap}>
+                          <button
+                            type="button"
+                            className={ui.rowBtn}
+                            aria-haspopup="menu"
+                            aria-expanded={isOpen}
+                            onClick={() => setMenuFor(isOpen ? null : exam.id)}
+                            onBlur={() => setTimeout(() => setMenuFor((m) => (m === exam.id ? null : m)), 150)}
+                          >
+                            More <Icon name="chevronDown" size={14} />
+                          </button>
+                          {isOpen && (
+                            <span className={ui.menu} role="menu">
+                              {more.map((m) => (
+                                <button
+                                  key={m.label}
+                                  type="button"
+                                  role="menuitem"
+                                  className={m.danger ? ui.menuItemDanger : ui.menuItem}
+                                  disabled={m.disabled}
+                                  onMouseDown={(e) => e.preventDefault()}
+                                  onClick={() => {
+                                    setMenuFor(null);
+                                    m.run();
+                                  }}
+                                >
+                                  {m.label}
+                                </button>
+                              ))}
+                            </span>
+                          )}
+                        </span>
+                      );
+                    })()}
+                  </>
                   {publisher && !isClassTest && (
                     <Button
                       type="button"

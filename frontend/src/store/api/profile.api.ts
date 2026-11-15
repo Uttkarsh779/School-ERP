@@ -52,7 +52,8 @@ export const profileApi = erpApi.injectEndpoints({
       transformResponse: (res: ApiEnvelope<MyProfile>) => res.data,
       invalidatesTags: ["Profile", "Staff"],
     }),
-    changePassword: builder.mutation<void, { currentPassword: string; newPassword: string }>({
+    // Signs out other devices; the response carries fresh tokens for this one.
+    changePassword: builder.mutation<{ success: boolean; data: { accessToken: string; refreshToken: string } }, { currentPassword: string; newPassword: string }>({
       query: (body) => ({ url: "profile/change-password", method: "POST", body }),
     }),
   }),

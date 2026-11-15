@@ -66,6 +66,25 @@ const refreshSession = async (api: BaseQueryApi, extraOptions: object): Promise<
 
 const urlOf = (args: string | FetchArgs) => (typeof args === "string" ? args : args.url) ?? "";
 
+// Every failure reaches the screens as { data: { message } } with words a person can use, so a
+// browser error ("TypeError: Failed to fetch") or a proxy's HTML page is never shown.
+const SERVER_DOWN = "Can't reach the server. Check your connection and try again.";
+const SERVER_ERROR = "Something went wrong on the server. Please try again.";
+
+const friendlyError = (error: any) => {
+  if (typeof error.status === "string" && error.status !== "PARSING_ERROR") return { ...error, error: SERVER_DOWN, data: { message: SERVER_DOWN } };
+  if (typeof error.data === "object" && error.data !== null) return error;
+  // A text response: our own JSON read as text by a download, or someone else's error page.
+  let message = SERVER_ERROR;
+  try {
+    const parsed = JSON.parse(String(error.data));
+    if (typeof parsed?.message === "string") message = parsed.message;
+  } catch {
+    // Not ours; keep the general message.
+  }
+  return { status: error.originalStatus ?? error.status, data: { message } };
+};
+
 // 401 = the session is missing/expired: refresh once and retry; end the session only if the
 // refresh fails. 403 = signed in but not allowed to do this — just an error, never a logout.
 export const baseQueryWithReauth = async (
@@ -87,5 +106,6 @@ export const baseQueryWithReauth = async (
     }
   }
 
+  if (result.error) result = { ...result, error: friendlyError(result.error) };
   return result;
 };

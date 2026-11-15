@@ -359,7 +359,7 @@ export const feesApi = erpApi.injectEndpoints({
       transformResponse: (res: ApiEnvelope<BillingSettings>) => res.data,
       providesTags: feeTags,
     }),
-    updateBillingSettings: builder.mutation<BillingSettings, Partial<Pick<BillingSettings, "autoGenerate" | "generateDay" | "transportDueDay">>>({
+    updateBillingSettings: builder.mutation<BillingSettings, Partial<Pick<BillingSettings, "autoGenerate" | "generateDay" | "dueDay">>>({
       query: (body) => ({ url: "fees/billing-settings", method: "PUT", body }),
       transformResponse: (res: ApiEnvelope<BillingSettings>) => res.data,
       invalidatesTags: feeTags,
@@ -409,7 +409,7 @@ export const feesApi = erpApi.injectEndpoints({
 export interface BillingSettings {
   autoGenerate: boolean;
   generateDay: number;
-  transportDueDay: number;
+  dueDay: number;
   lastAutoRunPeriod: string | null;
   lastAutoRunAt: string | null;
   lastAutoRunSummary: string | null;

@@ -1,11 +1,12 @@
 import express, { type Application, type Request, type Response, type NextFunction } from "express";
 import { applySecurity } from "./middleware/security";
 import authRouter from "./modules/auth/routes";
+import privacyRouter from "./modules/privacy/routes";
+import exportsRouter from "./modules/exports/routes";
 import sessionsRouter from "./modules/sessions/routes";
 import staffRouter from "./modules/staff/routes";
 import classSectionsRouter from "./modules/classSections/routes";
 import studentsRouter from "./modules/students/routes";
-import parentsRouter from "./modules/parents/routes";
 import dashboardRouter from "./modules/dashboard/routes";
 import teacherDashboardRouter from "./modules/dashboard/teacherRoutes";
 import studentDashboardRouter from "./modules/dashboard/studentRoutes";
@@ -27,6 +28,8 @@ import profileRouter from "./modules/profile/routes";
 import teachingRouter from "./modules/teaching/routes";
 import leavesRouter from "./modules/leaves/routes";
 import certificatesRouter from "./modules/certificates/routes";
+import studentRecordsRouter from "./modules/studentRecords/routes";
+import inventoryRouter from "./modules/inventory/routes";
 import notificationsRouter from "./modules/notifications/routes";
 import accountsRouter from "./modules/accounts/routes";
 import calendarRouter from "./modules/calendar/routes";
@@ -51,11 +54,12 @@ app.use("/api/upload", uploadRouter);
 app.use("/api/public", publicCmsRouter);
 app.use("/api/admin/cms", adminCmsRouter);
 app.use("/api/users", authRouter);
+app.use("/api/privacy", privacyRouter);
+app.use("/api/exports", exportsRouter);
 app.use("/api/sessions", sessionsRouter);
 app.use("/api/staff", staffRouter);
 app.use("/api/class-sections", classSectionsRouter);
 app.use("/api/students", studentsRouter);
-app.use("/api/parents", parentsRouter);
 app.use("/api/dashboard/student", studentDashboardRouter); // must precede the admin-only dashboard router
 app.use("/api/dashboard/teacher", teacherDashboardRouter); // must precede the admin-only dashboard router
 app.use("/api/dashboard", dashboardRouter);
@@ -74,6 +78,8 @@ app.use("/api/profile", profileRouter); // the caller's own account
 app.use("/api/teaching", teachingRouter); // TEACHER only
 app.use("/api/leaves", leavesRouter);
 app.use("/api/certificates", certificatesRouter); // office and Principal
+app.use("/api/student-records", studentRecordsRouter); // documents + health · office, Principal; /me for families
+app.use("/api/inventory", inventoryRouter); // school stock · office and Accountant
 app.use("/api/notifications", notificationsRouter); // the caller's own
 app.use("/api/accounts", accountsRouter); // office and Accountant
 app.use("/api/calendar", calendarRouter); // view: everyone · manage: office and Principal
@@ -81,6 +87,7 @@ app.use("/api/settings", settingsRouter); // signature/seal for printouts · cha
 app.use("/api/backups", backupRouter); // database backups · Super Admin
 
 import { runFullResetAndSeed } from "./config/seed";
+import { publicError } from "./utils/publicError";
 
 // Base route
 app.get("/", (req: Request, res: Response) => {
@@ -102,14 +109,20 @@ app.post("/api/seed-reset", authenticateToken, authorizeRoles(["SUPER_ADMIN"]), 
   }
 });
 
+// An address that doesn't exist answers in JSON like everything else.
+app.use("/api", (_req: Request, res: Response) => {
+  res.status(404).json({ success: false, message: "Not found" });
+});
+
 // Catch-all error handler — must be registered last. Every route is wrapped in
 // asyncHandler, which forwards thrown/rejected errors here instead of crashing
 // the process on an unhandled rejection.
 app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
   console.error(err);
-  const message = err?.message || "Internal server error";
-  const statusCode = err?.statusCode || err?.status || 400;
-  res.status(statusCode).json({ success: false, message });
+  if (res.headersSent) return _next(err);
+  // Only messages we wrote go to the user; see utils/publicError.ts.
+  const { status, message } = publicError(err);
+  res.status(status).json({ success: false, message });
 });
 
 export default app;

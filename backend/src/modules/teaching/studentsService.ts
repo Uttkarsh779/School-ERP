@@ -5,6 +5,7 @@ import { listAllocatedSubjectIds } from "../subjects/service";
 import { getStudentHistory } from "../students/historyService";
 import { getExamAnalysis } from "../exams/analysisService";
 import { percentage } from "../attendance/reportService";
+import { healthAlertsFor } from "../studentRecords/healthService";
 
 // "My Students" for teachers.
 // - Class teacher of a class: full view of its students (contacts, attendance, all marks).
@@ -50,12 +51,13 @@ export const getClassRoster = async (userId: number, classSectionId: number) => 
   ]);
   const ids = students.map((s: any) => s.id);
 
-  const [monthRows, overallRows, latestExam] = await Promise.all([
+  const [monthRows, overallRows, latestExam, alerts] = await Promise.all([
     ids.length
       ? prisma.attendance.groupBy({ by: ["studentId", "status"], where: { studentId: { in: ids }, date: { gte: istMonthStart() } }, _count: { _all: true } })
       : [],
     ids.length ? prisma.attendance.groupBy({ by: ["studentId", "status"], where: { studentId: { in: ids } }, _count: { _all: true } }) : [],
     prisma.exam.findFirst({ where: { classSectionId, results: { some: {} } }, orderBy: { id: "desc" }, select: { id: true, name: true } }),
+    healthAlertsFor(ids),
   ]);
 
   const tally = (rows: any[]) => {
@@ -104,6 +106,8 @@ export const getClassRoster = async (userId: number, classSectionId: number) => 
         attendanceMonth: mo ? percentage(mo.present, mo.marked) : null,
         attendanceOverall: ov ? percentage(ov.present, ov.marked) : null,
         latestExam: examByStudent.get(s.id) ?? null,
+        // Allergies, conditions, emergency medicine, diet — so the teacher knows (office keeps the rest).
+        healthAlert: alerts.get(s.id) ?? null,
       };
     }),
   };
@@ -114,14 +118,13 @@ export const getStudentOverviewForTeacher = async (userId: number, studentId: nu
     where: { id: studentId },
     include: {
       classSection: { select: { id: true, className: true, section: true } },
-      parents: { include: { parent: { select: { name: true, contact: true, email: true } } } },
     },
   });
   if (!student) throw httpError(404, "Student not found");
   const access = await resolveTeacherAccess(userId, student.classSectionId);
   if (!access) throw httpError(403, "You don't teach this student's class");
 
-  const history = await getStudentHistory(studentId);
+  const [history, alerts] = await Promise.all([getStudentHistory(studentId), healthAlertsFor([studentId])]);
   const isClassTeacher = access.mode === "CLASS_TEACHER";
 
   // Subject teachers: only exams' marks for their own subjects, no ranks/totals across subjects.
@@ -158,10 +161,8 @@ export const getStudentOverviewForTeacher = async (userId: number, studentId: nu
       motherContact: isClassTeacher ? student.motherContact : null,
       contactNumber: isClassTeacher ? student.contactNumber : null,
       address: isClassTeacher ? student.address : null,
-      guardians: isClassTeacher
-        ? student.parents.map((p: any) => ({ name: p.parent?.name, relationship: p.relationshipType, contact: p.parent?.contact, email: p.parent?.email }))
-        : [],
     },
+    healthAlert: alerts.get(studentId) ?? null,
     attendance: history?.attendance ?? null,
     exams: exams.filter((e: any) => isClassTeacher || e.subjects.length > 0),
   };

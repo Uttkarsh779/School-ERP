@@ -227,6 +227,65 @@ thead .stickyCol2 {
   flex-shrink: 0;
 }
 
+/* The five steps an exam goes through, as a numbered strip (scrolls sideways on phones). */
+.flowSteps {
+  list-style: none;
+  margin: 0;
+  padding: 0.7rem 0.9rem;
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  border-radius: var(--erp-radius-md);
+  background: var(--erp-surface);
+  border: 1px solid var(--erp-border);
+  scrollbar-width: none;
+}
+.flowSteps::-webkit-scrollbar {
+  display: none;
+}
+.flowSteps li {
+  flex: 1 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: max-content;
+}
+.flowSteps li:not(:last-child)::after {
+  content: "";
+  flex: 1 1 1rem;
+  min-width: 0.75rem;
+  height: 2px;
+  margin-left: 0.25rem;
+  border-radius: 2px;
+  background: var(--erp-border);
+}
+.flowNum {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 50%;
+  background: var(--erp-primary-50);
+  color: var(--erp-primary-700);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+.flowText {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.flowText b {
+  font-size: 0.82rem;
+  color: var(--erp-text);
+}
+.flowText small {
+  font-size: 0.72rem;
+  color: var(--erp-text-muted);
+}
+
 .filterBar {
   display: grid;
   grid-template-columns: minmax(0, 2fr) repeat(2, minmax(0, 1fr));
@@ -840,7 +899,8 @@ thead .stickyCol2 {
   border: 1px solid var(--erp-border);
   border-radius: var(--erp-radius-lg);
   box-shadow: var(--erp-shadow-sm);
-  overflow: hidden;
+  /* visible: a class row's "More" menu may hang below the card */
+  overflow: visible;
 }
 
 .groupHead {
@@ -970,6 +1030,36 @@ thead .stickyCol2 {
 .missingList {
   margin: 0.35rem 0 0;
   padding-left: 1.1rem;
+}
+
+/* Missing marks on a class result: one chip per subject (count of students). */
+.missingChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0.5rem 0 0.35rem;
+}
+.missingChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.18rem 0.55rem;
+  border-radius: 99px;
+  background: var(--erp-surface);
+  border: 1px solid var(--erp-warning);
+  font-size: 0.8rem;
+}
+.missingChip b {
+  min-width: 1.2rem;
+  padding: 0 0.3rem;
+  border-radius: 99px;
+  background: var(--erp-warning-bg);
+  text-align: center;
+}
+.missingParts {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--erp-text-muted);
 }
 
 .fillRow {

@@ -27,6 +27,12 @@ export const timetableApi = erpApi.injectEndpoints({
       transformResponse: (res: ApiEnvelope<ITimetableSlot[]>) => res.data,
       providesTags: ["Timetable"],
     }),
+    // Every class's periods this session (office: print all classes / all teachers).
+    getAllTimetables: builder.query<ITimetableSlot[], void>({
+      query: () => "timetable/all",
+      transformResponse: (res: ApiEnvelope<ITimetableSlot[]>) => res.data,
+      keepUnusedDataFor: 0,
+    }),
     // `warning` is set when the period's teacher isn't the subject's allocated teacher.
     upsertTimetableSlot: builder.mutation<ITimetableSlot & { warning?: string }, UpsertTimetableSlotInput>({
       query: (body) => ({ url: "timetable", method: "POST", body }),
@@ -43,6 +49,7 @@ export const timetableApi = erpApi.injectEndpoints({
 export const {
   useGetClassTimetableQuery,
   useGetMyTimetableQuery,
+  useLazyGetAllTimetablesQuery,
   useUpsertTimetableSlotMutation,
   useDeleteTimetableSlotMutation,
 } = timetableApi;

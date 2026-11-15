@@ -349,4 +349,5 @@ export const {
   useGetTermRemarksQuery,
   useSaveTermRemarksMutation,
   useGetDateSheetsQuery,
+  useLazyGetDateSheetsQuery,
 } = examPlanApi;

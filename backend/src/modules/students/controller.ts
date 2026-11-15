@@ -5,7 +5,6 @@ import { Gender, StudentCategory } from "../../generated/prisma/enums";
 import { getCurrentSession } from "../sessions/service";
 import { findStaffByUserId } from "../staff/service";
 import { isClassTeacherOfSection } from "../classSections/service";
-import { isParentLinkedToStudent } from "../parents/service";
 import { hashPassword } from "../../utils/password";
 import {
   createStudent,
@@ -19,6 +18,7 @@ import {
   type StudentProfileFields,
 } from "./service";
 import { isSchoolWide } from "../../config/permissions";
+import { publicMessage } from "../../utils/publicError";
 
 // Pulls the optional profile fields (family/govt-ID/address details) out of a request
 // body, converting dates and validating the two enum fields. Shared by the single-create,
@@ -108,11 +108,6 @@ export const getStudent = async (req: CustomRequest, res: Response): Promise<voi
       res.status(403).json({ success: false, message: "Forbidden" });
       return;
     }
-  } else if (role === "PARENT") {
-    if (!(await isParentLinkedToStudent(req.user!.id, student.id))) {
-      res.status(403).json({ success: false, message: "Forbidden" });
-      return;
-    }
   } else if (role === "STUDENT") {
     if (student.userId !== req.user!.id) {
       res.status(403).json({ success: false, message: "Forbidden" });
@@ -137,7 +132,7 @@ export const postStudent = async (req: CustomRequest, res: Response): Promise<vo
   try {
     profileFields = parseProfileFields(req.body);
   } catch (error) {
-    res.status(400).json({ success: false, message: (error as Error).message });
+    res.status(400).json({ success: false, message: publicMessage(error, "Some of the student's details aren't valid") });
     return;
   }
 
@@ -158,7 +153,7 @@ export const patchStudent = async (req: CustomRequest, res: Response): Promise<v
   try {
     profileFields = parseProfileFields(req.body);
   } catch (error) {
-    res.status(400).json({ success: false, message: (error as Error).message });
+    res.status(400).json({ success: false, message: publicMessage(error, "Some of the student's details aren't valid") });
     return;
   }
 

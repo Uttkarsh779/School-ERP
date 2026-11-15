@@ -6,6 +6,7 @@ import jwt from "jsonwebtoken";
 import app from "../app";
 import { prisma } from "../config/prisma";
 import { listTeacherNoticeClasses, parseClassSectionIds, parseNoticeFields } from "../modules/notices/service";
+import { trackTestRows, uniqueTag } from "./helpers/testData";
 
 const secret = () => process.env.JWT_SECRET || "fallback_jwt_secret_key";
 const tokenFor = (id: number, role: string) => jwt.sign({ id, email: `${role}-${id}@t.local`, role }, secret());
@@ -25,7 +26,10 @@ before(async () => {
   await new Promise((r) => server.once("listening", r));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
-after(() => new Promise<void>((r) => server.close(() => r())));
+after(async () => {
+  await new Promise<void>((r) => server.close(() => r()));
+  await prisma.$disconnect();
+});
 
 const call = (method: string, path: string, token?: string, body?: unknown) =>
   fetch(base + path, {
@@ -70,51 +74,58 @@ describe("access", () => {
   });
 });
 
+// Uses its own teacher, two "ZZ" classes and two students, so no real student is notified.
+// Teachers can only post to classes of the current session, so the classes live there for the
+// few seconds the test runs and are removed afterwards.
 describe("teacher notice flow against the database", () => {
   test("post to own class → students of that class see it; other classes are refused", async () => {
-    const staff = await prisma.staff.findFirst({
-      where: { user: { role: "TEACHER", isActive: true } },
-      select: { id: true, userId: true },
-      orderBy: { id: "asc" },
-    });
-    if (!staff) return;
-    const classes = await listTeacherNoticeClasses(staff.userId);
-    if (classes.length === 0) return;
-    const T = tokenFor(staff.userId, "TEACHER");
-    const own = classes[0].id;
-
-    const other = await prisma.classSection.findFirst({ where: { id: { notIn: classes.map((c: any) => c.id) } }, select: { id: true } });
-    if (other) {
-      const refused = await call("POST", "/api/notices", T, { title: "Not my class", body: "Should fail", classSectionIds: [other.id] });
-      assert.strictEqual(refused.status, 403);
-    }
-
-    const created = await call("POST", "/api/notices", T, { title: "ZZ test notice", body: "Bring your art file tomorrow.", classSectionIds: [own], isImportant: true });
-    assert.strictEqual(created.status, 201, JSON.stringify(created.json));
-    const id = created.json.data.id;
+    const current = await prisma.academicSession.findFirst({ where: { isCurrent: true }, select: { id: true } });
+    if (!current) return;
+    const rows = trackTestRows();
+    const tag = uniqueTag();
     try {
+      const teacherUser = rows.add("User", await prisma.user.create({ data: { email: `${tag.toLowerCase()}-t@test.local`, passwordHash: "x", role: "TEACHER", name: `${tag} Teacher` } }));
+      const staff = rows.add("teachers", await prisma.staff.create({ data: { userId: teacherUser.id } }));
+      const own = rows.add("ClassSection", await prisma.classSection.create({ data: { sessionId: current.id, className: "ZZ Test", section: `${tag}A`, classTeacherId: staff.id } })).id;
+      const other = rows.add("ClassSection", await prisma.classSection.create({ data: { sessionId: current.id, className: "ZZ Test", section: `${tag}B` } })).id;
+      const makeStudent = async (classSectionId: number, n: string) => {
+        const u = rows.add("User", await prisma.user.create({ data: { email: `${tag.toLowerCase()}-${n}@test.local`, passwordHash: "x", role: "STUDENT", name: `${tag} ${n}` } }));
+        rows.add("Student", await prisma.student.create({ data: { userId: u.id, admissionNo: `${tag}-${n}`, name: `${tag} ${n}`, rollNo: "1", classSectionId } }));
+        return u.id;
+      };
+      const insider = await makeStudent(own, "in");
+      const outsider = await makeStudent(other, "out");
+      const T = tokenFor(teacherUser.id, "TEACHER");
+
+      const classes = await listTeacherNoticeClasses(teacherUser.id);
+      assert.deepStrictEqual(classes.map((c: any) => c.id), [own]);
+
+      const refused = await call("POST", "/api/notices", T, { title: "Not my class", body: "Should fail", classSectionIds: [other] });
+      assert.strictEqual(refused.status, 403);
+
+      const created = await call("POST", "/api/notices", T, { title: "ZZ test notice", body: "Bring your art file tomorrow.", classSectionIds: [own], isImportant: true });
+      assert.strictEqual(created.status, 201, JSON.stringify(created.json));
+      const id = created.json.data.id;
+
       const sent = await call("GET", "/api/notices/sent", T);
       const mine = sent.json.data.find((n: any) => n.id === id);
       assert.ok(mine, "appears under Sent");
       assert.strictEqual(mine.isImportant, true);
       assert.ok(mine.postedBy?.name);
 
-      const student = await prisma.student.findFirst({ where: { classSectionId: own, isActive: true, userId: { not: null } }, select: { userId: true } });
-      if (student?.userId) {
-        const inbox = await call("GET", "/api/notices", tokenFor(student.userId, "STUDENT"));
-        assert.ok(inbox.json.data.some((n: any) => n.id === id), "student of the class sees it");
-      }
-      const outsider = await prisma.student.findFirst({ where: { classSectionId: { not: own }, isActive: true, userId: { not: null } }, select: { userId: true } });
-      if (outsider?.userId) {
-        const inbox = await call("GET", "/api/notices", tokenFor(outsider.userId, "STUDENT"));
-        assert.ok(!inbox.json.data.some((n: any) => n.id === id), "other classes don't see it");
-      }
+      const inbox = await call("GET", "/api/notices", tokenFor(insider, "STUDENT"));
+      assert.ok(inbox.json.data.some((n: any) => n.id === id), "student of the class sees it");
+      const outInbox = await call("GET", "/api/notices", tokenFor(outsider, "STUDENT"));
+      assert.ok(!outInbox.json.data.some((n: any) => n.id === id), "other classes don't see it");
 
       // Another teacher can't delete it.
-      assert.strictEqual((await call("DELETE", `/api/notices/${id}`, tokenFor(staff.userId + 100000, "TEACHER"))).status, 403);
-    } finally {
+      assert.strictEqual((await call("DELETE", `/api/notices/${id}`, tokenFor(teacherUser.id + 100000, "TEACHER"))).status, 403);
       assert.strictEqual((await call("DELETE", `/api/notices/${id}`, T)).status, 200);
+      assert.strictEqual((await call("DELETE", `/api/notices/${id}`, T)).status, 404);
+    } finally {
+      // Notifications are built in the background right after posting; let that finish first.
+      await new Promise((r) => setTimeout(r, 1500));
+      await rows.remove();
     }
-    assert.strictEqual((await call("DELETE", `/api/notices/${id}`, T)).status, 404);
   });
 });

@@ -12,62 +12,67 @@ import { extendInvoiceDueDate } from "../modules/fees/invoiceService";
 import { createFeeStructureWithItems } from "../modules/fees/feeStructureService";
 import { generateChargesForClassSection } from "../modules/fees/feeChargeService";
 import { TransportBillingPolicy } from "../modules/transport/transportVillageService";
+import { trackTestRows, uniqueTag } from "./helpers/testData";
 
 test("Final Acceptance End-to-End Scenario: Rahul / Class 8", async (t) => {
+  // Own session (not current), class, users, fee head and village; all removed at the end.
+  const rows = trackTestRows();
+  const tag = uniqueTag();
+  try {
   // Setup Session & Class 8
-  const session = await prisma.academicSession.create({
+  const session = rows.add("AcademicSession", await prisma.academicSession.create({
     data: {
-      name: `Acceptance_Session_${Date.now()}`,
+      name: `${tag} session`,
       startDate: new Date("2026-06-01"),
       endDate: new Date("2027-05-31"),
-      isCurrent: true,
+      isCurrent: false,
     },
-  });
+  }));
 
-  const classSection = await prisma.classSection.create({
+  const classSection = rows.add("ClassSection", await prisma.classSection.create({
     data: {
       sessionId: session.id,
-      className: "Class 8",
-      section: `A_${Date.now()}`,
+      className: "ZZ Test",
+      section: tag,
     },
-  });
+  }));
 
-  const user = await prisma.user.create({
+  const user = rows.add("User", await prisma.user.create({
     data: {
-      email: `rahul_${Date.now()}@school.com`,
+      email: `${tag.toLowerCase()}-s@test.local`,
       passwordHash: "pass",
       role: "STUDENT",
       name: "Rahul Kumar",
     },
-  });
+  }));
 
-  const adminUser = await prisma.user.create({
+  const adminUser = rows.add("User", await prisma.user.create({
     data: {
-      email: `admin_${Date.now()}@school.com`,
+      email: `${tag.toLowerCase()}-a@test.local`,
       passwordHash: "pass",
       role: "ADMIN",
       name: "School Admin",
     },
-  });
+  }));
 
-  const student = await prisma.student.create({
+  const student = rows.add("Student", await prisma.student.create({
     data: {
       userId: user.id,
-      admissionNo: `ACC_ADM_${Date.now()}`,
+      admissionNo: `${tag}-ADM`,
       name: "Rahul Kumar",
       rollNo: "801",
       classSectionId: classSection.id,
     },
-  });
+  }));
 
   // 1. Setup Class 8 Fee Structure: Tuition = ₹3,000/month
-  const tuitionHead = await prisma.feeHead.create({
+  const tuitionHead = rows.add("FeeHead", await prisma.feeHead.create({
     data: {
-      name: `Tuition_Fee_${Date.now()}`,
-      code: `TUIT_${Date.now()}`,
+      name: `${tag} Tuition`,
+      code: `${tag}_TUIT`,
       description: "Class 8 Tuition Fee",
     },
-  });
+  }));
 
   await createFeeStructureWithItems({
     sessionId: session.id,
@@ -85,10 +90,10 @@ test("Final Acceptance End-to-End Scenario: Rahul / Class 8", async (t) => {
   });
 
   // 2. Setup Rampur Village = ₹1,200/month & Assign Rahul to Rampur
-  const village = await createVillage({
-    name: `Rampur_${Date.now()}`,
+  const village = rows.add("TransportVillage", await createVillage({
+    name: `${tag} Rampur`,
     monthlyFee: 1200,
-  });
+  }));
 
   await assignStudentTransport({
     studentId: student.id,
@@ -131,7 +136,7 @@ test("Final Acceptance End-to-End Scenario: Rahul / Class 8", async (t) => {
     // Create Invoice for August
     const invoice = await prisma.invoice.create({
       data: {
-        invoiceNumber: `INV_ACC_${Date.now()}`,
+        invoiceNumber: `${tag}-INV`,
         studentId: student.id,
         sessionId: session.id,
         dueDate: new Date("2026-08-10"),
@@ -219,4 +224,8 @@ test("Final Acceptance End-to-End Scenario: Rahul / Class 8", async (t) => {
     assert.strictEqual(Number(charges[0].baseAmount), 1200); // August
     assert.strictEqual(Number(charges[1].baseAmount), 1500); // September
   });
+  } finally {
+    await rows.remove();
+    await prisma.$disconnect();
+  }
 });

@@ -4,7 +4,6 @@ import { AttendanceStatus } from "../../generated/prisma/enums";
 import { findStaffByUserId } from "../staff/service";
 import { isClassTeacherOfSection } from "../classSections/service";
 import { getStudentById } from "../students/service";
-import { isParentLinkedToStudent } from "../parents/service";
 import {
   getAttendanceForClassDate,
   getClassAttendanceRecords,
@@ -26,7 +25,7 @@ const canManageClassAttendance = async (req: CustomRequest, classSectionId: numb
 };
 
 // SUPER_ADMIN/ADMIN can view any student; a TEACHER only for their own class section's
-// students; a PARENT only for their own linked children.
+// students.
 const canViewStudentAttendance = async (req: CustomRequest, studentId: number): Promise<boolean> => {
   const role = req.user?.role;
   if (isSchoolWide(role)) return true;
@@ -39,10 +38,6 @@ const canViewStudentAttendance = async (req: CustomRequest, studentId: number): 
     const staff = await findStaffByUserId(req.user.id);
     if (!staff) return false;
     return isClassTeacherOfSection(staff.id, student.classSectionId);
-  }
-
-  if (role === "PARENT") {
-    return isParentLinkedToStudent(req.user.id, studentId);
   }
 
   if (role === "STUDENT") {

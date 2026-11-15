@@ -1,5 +1,7 @@
-import { Card } from "../../ui";
+import { Button, Card, Icon } from "../../ui";
 import { useGetDateSheetsQuery, type DateSheetItem } from "../../../store/api/examPlan.api";
+import { useGetPublicWebsiteDataQuery } from "../../../store/api/cms.api";
+import { printDateSheets } from "../Print/dateSheetPrint";
 import styles from "./DateSheet.module.css";
 
 // Exam date sheets: when each subject's paper is. DateSheetTable shows one exam's papers
@@ -36,6 +38,16 @@ export const DateSheetTable = ({ exam }: { exam: DateSheetItem }) => {
   );
 };
 
+// Print / Save as PDF for one class's date sheet.
+export const PrintDateSheetButton = ({ exam, label = "Print / PDF" }: { exam: DateSheetItem; label?: string }) => {
+  const { data: site } = useGetPublicWebsiteDataQuery();
+  return (
+    <Button size="sm" variant="outline" icon={<Icon name="printer" size={15} />} onClick={() => printDateSheets([exam], { school: site?.settings })}>
+      {label}
+    </Button>
+  );
+};
+
 const UpcomingExams = () => {
   const { data } = useGetDateSheetsQuery();
   const upcoming = (data ?? []).filter((e) => !e.finished).slice(0, 2);
@@ -43,7 +55,12 @@ const UpcomingExams = () => {
   return (
     <>
       {upcoming.map((e) => (
-        <Card key={e.examId} title={`Date sheet · ${e.name}`} subtitle={e.firstDate && e.firstDate > today() ? `Starts ${day(e.firstDate)}` : "In progress"}>
+        <Card
+          key={e.examId}
+          title={`Date sheet · ${e.name}`}
+          subtitle={e.firstDate && e.firstDate > today() ? `Starts ${day(e.firstDate)}` : "In progress"}
+          action={<PrintDateSheetButton exam={e} label="Print" />}
+        >
           <DateSheetTable exam={e} />
         </Card>
       ))}

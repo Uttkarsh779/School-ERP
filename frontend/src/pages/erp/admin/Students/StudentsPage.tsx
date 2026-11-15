@@ -18,7 +18,7 @@ import {
 } from "../../../../components/ui";
 import type { SelectOption, TableColumn } from "../../../../components/ui";
 import { useGetClassSectionsQuery } from "../../../../store/api/classSections.api";
-import { useCreateStudentMutation, useGetStudentsQuery, useSetStudentActiveMutation } from "../../../../store/api/students.api";
+import { useLazyGetNextAdmissionNoQuery, useCreateStudentMutation, useGetStudentsQuery, useSetStudentActiveMutation } from "../../../../store/api/students.api";
 import type { CreateStudentInput } from "../../../../store/api/students.api";
 import StudentFormFields from "./StudentFormFields";
 import { emptyStudentFormValues, type StudentFormValues } from "./studentForm";
@@ -27,6 +27,7 @@ import BulkPhotoUploadModal from "./photos/BulkPhotoUploadModal";
 import { useIdCards } from "../../../../components/shared/Print/useIdCards";
 import styles from "./StudentsPage.module.css";
 import { useCan } from "../../../../store/permissions";
+import StudentExportsModal from "./StudentExportsModal";
 
 const StudentsPage = () => {
   const can = useCan();
@@ -36,6 +37,7 @@ const StudentsPage = () => {
   const [classSectionId, setClassSectionId] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<"ALL" | "ACTIVE" | "INACTIVE">("ALL");
+  const [isExportOpen, setIsExportOpen] = useState(false);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [togglingId, setTogglingId] = useState<number | null>(null);
@@ -58,8 +60,12 @@ const StudentsPage = () => {
     register,
     handleSubmit,
     reset,
+    getValues,
+    setValue,
     formState: { errors },
   } = useForm<StudentFormValues>({ defaultValues: emptyStudentFormValues });
+  const [fetchNextAdmissionNo] = useLazyGetNextAdmissionNoQuery();
+  const [suggestedAdmissionNo, setSuggestedAdmissionNo] = useState("");
 
   useEffect(() => {
     if (isStudentsError) {
@@ -74,7 +80,19 @@ const StudentsPage = () => {
 
   const openModal = () => {
     reset({ ...emptyStudentFormValues, classSectionId: classSectionId || "" });
+    setSuggestedAdmissionNo("");
     setIsModalOpen(true);
+    // Pre-fill the next admission number (always fresh: someone else may have just added one).
+    // Never overwrite what the admin has already typed.
+    fetchNextAdmissionNo(undefined, false)
+      .unwrap()
+      .then((next) => {
+        if (next && !getValues("admissionNo")) {
+          setValue("admissionNo", next, { shouldDirty: true });
+          setSuggestedAdmissionNo(next);
+        }
+      })
+      .catch(() => undefined);
   };
 
   const closeModal = () => {
@@ -235,6 +253,11 @@ const StudentsPage = () => {
         subtitle="View, search, and manage all student profiles across RRS Intl School"
         actions={
           <div style={{ display: "flex", flexWrap: "wrap", gap: "0.6rem" }}>
+            {can("exports.students") && (
+              <Button type="button" variant="outline" icon={<Icon name="download" />} onClick={() => setIsExportOpen(true)}>
+                Export
+              </Button>
+            )}
             {can("certificates") && (
               <Button type="button" variant="outline" icon={<Icon name="fileText" />} onClick={() => navigate("/admin/certificates")}>
                 Certificate register
@@ -316,7 +339,12 @@ const StudentsPage = () => {
       {isModalOpen && (
         <Modal title="New Student Registration" onClose={closeModal}>
           <form onSubmit={handleSubmit(onSubmit)}>
-            <StudentFormFields register={register} errors={errors} classSectionOptions={classSectionOptions} />
+            <StudentFormFields
+              register={register}
+              errors={errors}
+              classSectionOptions={classSectionOptions}
+              admissionNoHint={suggestedAdmissionNo ? `Next number, filled in for you. Change it if needed.` : undefined}
+            />
             <div className={styles.formActions}>
               <Button type="button" variant="outline" onClick={closeModal}>
                 Cancel
@@ -343,6 +371,7 @@ const StudentsPage = () => {
           }}
         />
       )}
+      {isExportOpen && <StudentExportsModal status={statusFilter} onClose={() => setIsExportOpen(false)} />}
     </div>
   );
 };

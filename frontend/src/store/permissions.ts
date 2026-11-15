@@ -18,11 +18,13 @@ export const PERMISSIONS = {
 
   "students.view": [SA, AD, PR, AC],
   "students.edit": [SA, AD],
-  "families.view": [SA, AD, PR, AC],
-  "families.edit": [SA, AD],
   "staff.view": [SA, AD, PR],
   "leaves.manage": [SA, AD, PR],
   certificates: [SA, AD, PR],
+  "documents.view": [SA, AD, PR],
+  "documents.edit": [SA, AD],
+  "health.view": [SA, AD, PR],
+  "health.edit": [SA, AD, PR],
 
   "academics.view": [SA, AD, PR, AC],
   "academics.edit": [SA, AD, PR],
@@ -44,6 +46,14 @@ export const PERMISSIONS = {
   accounts: [SA, AD, AC],
   "transport.view": [SA, AD, PR, AC],
   "transport.edit": [SA, AD],
+  "inventory.view": [SA, AD, PR, AC],
+  "inventory.edit": [SA, AD, AC],
+
+  "privacy.manage": [SA, AD, PR],
+  "privacy.settings": [SA],
+  "exports.students": [SA, AD, PR],
+  "exports.fees": [SA, AD, PR, AC],
+  "exports.staff": [SA],
 
   // Screens only (the server checks these through the rules above)
   settings: [SA, AD, PR],
@@ -70,6 +80,5 @@ export const ROLE_LABEL: Record<string, string> = {
   PRINCIPAL: "Principal",
   ACCOUNTANT: "Accountant",
   TEACHER: "Teacher",
-  PARENT: "Parent",
   STUDENT: "Student",
 };

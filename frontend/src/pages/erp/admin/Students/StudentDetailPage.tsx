@@ -36,11 +36,15 @@ import ExamHistoryTab from "./history/ExamHistoryTab";
 import FeeHistoryTab from "./history/FeeHistoryTab";
 import TransportHistoryTab from "./history/TransportHistoryTab";
 import CertificatesTab from "./certificates/CertificatesTab";
+import StudentPrivacyTab from "./privacy/StudentPrivacyTab";
+import DocumentsTab from "./records/DocumentsTab";
+import HealthTab from "./records/HealthTab";
 import StudentPhotoModal from "./photos/StudentPhotoModal";
 import { useIdCards } from "../../../../components/shared/Print/useIdCards";
 import { inr } from "./history/historyFormat";
 import historyStyles from "./history/StudentHistory.module.css";
 import styles from "./StudentDetailPage.module.css";
+import StudentSummaryCard from "../../../../components/shared/StudentSummaryCard/StudentSummaryCard";
 
 // Year-end result recorded by the new-session promotion.
 const OUTCOME_BADGE = {
@@ -80,7 +84,7 @@ const StudentDetailPage = () => {
     isError: isHistoryError,
     refetch: refetchHistory,
   } = useGetStudentHistoryQuery(studentId, { skip: !studentId });
-  const [tab, setTab] = useState<"overview" | "attendance" | "exams" | "fees" | "transport" | "certificates">("overview");
+  const [tab, setTab] = useState<"overview" | "attendance" | "exams" | "fees" | "transport" | "documents" | "health" | "certificates" | "privacy">("overview");
   const { data: classSections } = useGetClassSectionsQuery();
   const { data: transportRoutes } = useGetTransportRoutesQuery();
   const { data: villages } = useGetVillagesQuery();
@@ -288,37 +292,46 @@ const StudentDetailPage = () => {
       ) : (
         <>
           {/* Profile header: who, which class, quick actions, and the record at a glance */}
-          <section className={styles.hero}>
-            <div className={styles.heroTop}>
-              <button
-                type="button"
-                className={styles.avatarButton}
-                onClick={() => setIsPhotoOpen(true)}
-                disabled={!canEdit}
-                title={canEdit ? (student.photoUrl ? "Change photo" : "Add photo") : undefined}
-              >
-                {student.photoUrl ? (
-                  <img src={student.photoUrl} alt="" className={styles.avatar} />
-                ) : (
-                  <span className={styles.avatar}>{student.name.charAt(0).toUpperCase()}</span>
-                )}
-                {canEdit && <span className={styles.avatarBadge}>{student.photoUrl ? "Change" : "Add photo"}</span>}
-              </button>
-              <div className={styles.heroMain}>
-                <h1 className={styles.name}>{student.name}</h1>
-                <div className={styles.chips}>
-                  {student.classSection && (
-                    <span className={`${styles.chip} ${styles.chipStrong}`}>
-                      {student.classSection.className} - {student.classSection.section}
-                    </span>
-                  )}
-                  {student.rollNo && <span className={styles.chip}>Roll {student.rollNo}</span>}
-                  <span className={styles.chip}>Adm {student.admissionNo}</span>
-                  <Badge tone={student.isActive ? "success" : "neutral"}>{student.isActive ? "Active" : "Inactive"}</Badge>
-                </div>
-              </div>
-            </div>
-
+          <StudentSummaryCard
+            heading="h1"
+            name={student.name}
+            photoUrl={student.photoUrl}
+            classLabel={student.classSection ? `${student.classSection.className} - ${student.classSection.section}` : null}
+            badge={<Badge tone={student.isActive ? "success" : "neutral"}>{student.isActive ? "Active" : "Inactive"}</Badge>}
+            meta={`${student.rollNo ? `Roll ${student.rollNo} · ` : ""}Adm ${student.admissionNo}`}
+            onPhotoClick={canEdit ? () => setIsPhotoOpen(true) : undefined}
+            photoLabel={student.photoUrl ? "Change" : "Add photo"}
+            facts={(() => {
+              const pct = history?.attendance.overall.percentage ?? null;
+              const latest = history?.exams[0];
+              const due = history ? Number(history.fees.summary.totalOutstanding) : null;
+              const transport =
+                history?.transport.find((t) => t.status === "ACTIVE")?.villageName ?? (student.transportRoute ? student.transportRoute.routeName : null);
+              // Tap a figure to open its tab
+              return [
+                {
+                  label: "Attendance",
+                  value: history ? formatPct(pct) : "…",
+                  sub: "overall",
+                  tone: pct == null ? undefined : pct >= 85 ? "good" : pct >= 75 ? "warn" : "bad",
+                  onClick: () => setTab("attendance"),
+                },
+                {
+                  label: "Latest exam",
+                  value: latest?.percentage != null ? `${latest.percentage}%` : history ? "No marks" : "…",
+                  sub: latest?.examName,
+                  onClick: () => setTab("exams"),
+                },
+                {
+                  label: "Fees due",
+                  value: due == null ? "…" : due > 0 ? inr(due) : "No dues",
+                  tone: due == null ? undefined : due > 0 ? "bad" : "good",
+                  onClick: () => setTab("fees"),
+                },
+                { label: "Transport", value: transport ?? "Not using", sub: transport ? "active" : undefined, onClick: () => setTab("transport") },
+              ];
+            })()}
+          >
             <div className={styles.actions}>
               {canEdit && (
                 <>
@@ -354,47 +367,7 @@ const StudentDetailPage = () => {
                 </a>
               )}
             </div>
-
-            {/* Tap a figure to open its tab */}
-            <div className={styles.stats}>
-              {(() => {
-                const pct = history?.attendance.overall.percentage ?? null;
-                const latest = history?.exams[0];
-                const due = history ? Number(history.fees.summary.totalOutstanding) : null;
-                const transport =
-                  history?.transport.find((t) => t.status === "ACTIVE")?.villageName ?? (student.transportRoute ? student.transportRoute.routeName : null);
-                const items: Array<{ key: typeof tab; label: string; value: string; sub?: string; tone?: "good" | "warn" | "bad" }> = [
-                  {
-                    key: "attendance",
-                    label: "Attendance",
-                    value: history ? formatPct(pct) : "…",
-                    sub: "overall",
-                    tone: pct == null ? undefined : pct >= 85 ? "good" : pct >= 75 ? "warn" : "bad",
-                  },
-                  {
-                    key: "exams",
-                    label: "Latest exam",
-                    value: latest?.percentage != null ? `${latest.percentage}%` : history ? "No marks" : "…",
-                    sub: latest?.examName,
-                  },
-                  {
-                    key: "fees",
-                    label: "Fees due",
-                    value: due == null ? "…" : due > 0 ? inr(due) : "No dues",
-                    tone: due == null ? undefined : due > 0 ? "bad" : "good",
-                  },
-                  { key: "transport", label: "Transport", value: transport ?? "Not using", sub: transport ? "active" : undefined },
-                ];
-                return items.map((it) => (
-                  <button key={it.key} type="button" className={styles.stat} onClick={() => setTab(it.key)}>
-                    <span className={styles.statLabel}>{it.label}</span>
-                    <span className={`${styles.statValue} ${it.tone ? styles[`tone_${it.tone}`] : ""}`}>{it.value}</span>
-                    {it.sub && <span className={styles.statSub}>{it.sub}</span>}
-                  </button>
-                ));
-              })()}
-            </div>
-          </section>
+          </StudentSummaryCard>
 
           <div className={historyStyles.tabs} role="tablist">
             {(
@@ -404,10 +377,19 @@ const StudentDetailPage = () => {
                 ["exams", "Exams & Marks"],
                 ["fees", "Fees"],
                 ["transport", "Transport"],
+                ["documents", "Documents"],
+                ["health", "Health"],
                 ["certificates", "Certificates"],
+                ["privacy", "Privacy"],
               ] as const
             )
-              .filter(([key]) => key !== "certificates" || can("certificates"))
+              .filter(
+                ([key]) =>
+                  (key !== "certificates" || can("certificates")) &&
+                  (key !== "privacy" || can("privacy.manage")) &&
+                  (key !== "documents" || can("documents.view")) &&
+                  (key !== "health" || can("health.view"))
+              )
               .map(([key, label]) => (
               <button
                 key={key}
@@ -451,8 +433,14 @@ const StudentDetailPage = () => {
               )}
               <StudentProfileView student={student} />
             </div>
+          ) : tab === "documents" ? (
+            <DocumentsTab studentId={student.id} />
+          ) : tab === "health" ? (
+            <HealthTab studentId={student.id} />
           ) : tab === "certificates" ? (
             <CertificatesTab studentId={student.id} />
+          ) : tab === "privacy" ? (
+            <StudentPrivacyTab studentId={student.id} />
           ) : isHistoryLoading ? (
             <Spinner />
           ) : isHistoryError || !history ? (
@@ -499,6 +487,7 @@ const StudentDetailPage = () => {
               register={editRegister}
               errors={editErrors}
               classSectionOptions={classSectionOptions}
+              studentId={studentId}
             />
             <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "flex-end", gap: "0.6rem", marginTop: "1.25rem" }}>
               <Button type="button" variant="ghost" onClick={closeEditModal}>

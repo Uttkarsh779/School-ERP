@@ -295,6 +295,7 @@ export const getBillingCalendar = async (classSectionId: number, sessionId: numb
     dueDate: string;
   }> = [];
 
+  const dueDay = (await prisma.feeBillingSetting.findUnique({ where: { id: 1 }, select: { dueDay: true } }))?.dueDay ?? 10;
   for (const m of monthOrder) {
     const monthName = monthNames[monthOrder.indexOf(m)];
     for (const s of structures) {
@@ -307,7 +308,7 @@ export const getBillingCalendar = async (classSectionId: number, sessionId: numb
             coverage: `${monthName} Coverage`,
             amount: Number(item.amount),
             collectionDate: `01-${monthName.slice(0, 3)}`,
-            dueDate: `${item.dueDateDay.toString().padStart(2, "0")}-${monthName.slice(0, 3)}`,
+            dueDate: `${dueDay.toString().padStart(2, "0")}-${monthName.slice(0, 3)}`,
           });
         }
       }

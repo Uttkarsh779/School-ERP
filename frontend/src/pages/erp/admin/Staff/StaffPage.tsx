@@ -28,6 +28,7 @@ import { useAppSelector } from "../../../../store/store";
 import ResetPasswordModal from "./ResetPasswordModal";
 import StaffDetailsFields, { detailsFromStaff, detailsPayload, emptyStaffDetails, type StaffDetailsForm } from "./StaffDetailsFields";
 import styles from "./StaffPage.module.css";
+import ExportButton from "../../../../components/shared/ExportButton";
 
 interface StaffFormInputs {
   name: string;
@@ -39,6 +40,8 @@ interface StaffFormInputs {
   staffCategory: string;
 }
 
+// Designation = the job title (HR, ID cards). Login role = what the person can do in the
+// software. They're chosen separately; the designation only suggests a login role.
 const TEACHING_ROLES = [
   { value: "TEACHER", label: "Teacher" },
   { value: "PRINCIPAL", label: "Principal" },
@@ -70,20 +73,29 @@ const ACCOUNT_REQUIRED_ROLES = [
   "ACCOUNTANT",
 ];
 
-// What the login of each category can do (backend staff/service.ts loginRoleFor).
-const loginAccess = (category?: string) =>
-  !isAccountRequiredRole(category)
-    ? "No login."
-    : category === "PRINCIPAL"
-      ? "Signs in as Principal: sees everything, runs academics, approves leave and publishes results; reads fees but doesn't collect."
-      : category === "ACCOUNTANT"
-        ? "Signs in as Accountant: fees, day book and expenses; views students."
-        : category === "ADMIN_STAFF" || category === "OFFICE_STAFF"
-          ? "Signs in to the office console: admissions, records, fee counter."
-          : "Signs in as a teacher.";
+const LOGIN_ROLES = [
+  { value: "TEACHER", label: "Teacher" },
+  { value: "ADMIN", label: "Admin (school office)" },
+  { value: "PRINCIPAL", label: "Principal" },
+  { value: "ACCOUNTANT", label: "Accountant" },
+];
+const ROLE_ACCESS: Record<string, string> = {
+  TEACHER: "Their classes: marks, attendance and homework.",
+  ADMIN: "The office console: admissions, records, fee counter. Can't enter marks.",
+  PRINCIPAL: "Sees everything, runs academics, approves leave and publishes results; reads fees but doesn't collect. Can't enter marks.",
+  ACCOUNTANT: "Fees, day book and expenses; views students. Can't enter marks.",
+  SUPER_ADMIN: "Full control, including fee setup, discounts, staff accounts and backups. At most 2 Super Admins; the last one can't be removed.",
+};
+// Editing an existing staff member can also make them Super Admin (limits are checked on save).
+const EDIT_LOGIN_ROLES = [...LOGIN_ROLES, { value: "SUPER_ADMIN", label: "Super Admin" }];
+const roleLabel = (role?: string) => (role === "SUPER_ADMIN" ? "Super Admin" : LOGIN_ROLES.find((r) => r.value === role)?.label ?? role ?? "—");
 
-const LoginAccess = ({ category }: { category?: string }) => (
-  <p style={{ gridColumn: "1 / -1", margin: 0, fontSize: "0.82rem", color: "var(--erp-text-muted)" }}>{loginAccess(category)}</p>
+// The usual login role for a designation (backend staff/service.ts loginRoleFor).
+const usualLoginRole = (category?: string) =>
+  category === "PRINCIPAL" ? "PRINCIPAL" : category === "ACCOUNTANT" ? "ACCOUNTANT" : category === "ADMIN_STAFF" || category === "OFFICE_STAFF" ? "ADMIN" : "TEACHER";
+
+const Hint = ({ children }: { children: React.ReactNode }) => (
+  <p style={{ gridColumn: "1 / -1", margin: 0, fontSize: "0.82rem", color: "var(--erp-text-muted)" }}>{children}</p>
 );
 
 const isAccountRequiredRole = (role?: string) => {
@@ -121,6 +133,8 @@ const StaffPage = () => {
   const [editDetails, setEditDetails] = useState<StaffDetailsForm>(emptyStaffDetails);
   const [resetFor, setResetFor] = useState<IStaff | null>(null);
   const [examCoordinator, setExamCoordinator] = useState(false);
+  // New staff: follows the designation until someone picks a role.
+  const [newLoginRole, setNewLoginRole] = useState<string | null>(null);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [togglingId, setTogglingId] = useState<number | null>(null);
@@ -141,6 +155,7 @@ const StaffPage = () => {
     qualifications: "",
     group: "TEACHING" as "TEACHING" | "NON_TEACHING",
     staffCategory: "TEACHER",
+    loginRole: "TEACHER",
   });
 
   const {
@@ -163,6 +178,7 @@ const StaffPage = () => {
     setIsModalOpen(false);
     reset();
     setNewDetails(emptyStaffDetails);
+    setNewLoginRole(null);
   };
 
   const openProfile = (staff: IStaff) => {
@@ -177,12 +193,15 @@ const StaffPage = () => {
       qualifications: staff.qualifications || "",
       group: details.group === "Teaching" ? "TEACHING" : "NON_TEACHING",
       staffCategory: details.value,
+      loginRole: staff.user.role ?? "TEACHER",
     });
   };
 
   const closeProfile = () => {
     setProfileStaff(null);
   };
+
+  const canHaveLoginRole = isAccountRequiredRole(editForm.staffCategory);
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -197,10 +216,12 @@ const StaffPage = () => {
           qualifications: editForm.qualifications,
           staffCategory: editForm.staffCategory,
           ...(isSuperAdmin ? { isExamCoordinator: examCoordinator } : {}),
+          ...(isSuperAdmin && canHaveLoginRole ? { loginRole: editForm.loginRole } : {}),
           ...detailsPayload(editDetails, { includeSensitive: isSuperAdmin, onlyFilled: false }),
         },
       }).unwrap();
-      toast.success("Staff profile updated successfully");
+      const roleChanged = canHaveLoginRole && editForm.loginRole !== profileStaff.user.role;
+      toast.success(roleChanged ? "Saved. The new login role applies within 15 minutes." : "Staff profile updated successfully");
       closeProfile();
     } catch (err) {
       toast.error(getErrorMessage(err, "Failed to update staff profile"));
@@ -222,6 +243,7 @@ const StaffPage = () => {
         qualifications: values.qualifications || undefined,
         contact: values.contact || undefined,
         staffCategory: values.staffCategory,
+        ...(needsAccount ? { loginRole: newLoginRole ?? usualLoginRole(values.staffCategory) } : {}),
         ...detailsPayload(newDetails, { includeSensitive: isSuperAdmin, onlyFilled: true }),
       }).unwrap();
       toast.success(needsAccount ? "Staff member created with portal login access" : "Support staff record created (No Portal Access)");
@@ -317,7 +339,7 @@ const StaffPage = () => {
     },
     {
       key: "category",
-      label: "Designation / Category",
+      label: "Designation & login",
       render: (row) => {
         const details = getRoleDetails(row.staffCategory);
         const needsAccount = isAccountRequiredRole(details.value);
@@ -327,7 +349,7 @@ const StaffPage = () => {
               {details.label}
             </span>
             <span style={{ fontSize: "0.78rem", color: "var(--text-secondary)" }}>
-              {details.group} Staff • {needsAccount ? "Portal Account" : "Record Only"}
+              {details.group} Staff • {needsAccount ? `Login: ${roleLabel(row.user.role)}` : "No login"}
             </span>
           </div>
         );
@@ -381,6 +403,7 @@ const StaffPage = () => {
             >
               Print ID cards
             </Button>
+            {isSuperAdmin && <ExportButton path="staff" size="md" />}
             <Button variant="primary" onClick={() => setIsModalOpen(true)}>
               + New Staff
             </Button>
@@ -434,7 +457,7 @@ const StaffPage = () => {
             {/* Search Box */}
             <div className={styles.searchBox}>
               <Input
-                placeholder="Search staff by name, email, contact, role..."
+                placeholder="Search staff by name, email, contact, designation..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
@@ -446,7 +469,7 @@ const StaffPage = () => {
                 value={selectedRoleFilter}
                 onChange={(e) => setSelectedRoleFilter(e.target.value)}
                 options={[
-                  { label: "All Roles", value: "ALL" },
+                  { label: "All designations", value: "ALL" },
                   ...(categoryGroup !== "NON_TEACHING" ? TEACHING_ROLES : []),
                   ...(categoryGroup !== "TEACHING" ? NON_TEACHING_ROLES : []),
                 ]}
@@ -534,13 +557,26 @@ const StaffPage = () => {
                 />
 
                 <Select
-                  label="Role / Designation"
+                  label="Designation"
                   required
                   error={errors.staffCategory?.message}
-                  {...register("staffCategory", { required: "Role is required" })}
+                  {...register("staffCategory", { required: "Designation is required" })}
                   options={selectedGroup === "TEACHING" ? TEACHING_ROLES : NON_TEACHING_ROLES}
                 />
-                <LoginAccess category={watch("staffCategory") || "TEACHER"} />
+                {isAccountRequiredRole(watch("staffCategory") || "TEACHER") ? (
+                  <>
+                    <Select
+                      label="Login role"
+                      required
+                      value={newLoginRole ?? usualLoginRole(watch("staffCategory") || "TEACHER")}
+                      onChange={(e) => setNewLoginRole(e.target.value)}
+                      options={LOGIN_ROLES}
+                    />
+                    <Hint>{ROLE_ACCESS[newLoginRole ?? usualLoginRole(watch("staffCategory") || "TEACHER")]}</Hint>
+                  </>
+                ) : (
+                  <Hint>No login.</Hint>
+                )}
 
                 {(() => {
                   const currentRole = watch("staffCategory") || "TEACHER";
@@ -685,19 +721,36 @@ const StaffPage = () => {
                   />
 
                   <Select
-                    label="Role / Designation"
+                    label="Designation"
                     required
                     value={editForm.staffCategory}
                     onChange={(e) => setEditForm({ ...editForm, staffCategory: e.target.value })}
                     options={editForm.group === "TEACHING" ? TEACHING_ROLES : NON_TEACHING_ROLES}
                   />
-                  <LoginAccess category={editForm.staffCategory} />
+                  {!isAccountRequiredRole(editForm.staffCategory) ? (
+                    <Hint>No login.</Hint>
+                  ) : (
+                    <>
+                      <Select
+                        label="Login role"
+                        required
+                        disabled={!isSuperAdmin}
+                        value={editForm.loginRole}
+                        onChange={(e) => setEditForm({ ...editForm, loginRole: e.target.value })}
+                        options={EDIT_LOGIN_ROLES}
+                      />
+                      <Hint>
+                        {ROLE_ACCESS[editForm.loginRole]}
+                        {editForm.loginRole !== "SUPER_ADMIN" && usualLoginRole(editForm.staffCategory) !== editForm.loginRole && ` The usual role for a ${getRoleDetails(editForm.staffCategory).label} is ${roleLabel(usualLoginRole(editForm.staffCategory))}.`}
+                      </Hint>
+                    </>
+                  )}
                 </FormGrid>
               </FormSection>
 
               <StaffDetailsFields value={editDetails} onChange={setEditDetails} showSensitive={isSuperAdmin} />
 
-              {isSuperAdmin && isAccountRequiredRole(editForm.staffCategory) && (
+              {isSuperAdmin && isAccountRequiredRole(editForm.staffCategory) && editForm.loginRole === "TEACHER" && (
                 <FormSection title="Permissions">
                   <label style={{ display: "flex", gap: "0.6rem", alignItems: "flex-start", cursor: "pointer", fontSize: "0.9rem" }}>
                     <input type="checkbox" checked={examCoordinator} onChange={(e) => setExamCoordinator(e.target.checked)} style={{ marginTop: 3 }} />

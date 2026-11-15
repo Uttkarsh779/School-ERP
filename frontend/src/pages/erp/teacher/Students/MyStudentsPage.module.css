@@ -38,6 +38,13 @@
   cursor: pointer;
 }
 
+.healthFlag {
+  display: inline-flex;
+  vertical-align: -2px;
+  margin-left: 0.35rem;
+  color: var(--erp-danger);
+}
+
 .studentCell:hover .name {
   color: var(--erp-primary-700);
   text-decoration: underline;
@@ -247,127 +254,6 @@
     padding: 0.45rem 0.3rem;
     font-size: 0.82rem;
   }
-}
-
-/* Student profile popup: header card */
-.hero {
-  display: flex;
-  flex-direction: column;
-  gap: 0.85rem;
-  padding: 1rem;
-  border: 1px solid var(--erp-border);
-  border-radius: var(--erp-radius-lg);
-  background: linear-gradient(135deg, var(--erp-primary-50) 0%, var(--erp-surface) 60%);
-}
-
-.heroTop {
-  display: flex;
-  align-items: center;
-  gap: 0.9rem;
-  min-width: 0;
-}
-
-.heroAvatar {
-  width: 4rem;
-  height: 4rem;
-  border-radius: 50%;
-  flex-shrink: 0;
-  display: grid;
-  place-items: center;
-  object-fit: cover;
-  background: var(--erp-primary-600);
-  color: #fff;
-  font-size: 1.6rem;
-  font-weight: 800;
-  border: 3px solid var(--erp-surface);
-  box-shadow: 0 6px 16px rgba(234, 88, 12, 0.18);
-}
-
-.heroMain {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
-
-.heroName {
-  font-size: 1.2rem;
-  font-weight: 800;
-  line-height: 1.2;
-  color: var(--erp-text);
-  overflow-wrap: anywhere;
-}
-
-.heroChips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-}
-
-.heroChip {
-  padding: 0.15rem 0.55rem;
-  border-radius: 999px;
-  background: var(--erp-surface);
-  border: 1px solid var(--erp-border);
-  font-size: 0.76rem;
-  font-weight: 600;
-  color: var(--erp-text-muted);
-  white-space: nowrap;
-}
-
-.heroChipStrong {
-  background: var(--erp-primary-600);
-  border-color: var(--erp-primary-600);
-  color: #fff;
-}
-
-.heroStats {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.55rem;
-}
-
-.heroStat {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.1rem;
-  min-width: 0;
-  padding: 0.6rem 0.8rem;
-  border: 1px solid var(--erp-border);
-  border-radius: var(--erp-radius-md);
-  background: var(--erp-surface);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.heroStat span {
-  max-width: 100%;
-  font-size: 0.74rem;
-  font-weight: 600;
-  color: var(--erp-text-muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.heroStat strong {
-  font-size: 1.1rem;
-  font-weight: 800;
-  color: var(--erp-text);
-}
-
-.good {
-  color: var(--erp-success) !important;
-}
-
-.warn {
-  color: var(--erp-warning) !important;
-}
-
-.bad {
-  color: var(--erp-danger) !important;
 }
 
 .profileCards {

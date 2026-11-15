@@ -5,7 +5,6 @@ import { findStaffByUserId } from "../staff/service";
 import { isClassTeacherOfSection, isTeacherLinkedToClassSection, listClassSectionsForTeacher } from "../classSections/service";
 import { isTeacherAssignedToSubject, listAllocatedSubjectIds } from "../subjects/service";
 import { getStudentById, getStudentByUserId } from "../students/service";
-import { getParentByUserId } from "../parents/service";
 import {
   createExam,
   getExamById,
@@ -48,7 +47,7 @@ const getExamScope = async (req: CustomRequest, classSectionId: number): Promise
 };
 
 // SUPER_ADMIN/ADMIN see any class; TEACHER if class teacher OR they teach a subject
-// in this class; STUDENT only their own class; PARENT only a linked child's class.
+// in this class; STUDENT only their own class.
 // A student's current class plus the classes of earlier sessions (after promotion their
 // old exams and report cards stay visible to them and their parents).
 const classIdsOfStudents = async (students: Array<{ id: number; classSectionId: number } | null | undefined>) => {
@@ -72,16 +71,12 @@ const canViewClassExams = async (req: CustomRequest, classSectionId: number): Pr
     const student = await getStudentByUserId(req.user.id);
     return (await classIdsOfStudents([student])).includes(classSectionId);
   }
-  if (role === "PARENT") {
-    const parent = await getParentByUserId(req.user.id);
-    return (await classIdsOfStudents((parent?.children ?? []).map((link: any) => link.student))).includes(classSectionId);
-  }
   return false;
 };
 
 // Same viewer rules as canViewClassExams, resolved against a single student instead
-// of a class section — used by the report-card endpoint (a student/parent only ever
-// asks about themselves/their own linked child).
+// of a class section — used by the report-card endpoint (a student only ever
+// asks about themselves).
 const canViewStudentExamResult = async (req: CustomRequest, studentId: number): Promise<boolean> => {
   const role = req.user?.role;
   if (isSchoolWide(role)) return true;
@@ -90,10 +85,6 @@ const canViewStudentExamResult = async (req: CustomRequest, studentId: number): 
   if (role === "STUDENT") {
     const student = await getStudentByUserId(req.user.id);
     return student?.id === studentId;
-  }
-  if (role === "PARENT") {
-    const parent = await getParentByUserId(req.user.id);
-    return !!parent?.children.some((link: any) => link.studentId === studentId);
   }
   // A full report card spans every subject, so among teachers only the class teacher sees it.
   if (role === "TEACHER") {
@@ -119,10 +110,6 @@ const viewableClassSectionIds = async (req: CustomRequest): Promise<number[] | "
   if (role === "STUDENT") {
     const student = await getStudentByUserId(req.user.id);
     return classIdsOfStudents([student]);
-  }
-  if (role === "PARENT") {
-    const parent = await getParentByUserId(req.user.id);
-    return classIdsOfStudents((parent?.children ?? []).map((link: any) => link.student));
   }
   return [];
 };
@@ -414,7 +401,7 @@ export const getReportCard = async (req: CustomRequest, res: Response): Promise<
   }
   // Students (and parents) see marks only after publishing, except class tests (visible at once).
   const role = req.user!.role;
-  if ((role === "STUDENT" || role === "PARENT") && !exam.resultsPublished && exam.type !== "CLASS_TEST") {
+  if (role === "STUDENT" && !exam.resultsPublished && exam.type !== "CLASS_TEST") {
     res.status(403).json({ success: false, message: "Results for this exam haven't been published yet." });
     return;
   }
@@ -475,7 +462,7 @@ export const getReportCardsPrint = async (req: CustomRequest, res: Response): Pr
       return;
     }
     const role = req.user!.role;
-    if ((role === "STUDENT" || role === "PARENT") && !exam.resultsPublished && exam.type !== "CLASS_TEST") {
+    if (role === "STUDENT" && !exam.resultsPublished && exam.type !== "CLASS_TEST") {
       res.status(403).json({ success: false, message: "Results for this exam haven't been published yet." });
       return;
     }

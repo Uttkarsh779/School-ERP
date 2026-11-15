@@ -119,7 +119,7 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
         >
           {isLoading ? (
             <>
-              <Spinner size="sm" />
+              <Spinner />
               <span className={styles.primaryText}>Uploading to Cloudinary...</span>
             </>
           ) : (

@@ -8,6 +8,8 @@ import { useAppSelector } from "../../../../../store/store";
 import { classLabel, fmtDate, inr } from "../feeUtils";
 import { printDefaultersReport } from "./defaultersPrint";
 import styles from "../Fees.module.css";
+import ExportButton from "../../../../../components/shared/ExportButton";
+import { useCan } from "../../../../../store/permissions";
 
 type Defaulter = {
   studentId: number;
@@ -29,6 +31,7 @@ type Defaulter = {
 // configured rule). "Collect" jumps to the payment desk with the student selected.
 const DefaultersTab = ({ onCollect }: { onCollect?: (studentId: number) => void }) => {
   const { data: classSections } = useGetClassSectionsQuery();
+  const can = useCan();
   const [classId, setClassId] = useState("");
   const [search, setSearch] = useState("");
   const [minDays, setMinDays] = useState("");
@@ -109,9 +112,12 @@ const DefaultersTab = ({ onCollect }: { onCollect?: (studentId: number) => void 
         title="Fee defaulters"
         subtitle="Students with fees past the due date, including late fees"
         action={
-          <Button size="sm" variant="outline" onClick={printList} disabled={rows.length === 0}>
-            Print list
-          </Button>
+          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+            <Button size="sm" variant="outline" onClick={printList} disabled={rows.length === 0}>
+              Print list
+            </Button>
+            {can("exports.fees") && <ExportButton path="fee-dues" params={{ classSectionId: classId || undefined }} label="Excel" disabled={rows.length === 0} />}
+          </div>
         }
       >
         <div className={styles.filters}>

@@ -6,16 +6,18 @@ import { useAppSelector } from "../../../../store/store";
 import { useGetDocumentSettingsQuery, useUpdateDocumentSettingsMutation, type DocumentSettings } from "../../../../store/api/settings.api";
 import SettingsEditor from "../Cms/SettingsEditor";
 import BackupPanel from "./BackupPanel";
+import PrivacyPanel from "./PrivacyPanel";
 import styles from "./SettingsPage.module.css";
 import { useCan } from "../../../../store/permissions";
 
 // School-wide settings. Module rules stay in their own pages (fee fines in Fees, weekly offs
 // in the calendar...); the Shortcuts tab links to them.
 
-type Tab = "school" | "documents" | "backup" | "shortcuts";
+type Tab = "school" | "documents" | "privacy" | "backup" | "shortcuts";
 const TABS: { key: Tab; label: string }[] = [
   { key: "school", label: "School profile" },
   { key: "documents", label: "Signature & seal" },
+  { key: "privacy", label: "Privacy" },
   { key: "backup", label: "Backup" }, // Super Admin only
   { key: "shortcuts", label: "Other settings" },
 ];
@@ -212,6 +214,8 @@ const SettingsPage = () => {
         <SettingsEditor section="school" />
       ) : tab === "documents" ? (
         <DocumentSettingsPanel canEdit={isSuperAdmin} />
+      ) : tab === "privacy" ? (
+        <PrivacyPanel canEditNotice={can("privacy.settings")} />
       ) : tab === "backup" ? (
         <BackupPanel />
       ) : (

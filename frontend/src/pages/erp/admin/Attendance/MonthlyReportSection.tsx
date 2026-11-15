@@ -9,6 +9,8 @@ import ClassRegisterView from "./ClassRegisterView";
 import { LOW_ATTENDANCE_THRESHOLD, formatPct, monthLabel, pctTone } from "./attendanceFormat";
 import styles from "./AdminAttendancePage.module.css";
 import reportStyles from "./MonthlyReport.module.css";
+import ExportButton from "../../../../components/shared/ExportButton";
+import { useCan } from "../../../../store/permissions";
 
 type ClassRow = AttendanceMonthlyOverview["classes"][number];
 
@@ -20,6 +22,7 @@ const currentMonthValue = () => {
 // Month overview → click a class → day-wise class register → click a student → their month.
 const MonthlyReportSection = () => {
   const { data: sessions } = useGetSessionsQuery();
+  const can = useCan();
   const [monthValue, setMonthValue] = useState(currentMonthValue());
   const [sessionId, setSessionId] = useState<string>("");
   const [selectedClassId, setSelectedClassId] = useState<number | null>(null);
@@ -81,9 +84,14 @@ const MonthlyReportSection = () => {
       key: "actions",
       label: "",
       render: (c) => (
-        <Button type="button" size="sm" variant="outline" onClick={() => setSelectedClassId(c.classSectionId)}>
-          View register →
-        </Button>
+        <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap", justifyContent: "flex-end" }}>
+          <Button type="button" size="sm" variant="outline" onClick={() => setSelectedClassId(c.classSectionId)}>
+            View register →
+          </Button>
+          {can("exports.students") && (
+            <ExportButton path="attendance" params={{ classSectionId: c.classSectionId, year: Number(yearStr), month: Number(monthStr) }} label="Excel" variant="ghost" />
+          )}
+        </div>
       ),
     },
   ];

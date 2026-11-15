@@ -1,3 +1,4 @@
+import { signOutEverywhere } from "../auth/tokens";
 import { prisma } from "../../config/prisma";
 import { httpError } from "../../utils/httpError";
 import { Role } from "../../generated/prisma/enums";
@@ -20,7 +21,7 @@ const transportRouteInclude = {
 export const getStudentById = (id: number) =>
   prisma.student.findUnique({
     where: { id },
-    include: { classSection: true, parents: { include: { parent: true } }, transportRoute: transportRouteInclude },
+    include: { classSection: true, transportRoute: transportRouteInclude },
   });
 
 export const getStudentByUserId = (userId: number) =>
@@ -55,6 +56,58 @@ export const defaultStudentPassword = (admissionNo: string, dob?: Date | null) =
   return `${String(d.getUTCDate()).padStart(2, "0")}${String(d.getUTCMonth() + 1).padStart(2, "0")}${d.getUTCFullYear()}`;
 };
 
+// Aadhaar and APAAR ID are unique per student (no two children share one). Blank means
+// "not given" (null). findIdConflict powers the form's live warning; checkUniqueIds refuses
+// the save, naming the student who already has the number.
+export const ID_LABELS = { aadharNumber: "Aadhaar number", apaarId: "APAAR ID" } as const;
+type IdKey = keyof typeof ID_LABELS;
+const cleanId = (v: unknown) => String(v ?? "").replace(/\s+/g, "");
+
+// Aadhaar: 12 digits, never starting with 0 or 1.
+export const aadhaarFormatError = (value: unknown): string | null => {
+  const v = cleanId(value);
+  if (!v) return null;
+  if (!/^\d{12}$/.test(v)) return "Aadhaar number must be exactly 12 digits";
+  if (/^[01]/.test(v)) return "Aadhaar number can't start with 0 or 1. Check the number.";
+  return null;
+};
+
+export const findIdConflict = async (key: IdKey, value: unknown, exceptId?: number) => {
+  const v = cleanId(value);
+  if (!v) return null;
+  const other = await prisma.student.findFirst({
+    where: { [key]: v, ...(exceptId ? { id: { not: exceptId } } : {}) },
+    select: { id: true, name: true, admissionNo: true, isActive: true, classSection: { select: { className: true, section: true } } },
+  });
+  if (!other) return null;
+  return {
+    id: other.id,
+    name: other.name,
+    admissionNo: other.admissionNo,
+    className: other.classSection ? `${other.classSection.className} - ${other.classSection.section}` : null,
+    isActive: other.isActive,
+  };
+};
+
+export const idConflictMessage = (key: IdKey, o: { name: string; admissionNo: string; className: string | null; isActive: boolean }) =>
+  `This ${ID_LABELS[key]} is already on the record of ${o.name} (Adm ${o.admissionNo}${o.className ? `, ${o.className}` : ""}${o.isActive ? "" : ", left the school"}). Two children can't have the same ${ID_LABELS[key]}. Check the number.`;
+
+const checkUniqueIds = async (data: StudentProfileFields & { admissionNo?: string }, exceptId?: number) => {
+  for (const key of Object.keys(ID_LABELS) as IdKey[]) {
+    if (data[key] === undefined) continue;
+    const v = cleanId(data[key]);
+    (data as any)[key] = v || null;
+    const formatError = key === "aadharNumber" ? aadhaarFormatError(v) : null;
+    if (formatError) throw httpError(400, formatError);
+    const other = await findIdConflict(key, v, exceptId);
+    if (other) throw httpError(409, idConflictMessage(key, other));
+  }
+  if (data.admissionNo) {
+    const other = await prisma.student.findFirst({ where: { admissionNo: data.admissionNo, ...(exceptId ? { id: { not: exceptId } } : {}) }, select: { name: true } });
+    if (other) throw httpError(409, `Admission number ${data.admissionNo} is already used by ${other.name}`);
+  }
+};
+
 // Every student gets a login at admission: they sign in with their admission number.
 export const createStudent = async (
   data: {
@@ -64,6 +117,7 @@ export const createStudent = async (
     admissionNo: string;
   } & StudentProfileFields
 ) => {
+  await checkUniqueIds(data);
   const passwordHash = await hashPassword(defaultStudentPassword(data.admissionNo, data.dob));
   return prisma.$transaction(async (tx: any) => {
     const user = await tx.user.create({
@@ -84,6 +138,7 @@ export const updateStudent = async (
     admissionNo?: string;
   } & StudentProfileFields
 ) => {
+  await checkUniqueIds(data, id);
   const student = await prisma.student.update({ where: { id }, data });
   // Class/roll changes are reflected in this session's enrollment history row.
   if (data.classSectionId !== undefined || data.rollNo !== undefined) await syncCurrentEnrollment(prisma, id);
@@ -129,7 +184,7 @@ export const setStudentCredentials = async (
   if (student.userId) {
     return prisma.user.update({
       where: { id: student.userId },
-      data: { email, passwordHash: data.passwordHash },
+      data: { email, passwordHash: data.passwordHash, ...signOutEverywhere },
     });
   }
 
@@ -138,4 +193,38 @@ export const setStudentCredentials = async (
   });
   await prisma.student.update({ where: { id: studentId }, data: { userId: user.id } });
   return user;
+};
+
+// The admission number to suggest for a new student, continuing the school's own pattern:
+// "ADM" + year of admission + running number for that year (ADM2026018 -> ADM2026019). If the
+// numbers don't follow that pattern, the most recent one is counted up instead (A-0457 -> A-0458).
+// Only a suggestion: the office can change it, and it's checked for clashes again on save.
+const YEAR_SEQ = /^([A-Za-z\-\/]*)(\d{4})(\d{3,})$/;
+export const suggestNextAdmissionNo = async (year = Number(new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 4))) => {
+  const latest = await prisma.student.findFirst({ orderBy: { id: "desc" }, select: { admissionNo: true } });
+  if (!latest) return `ADM${year}001`;
+  const taken = async (n: string) => !!(await prisma.student.findUnique({ where: { admissionNo: n }, select: { id: true } }));
+
+  const m = latest.admissionNo.match(YEAR_SEQ);
+  if (m) {
+    const [, prefix, , seqDigits] = m;
+    const sameYear = await prisma.student.findMany({ where: { admissionNo: { startsWith: `${prefix}${year}` } }, select: { admissionNo: true } });
+    const maxSeq = sameYear.reduce((max, s) => {
+      const mm = s.admissionNo.match(YEAR_SEQ);
+      return mm && mm[1] === prefix && Number(mm[2]) === year ? Math.max(max, Number(mm[3])) : max;
+    }, 0);
+    for (let seq = maxSeq + 1; seq < maxSeq + 1000; seq++) {
+      const candidate = `${prefix}${year}${String(seq).padStart(seqDigits.length, "0")}`;
+      if (!(await taken(candidate))) return candidate;
+    }
+  }
+
+  // Fallback: count up the trailing number of the most recent admission number.
+  const t = latest.admissionNo.match(/^(.*?)(\d+)$/);
+  if (!t) return "";
+  for (let n = Number(t[2]) + 1; n < Number(t[2]) + 1000; n++) {
+    const candidate = `${t[1]}${String(n).padStart(t[2].length, "0")}`;
+    if (!(await taken(candidate))) return candidate;
+  }
+  return "";
 };

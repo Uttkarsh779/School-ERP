@@ -201,6 +201,9 @@ const PublicLayout = () => {
               <li>
                 <Link to="/admin/login">Student / staff login</Link>
               </li>
+              <li>
+                <Link to="/privacy">Privacy notice</Link>
+              </li>
             </ul>
           </div>
           <div>

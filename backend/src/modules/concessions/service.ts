@@ -1,4 +1,5 @@
 import { prisma } from "../../config/prisma";
+import { httpError } from "../../utils/httpError";
 
 export const getConcessionSchemes = async () => {
   return prisma.concessionScheme.findMany({
@@ -22,24 +23,42 @@ export const createConcessionScheme = async (data: any) => {
   });
 };
 
+// Sibling discounts store sibling ids; add their names and classes for display.
+type Sibling = { id: number; name: string; admissionNo: string; className: string };
+const withSiblings = async <T extends { siblingStudentIds: number[] }>(rows: T[]): Promise<Array<T & { siblings: Sibling[] }>> => {
+  const ids = [...new Set(rows.flatMap((r) => r.siblingStudentIds ?? []))];
+  const students = ids.length
+    ? await prisma.student.findMany({
+        where: { id: { in: ids } },
+        select: { id: true, name: true, admissionNo: true, classSection: { select: { className: true, section: true } } },
+      })
+    : [];
+  const byId = new Map<number, Sibling>(
+    students.map((s) => [s.id, { id: s.id, name: s.name, admissionNo: s.admissionNo, className: `${s.classSection.className} - ${s.classSection.section}` }])
+  );
+  return rows.map((r) => ({ ...r, siblings: (r.siblingStudentIds ?? []).flatMap((id) => byId.get(id) ?? []) }));
+};
+
 export const getStudentConcessions = async (studentId: number) => {
-  return prisma.studentConcession.findMany({
-    where: { studentId },
-    include: { concessionScheme: true, staff: true, approvedByUser: { select: { name: true } } },
-    orderBy: { createdAt: "desc" }
-  });
+  return withSiblings(
+    await prisma.studentConcession.findMany({
+      where: { studentId },
+      include: { concessionScheme: true, staff: true, approvedByUser: { select: { name: true } } },
+      orderBy: { createdAt: "desc" }
+    })
+  );
 };
 
 export const getAllConcessions = async () => {
-  return prisma.studentConcession.findMany({
+  return withSiblings(await prisma.studentConcession.findMany({
     include: { 
       student: { select: { name: true, classSection: { select: { className: true, section: true } } } },
       concessionScheme: true,
       staff: true,
-      approvedByUser: { select: { name: true } } 
+      approvedByUser: { select: { name: true } }
     },
     orderBy: { createdAt: "desc" }
-  });
+  }));
 };
 
 export const endStudentConcession = async (id: number, effectiveDate: Date) => {
@@ -52,43 +71,26 @@ export const endStudentConcession = async (id: number, effectiveDate: Date) => {
   });
 };
 
+// A sibling discount names at least one brother or sister studying in the school.
+const parseSiblings = async (data: any): Promise<number[]> => {
+  if (data.type !== "SIBLING_DISCOUNT") return [];
+  const raw = Array.isArray(data.siblingStudentIds) ? data.siblingStudentIds : [];
+  const ids: number[] = [...new Set<number>(raw.map(Number))].filter((n) => Number.isInteger(n) && n > 0);
+  if (ids.length === 0) throw httpError(400, "Choose the brother(s) or sister(s) studying in the school");
+  if (ids.includes(Number(data.studentId))) throw httpError(400, "A student can't be their own sibling");
+  if (ids.length > 6) throw httpError(400, "Choose at most 6 siblings");
+  const found = await prisma.student.count({ where: { id: { in: ids } } });
+  if (found !== ids.length) throw httpError(400, "One of the chosen siblings wasn't found");
+  return ids;
+};
+
 export const assignStudentConcession = async (data: any, approvedByUserId: number) => {
+  const siblingStudentIds = await parseSiblings(data);
   if (data.type === "STAFF_CHILD" || data.staffId) {
     if (!data.staffId) throw new Error("Staff Member is required for Staff Child Discount");
     
-    const staffObj = await prisma.staff.findUnique({ 
-      where: { id: data.staffId }, 
-      include: { user: { include: { parent: true } } } 
-    });
+    const staffObj = await prisma.staff.findUnique({ where: { id: data.staffId } });
     if (!staffObj) throw new Error("Staff Member not found");
-
-    // Automatically create ParentGuardian profile for Staff member's user if not present
-    let parentObj = staffObj.user?.parent;
-    if (!parentObj) {
-      parentObj = await prisma.parentGuardian.create({
-        data: {
-          userId: staffObj.userId,
-          name: staffObj.user?.name || "Staff Parent",
-          email: staffObj.user?.email?.endsWith(".internal") ? null : staffObj.user?.email,
-          contact: staffObj.contact,
-        },
-      });
-    }
-
-    // Automatically create ParentStudent link if not present
-    const existingLink = await prisma.parentStudent.findUnique({
-      where: { parentId_studentId: { parentId: parentObj.id, studentId: data.studentId } },
-    });
-    if (!existingLink) {
-      await prisma.parentStudent.create({
-        data: {
-          parentId: parentObj.id,
-          studentId: data.studentId,
-          relationshipType: "Staff Parent",
-          isPrimary: false,
-        },
-      });
-    }
   }
 
   const existing = await prisma.studentConcession.findMany({
@@ -117,6 +119,7 @@ export const assignStudentConcession = async (data: any, approvedByUserId: numbe
       studentId: data.studentId,
       concessionSchemeId: data.concessionSchemeId,
       staffId: data.staffId,
+      siblingStudentIds,
       type: data.type,
       calculationType: data.calculationType,
       value: data.value,
