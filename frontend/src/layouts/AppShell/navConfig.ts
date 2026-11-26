@@ -18,6 +18,7 @@ const OFFICE_NAV: NavEntry[] = [
   { label: "Dashboard", path: "/admin", icon: "dashboard", end: true, perm: "dashboard" },
 
   { label: "Students", path: "/admin/students", icon: "graduationCap", group: "People", perm: "students.view" },
+  { label: "Admissions", path: "/admin/admissions", icon: "clipboardCheck", group: "People", perm: "admissions.view" },
   { label: "Staff", path: "/admin/staff", icon: "users", group: "People", perm: "staff.view" },
   { label: "Leave Requests", path: "/admin/leaves", icon: "calendar", group: "People", perm: "leaves.manage" },
   { label: "Admission Report", path: "/admin/admission-report", icon: "fileText", group: "People", perm: "owner" },

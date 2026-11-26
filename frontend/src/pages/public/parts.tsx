@@ -1,3 +1,4 @@
+import { useGetPublicAdmissionSettingsQuery } from "../../store/api/admissions.api";
 import {
   useCallback,
   useEffect,
@@ -475,6 +476,9 @@ export const EnquiryForm = ({ session }: { session: string }) => {
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
   const [submit, { isLoading }] = useSubmitAdmissionInquiryMutation();
+  // The school's own class names (from the ERP); the built-in list until they load.
+  const { data: admissionCfg } = useGetPublicAdmissionSettingsQuery();
+  const classOptions = admissionCfg?.enquiryClasses.length ? admissionCfg.enquiryClasses : GRADES;
   const set =
     (k: keyof typeof EMPTY_FORM) => (e: { target: { value: string } }) =>
       setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -568,7 +572,7 @@ export const EnquiryForm = ({ session }: { session: string }) => {
             required
           >
             <option value="">Select class</option>
-            {GRADES.map((g) => (
+            {classOptions.map((g) => (
               <option key={g} value={g}>
                 {g}
               </option>

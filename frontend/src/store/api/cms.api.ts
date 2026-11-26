@@ -189,19 +189,6 @@ export const cmsApi = erpApi.injectEndpoints({
     }),
 
     // Admin: admission enquiries
-    getAdmissionInquiries: builder.query<IAdmissionInquiry[], string | void>({
-      query: (status) => ({
-        url: "admin/cms/inquiries",
-        params: status && status !== "ALL" ? { status } : undefined,
-      }),
-      transformResponse: (res: ApiEnvelope<IAdmissionInquiry[]>) => res.data,
-      providesTags: ["Inquiry"],
-    }),
-    updateInquiryStatus: builder.mutation<IAdmissionInquiry, { id: number; status: InquiryStatus; notes?: string }>({
-      query: ({ id, status, notes }) => ({ url: `admin/cms/inquiries/${id}`, method: "PATCH", body: { status, notes } }),
-      transformResponse: (res: ApiEnvelope<IAdmissionInquiry>) => res.data,
-      invalidatesTags: ["Inquiry"],
-    }),
   }),
 });
 
@@ -214,6 +201,4 @@ export const {
   useCreateCmsItemMutation,
   useUpdateCmsItemMutation,
   useDeleteCmsItemMutation,
-  useGetAdmissionInquiriesQuery,
-  useUpdateInquiryStatusMutation,
 } = cmsApi;

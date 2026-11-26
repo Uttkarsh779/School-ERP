@@ -2,7 +2,7 @@ import { erpApi } from "./erpApi";
 import { saveFile } from "./download";
 
 // Excel downloads (backend /api/exports/*). Each one is permission-checked and audit-logged.
-export type ExportPath = "students" | "udise-students" | "cbse-loc" | "attendance" | "staff" | "fee-dues" | "day-book" | "marks-register" | "transport" | "inventory";
+export type ExportPath = "students" | "udise-students" | "cbse-loc" | "attendance" | "staff" | "fee-dues" | "day-book" | "marks-register" | "transport" | "inventory" | "admissions";
 
 // One student on school transport (the transport list print).
 export interface TransportRider {

@@ -1,5 +1,16 @@
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import styles from "./Modal.module.css";
+
+// Open modals, newest last. Escape closes only the top one, so a confirm box
+// opened from inside another modal doesn't close both.
+const openStack: symbol[] = [];
+
+const onEscape = (e: KeyboardEvent) => {
+  if (e.key !== "Escape" || e.defaultPrevented || !openStack.length) return;
+  e.preventDefault();
+  closers.get(openStack[openStack.length - 1])?.();
+};
+const closers = new Map<symbol, () => void>();
 
 interface ModalProps {
   isOpen?: boolean;
@@ -11,6 +22,23 @@ interface ModalProps {
 }
 
 const Modal = ({ isOpen = true, title, onClose, children, size = "md", maxWidth }: ModalProps) => {
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const id = Symbol("modal");
+    openStack.push(id);
+    closers.set(id, () => onCloseRef.current());
+    if (openStack.length === 1) document.addEventListener("keydown", onEscape);
+    return () => {
+      const i = openStack.indexOf(id);
+      if (i >= 0) openStack.splice(i, 1);
+      closers.delete(id);
+      if (!openStack.length) document.removeEventListener("keydown", onEscape);
+    };
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const getMaxWidth = () => {

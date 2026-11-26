@@ -10,6 +10,8 @@ import { startFeeReminderJob } from "./modules/notifications/events";
 import { startAutoBillingJob } from "./modules/fees/billingSettingsService";
 import { startCalendarJob } from "./modules/calendar/service";
 import { startBackupJob } from "./modules/backup/service";
+import { confirmFromWebhook, startAdmissionsJob } from "./modules/admissions/service";
+import { onOtherOrderCaptured } from "./modules/fees/razorpayService";
 
 const PORT = process.env.PORT || 5000;
 
@@ -25,6 +27,9 @@ const start = async (): Promise<void> => {
   startAutoBillingJob();
   startCalendarJob();
   startBackupJob();
+  startAdmissionsJob();
+  // Razorpay webhook: registration-fee orders aren't fee payments; admissions confirms them.
+  onOtherOrderCaptured(confirmFromWebhook);
 };
 
 start().catch((err) => {

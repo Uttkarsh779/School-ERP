@@ -11,6 +11,16 @@ import { useGetMyProfileQuery } from "../../store/api/profile.api";
 import PWAInstallPrompt from "../../components/PWAInstallPrompt/PWAInstallPrompt";
 import NotificationBell from "../../components/Notifications/NotificationBell";
 import EnableNotificationsBanner from "../../components/Notifications/EnableNotificationsBanner";
+import { useSite } from "../../pages/public/useSite";
+
+// "RRS International School" -> "RIS": shown in the crest when no logo has been uploaded.
+const initialsOf = (name: string) =>
+  name
+    .split(/\s+/)
+    .filter((w) => w && w[0] === w[0].toUpperCase())
+    .map((w) => w[0])
+    .slice(0, 3)
+    .join("") || name.slice(0, 2).toUpperCase();
 
 
 const AppShell = () => {
@@ -43,7 +53,11 @@ const AppShell = () => {
 
   // Determine active section title for mobile header
   const activeItem = items.find((item) => (item.end ? location.pathname === item.path : location.pathname.startsWith(item.path)));
-  const activeTitle = activeItem?.label ?? "RRS Intl School";
+  // School name and logo from Settings -> School profile (same as the website and login page).
+  const { settings: school } = useSite();
+  const schoolName = school.schoolName;
+  const crestContent = school.logoUrl ? <img src={school.logoUrl} alt="" className={styles.crestImg} /> : initialsOf(schoolName);
+  const activeTitle = activeItem?.label ?? schoolName;
 
   return (
     <div className={styles.shell}>
@@ -53,9 +67,9 @@ const AppShell = () => {
       {/* Left Slide-In Side Navigation (Desktop & Mobile Drawer) */}
       <aside className={`${styles.sidebar} ${mobileOpen ? styles.sidebarOpen : ""}`}>
         <Link to={homePath} className={styles.brand} title="Go to dashboard" onClick={() => setMobileOpen(false)}>
-          <div className={styles.crest}>RRS</div>
+          <div className={`${styles.crest} ${school.logoUrl ? styles.crestLogo : ""}`}>{crestContent}</div>
           <div>
-            <div className={styles.brandText}>RRS Intl School</div>
+            <div className={styles.brandText}>{schoolName}</div>
             <div className={styles.brandSub}>School ERP</div>
           </div>
         </Link>
@@ -116,7 +130,7 @@ const AppShell = () => {
             <Icon name="menu" size={22} />
           </button>
           <Link to={homePath} className={styles.mobileBrand} aria-label="Go to dashboard">
-            <div className={styles.mobileCrest}>RRS</div>
+            <div className={`${styles.mobileCrest} ${school.logoUrl ? styles.crestLogo : ""}`}>{crestContent}</div>
             <div className={styles.mobileBrandText}>{activeTitle}</div>
           </Link>
           <div className={styles.mobileHeaderEnd}>

@@ -1,4 +1,5 @@
 import { prisma } from "../../config/prisma";
+import { paidRegistrationFees } from "../admissions/service";
 import { httpError } from "../../utils/httpError";
 import { createAuditLog } from "../fees/ledgerService";
 
@@ -239,7 +240,7 @@ export const getSummary = async (actor: Actor, q: any) => {
   const fromTs = new Date(from.getTime() - IST);
   const toTs = new Date(toEnd.getTime() - IST);
 
-  const [entries, payments, refunds, construction] = await Promise.all([
+  const [entries, payments, refunds, construction, registrationFees] = await Promise.all([
     prisma.accountEntry.findMany({
       where: { isVoid: false, entryDate: { gte: from, lte: to } },
       select: { type: true, amount: true, entryDate: true, category: { select: { id: true, name: true } } },
@@ -249,6 +250,7 @@ export const getSummary = async (actor: Actor, q: any) => {
     actor.role === "SUPER_ADMIN"
       ? prisma.constructionExpense.findMany({ where: { isVoid: false, expenseDate: { gte: from, lte: to } }, select: { amount: true, expenseDate: true } })
       : Promise.resolve([]),
+    paidRegistrationFees(fromTs, toTs),
   ]);
 
   // Every month in the range, in order.
@@ -266,6 +268,8 @@ export const getSummary = async (actor: Actor, q: any) => {
   for (const r of refunds as any[]) add(monthKeyIst(r.processedAt), "feeIncome", -num(r.amount));
   for (const e of entries as any[]) add(monthKeyDate(e.entryDate), e.type === "INCOME" ? "otherIncome" : "expense", num(e.amount));
   for (const c of construction as any[]) add(monthKeyDate(c.expenseDate), "construction", num(c.amount));
+  // Admission registration fees (paid online or at the counter) — counted automatically.
+  for (const r of registrationFees as any[]) add(monthKeyIst(r.feePaidAt), "otherIncome", num(r.feeAmount));
 
   const categories = new Map<string, { name: string; type: string; amount: number }>();
   for (const e of entries as any[]) {
@@ -274,6 +278,8 @@ export const getSummary = async (actor: Actor, q: any) => {
     c.amount += num(e.amount);
     categories.set(key, c);
   }
+  const regTotal = (registrationFees as any[]).reduce((t, r) => t + num(r.feeAmount), 0);
+  if (regTotal > 0) categories.set("INCOME:registration", { name: "Admission registration fees", type: "INCOME", amount: regTotal });
 
   const monthRows = months.map((m) => {
     const r = byMonth.get(m)!;

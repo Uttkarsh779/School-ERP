@@ -85,10 +85,10 @@ describe("access", () => {
     assert.strictEqual((await call("GET", "/api/admin/cms/users", tokenFor(999999, "ADMIN"))).status, 404);
   });
   test("honeypot enquiries are accepted silently but not stored", async () => {
-    const before = await prisma.admissionInquiry.count();
+    const before = await prisma.admissionApplication.count();
     const r = await call("POST", "/api/public/inquiry", undefined, { website: "spam.example", studentName: "Bot" });
     assert.strictEqual(r.status, 201);
-    assert.strictEqual(await prisma.admissionInquiry.count(), before);
+    assert.strictEqual(await prisma.admissionApplication.count(), before);
   });
 });
 

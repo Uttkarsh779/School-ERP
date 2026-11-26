@@ -33,6 +33,31 @@ const signatureMatches = (payload: string, signature: string, secret: string) =>
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 };
 
+// Shared with online admission registration fees (modules/admissions).
+export const onlinePaymentAvailable = () => isRealMode() || isMockMode();
+export const checkoutSignatureValid = (orderId: string, paymentId: string, signature: string) => {
+  if (isMockMode()) return true;
+  return signatureMatches(`${orderId}|${paymentId}`, signature, process.env.RAZORPAY_KEY_SECRET ?? "");
+};
+export const createGatewayOrder = async (amountInPaise: number, receipt: string, notes: Record<string, string>) => {
+  assertConfigured();
+  if (!isRealMode()) return { orderId: `order_mock_${Date.now()}_${receipt}`, keyId: "rzp_test_mock", mock: true };
+  const keyId = process.env.RAZORPAY_KEY_ID!;
+  const authHeader = Buffer.from(`${keyId}:${process.env.RAZORPAY_KEY_SECRET}`).toString("base64");
+  const response = await fetch("https://api.razorpay.com/v1/orders", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Basic ${authHeader}` },
+    body: JSON.stringify({ amount: amountInPaise, currency: "INR", receipt: receipt.slice(0, 40), notes }),
+  });
+  if (!response.ok) throw httpError(502, "Could not start the online payment. Please try again in a moment.");
+  return { orderId: ((await response.json()) as { id: string }).id, keyId, mock: false };
+};
+// Webhook events for orders that aren't fee payments (registration fees) go here.
+let extraCapturedHandler: ((orderId: string, paymentId: string) => Promise<boolean>) | null = null;
+export const onOtherOrderCaptured = (fn: (orderId: string, paymentId: string) => Promise<boolean>) => {
+  extraCapturedHandler = fn;
+};
+
 // Current outstanding for a student (optionally limited to some charges), incl. late fees.
 const outstandingFor = async (studentId: number, chargeIds?: number[]) => {
   const charges = await prisma.feeCharge.findMany({
@@ -194,6 +219,8 @@ export const processRazorpayWebhook = async (rawBody: string, signature: string)
         // The webhook signature (checked above) authenticates this event.
         const result = await confirmPendingPayment(entity.order_id, entity.id, null);
         if (!result.alreadyProcessed) onPaymentReceived(result.payment.id);
+      } else if (extraCapturedHandler) {
+        await extraCapturedHandler(entity.order_id, entity.id);
       }
     }
   }

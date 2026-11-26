@@ -125,7 +125,7 @@ model User {
   notifications               Notification[]
   pushSubscriptions           PushSubscription[]
   studentDocumentsUploaded    StudentDocument[]      @relation("StudentDocumentUploadedBy")
-  inventoryMovementsCreated   InventoryMovement[]    @relation("InventoryMovementCreatedBy")
+  inventoryDocsCreated        InventoryDoc[]         @relation("InventoryDocCreatedBy")
 }
 
 model AcademicSession {
@@ -142,6 +142,8 @@ model AcademicSession {
   lateFeeRules  LateFeeRule[]
   exams         Exam[]
   enrollments   StudentEnrollment[]
+  admissionSettings     AdmissionSetting[]
+  admissionApplications AdmissionApplication[]
 }
 
 model ClassSection {
@@ -235,7 +237,7 @@ model Staff {
   StudentConcession     StudentConcession[]
   assignmentsCreated    Assignment[]
   leaveRequests         LeaveRequest[]
-  inventoryMovements    InventoryMovement[]
+  inventoryIssues       InventoryDoc[]
 
   @@map("teachers")
 }
@@ -313,6 +315,7 @@ model Student {
   health               StudentHealth?
   healthCheckups       HealthCheckup[]
   vaccinations         Vaccination[]
+  admissionApplication AdmissionApplication?
 
   @@unique([classSectionId, rollNo])
 }
@@ -1728,7 +1731,8 @@ model InventoryCategory {
   items     InventoryItem[]
 }
 
-// stock is changed only together with a movement, in one transaction.
+// stock is changed only together with a document line, in one transaction. minStock = reorder
+// level; returnable = usually given out to be returned (the default on issue lines).
 model InventoryItem {
   id         Int                 @id @default(autoincrement())
   name       String              @unique
@@ -1742,36 +1746,179 @@ model InventoryItem {
   notes      String?
   isActive   Boolean             @default(true)
   createdAt  DateTime            @default(now())
-  movements  InventoryMovement[]
+  lines      InventoryDocLine[]
 
   @@index([categoryId])
 }
 
-// type: IN | ISSUE | RETURN | ADJUST | WRITE_OFF. quantity > 0; change = signed effect on stock.
-model InventoryMovement {
-  id              Int           @id @default(autoincrement())
-  itemId          Int
-  item            InventoryItem @relation(fields: [itemId], references: [id])
-  type            String
-  quantity        Decimal       @db.Decimal(12, 2)
-  change          Decimal       @db.Decimal(12, 2)
-  movedOn         DateTime      @db.Date
-  supplier        String?
-  billNo          String?
-  unitCost        Decimal?      @db.Decimal(12, 2)
-  staffId         Int?
-  staff           Staff?        @relation(fields: [staffId], references: [id], onDelete: SetNull)
-  issuedTo        String? // room, class or department
-  note            String?
-  isVoid          Boolean       @default(false)
-  voidReason      String?
-  voidedAt        DateTime?
-  voidedByUserId  Int?
-  createdByUserId Int
-  createdBy       User          @relation("InventoryMovementCreatedBy", fields: [createdByUserId], references: [id])
-  createdAt       DateTime      @default(now())
+// A stock document (prisma/inventory_v2.sql). kind: OPENING | RECEIPT | ISSUE | RETURN | ADJUST.
+// Numbers: OPN- / GRN- / ISS- / RET- / ADJ-0001. A RETURN points at its ISSUE (issueId).
+model InventoryDoc {
+  id               Int                @id @default(autoincrement())
+  docNo            String             @unique
+  kind             String
+  docDate          DateTime           @db.Date
+  supplier         String?
+  billNo           String?
+  staffId          Int?
+  staff            Staff?             @relation(fields: [staffId], references: [id], onDelete: SetNull)
+  department       String? // issued to a room / class / department instead of a person
+  purpose          String?
+  expectedReturnOn DateTime?          @db.Date
+  issueId          Int?
+  issue            InventoryDoc?      @relation("IssueReturns", fields: [issueId], references: [id])
+  returns          InventoryDoc[]     @relation("IssueReturns")
+  reason           String? // ADJUST: COUNT | DAMAGED | LOST | EXPIRED | FOUND | CONSUMED
+  note             String?
+  isVoid           Boolean            @default(false)
+  voidReason       String?
+  voidedAt         DateTime?
+  voidedByUserId   Int?
+  createdByUserId  Int
+  createdBy        User               @relation("InventoryDocCreatedBy", fields: [createdByUserId], references: [id])
+  createdAt        DateTime           @default(now())
+  legacyMovementId Int?               @unique
+  lines            InventoryDocLine[]
 
-  @@index([itemId])
+  @@index([kind, docDate])
   @@index([staffId])
-  @@index([movedOn])
+  @@index([issueId])
+}
+
+// One item on a document. change = effect on stock (+ in, − out, 0 e.g. damaged on return).
+// Issue lines: toReturn = expected back. Return / closing lines point at the issue line.
+model InventoryDocLine {
+  id          Int                @id @default(autoincrement())
+  docId       Int
+  doc         InventoryDoc       @relation(fields: [docId], references: [id], onDelete: Cascade)
+  itemId      Int
+  item        InventoryItem      @relation(fields: [itemId], references: [id])
+  quantity    Decimal            @db.Decimal(12, 2)
+  change      Decimal            @db.Decimal(12, 2)
+  rate        Decimal?           @db.Decimal(12, 2)
+  toReturn    Boolean            @default(false)
+  issueLineId Int?
+  issueLine   InventoryDocLine?  @relation("IssueLineSettlements", fields: [issueLineId], references: [id])
+  settlements InventoryDocLine[] @relation("IssueLineSettlements")
+  condition   String? // GOOD | DAMAGED (return lines)
+  remark      String? // e.g. serial / tag no.
+
+  @@index([docId])
+  @@index([itemId])
+  @@index([issueLineId])
+}
+
+// ---------------------------------------------------------------------------
+// Online admissions (prisma/admissions.sql)
+// ---------------------------------------------------------------------------
+
+// One row (id = 1). Registration fee: defaultFee, or classFees[className] when set (0 = free).
+model AdmissionSetting {
+  id              Int              @id @default(1)
+  isOpen          Boolean          @default(false)
+  sessionId       Int?
+  session         AcademicSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  classNames      String[]         @default([]) // classes taking applications; empty = every class of the session
+  defaultFee      Decimal          @default(0) @db.Decimal(10, 2)
+  classFees       Json             @default("{}")
+  closesOn        DateTime?        @db.Date
+  instructions    String?
+  allowUploads    Boolean          @default(true)
+  updatedByUserId Int?
+  updatedAt       DateTime         @default(now()) @updatedAt
+}
+
+// stage: ENQUIRY | APPLIED | TEST | SELECTED | ADMITTED | REJECTED | WITHDRAWN
+// source: WEBSITE_ENQUIRY | ONLINE_FORM | OFFICE · feeStatus: NONE | UNPAID | PAID | WAIVED
+model AdmissionApplication {
+  id                  Int              @id @default(autoincrement())
+  applicationNo       String           @unique
+  stage               String           @default("ENQUIRY")
+  source              String
+  sessionId           Int?
+  session             AcademicSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  className           String
+
+  studentName         String
+  dob                 DateTime?        @db.Date
+  gender              String?
+  bloodGroup          String?
+  aadharNumber        String?
+  category            String?
+  nationality         String?
+  previousSchool      String?
+  previousClass       String?
+
+  contactName         String
+  phone               String
+  email               String?
+  fatherName          String?
+  fatherPhone         String?
+  fatherOccupation    String?
+  motherName          String?
+  motherPhone         String?
+  motherOccupation    String?
+  address             String?
+  message             String?
+  officeNotes         String?
+  contactedAt         DateTime?
+
+  testAt              DateTime?
+  testVenue           String?
+  testResult          String? // PASS | FAIL | ABSENT
+  testRemarks         String?
+
+  feeAmount           Decimal          @default(0) @db.Decimal(10, 2)
+  feeStatus           String           @default("NONE")
+  feeReceiptNo        String?          @unique
+  feePaidAt           DateTime?
+  feeMode             String? // CASH | UPI | BANK_TRANSFER | CHEQUE | ONLINE
+  feeReference        String?
+  feeRecordedByUserId Int?
+  feeWaiveReason      String?
+  razorpayOrderId     String?          @unique
+  razorpayPaymentId   String?
+
+  closedReason        String?
+  admittedStudentId   Int?             @unique
+  admittedStudent     Student?         @relation(fields: [admittedStudentId], references: [id], onDelete: SetNull)
+  legacyInquiryId     Int?             @unique
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @default(now()) @updatedAt
+
+  files               AdmissionFile[]
+  events              AdmissionEvent[]
+
+  @@index([stage])
+  @@index([phone])
+}
+
+model AdmissionFile {
+  id                Int                  @id @default(autoincrement())
+  applicationId     Int
+  application       AdmissionApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  docType           String
+  publicId          String
+  resourceType      String
+  format            String?
+  mimeType          String?
+  bytes             Int                  @default(0)
+  movedToDocumentId Int?
+  createdAt         DateTime             @default(now())
+
+  @@index([applicationId])
+}
+
+model AdmissionEvent {
+  id            Int                  @id @default(autoincrement())
+  applicationId Int
+  application   AdmissionApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  action        String
+  fromStage     String?
+  toStage       String?
+  note          String?
+  userId        Int? // null = the family (website)
+  createdAt     DateTime             @default(now())
+
+  @@index([applicationId])
 }

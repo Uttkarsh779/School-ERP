@@ -30,6 +30,7 @@ import AdmissionReportPage from "./pages/erp/admin/AdmissionReport/AdmissionRepo
 import ConstructionExpensePage from "./pages/erp/admin/Construction/ConstructionExpensePage";
 import AccountsPage from "./pages/erp/admin/Accounts/AccountsPage";
 import InventoryPage from "./pages/erp/admin/Inventory/InventoryPage";
+import AdminAdmissionsPage from "./pages/erp/admin/Admissions/AdmissionsPage";
 import SchoolCalendar from "./components/shared/SchoolCalendar/SchoolCalendar";
 import PublicLayout from "./pages/public/PublicLayout";
 import HomePage from "./pages/public/HomePage";
@@ -38,6 +39,8 @@ import AcademicsPage from "./pages/public/AcademicsPage";
 import CampusPage from "./pages/public/CampusPage";
 import GalleryPage from "./pages/public/GalleryPage";
 import AdmissionsPage from "./pages/public/AdmissionsPage";
+import ApplyPage from "./pages/public/ApplyPage";
+import ApplicationStatusPage from "./pages/public/ApplicationStatusPage";
 import NoticesPage from "./pages/public/NoticesPage";
 import ContactPage from "./pages/public/ContactPage";
 import PrivacyPage from "./pages/public/PrivacyPage";
@@ -81,6 +84,8 @@ function App() {
           <Route path="/campus" element={<CampusPage />} />
           <Route path="/gallery" element={<GalleryPage />} />
           <Route path="/admissions" element={<AdmissionsPage />} />
+          <Route path="/admissions/apply" element={<ApplyPage />} />
+          <Route path="/admissions/status" element={<ApplicationStatusPage />} />
           <Route path="/notices" element={<NoticesPage />} />
           <Route path="/contact" element={<ContactPage />} />
           <Route path="/privacy" element={<PrivacyPage />} />
@@ -129,6 +134,7 @@ function App() {
           <Route path="/admin/my-leave" element={<RequirePermission perm="leave.own"><MyLeavePage /></RequirePermission>} />
           <Route path="/admin/accounts" element={<RequirePermission perm="accounts"><AccountsPage /></RequirePermission>} />
           <Route path="/admin/inventory" element={<RequirePermission perm="inventory.view"><InventoryPage /></RequirePermission>} />
+          <Route path="/admin/admissions" element={<RequirePermission perm="admissions.view"><AdminAdmissionsPage /></RequirePermission>} />
           <Route path="/admin/calendar" element={<RequirePermission perm="dashboard"><OfficeCalendar /></RequirePermission>} />
           <Route path="/admin/settings" element={<RequirePermission perm="settings"><SettingsPage /></RequirePermission>} />
           <Route path="/admin/certificates" element={<RequirePermission perm="certificates"><CertificateRegisterPage /></RequirePermission>} />

@@ -20,6 +20,9 @@ export const PERMISSIONS = {
   "students.edit": [SA, AD], // admit, edit, photos, logins, mark left
   "staff.view": [SA, AD, PR], // staff create/edit stay Super Admin only
   "leaves.manage": [SA, AD, PR], // every leave request; approve or reject
+  "admissions.view": [SA, AD, PR, AC], // applications from the website and the office
+  "admissions.manage": [SA, AD, PR], // stages, tests, details, open/close (fee amounts: Super Admin; admitting: students.edit)
+  "admissions.fee": [SA, AD, AC], // record a registration fee paid at the counter
   certificates: [SA, AD, PR], // TC, bonafide, character … and the register
   "documents.view": [SA, AD, PR], // scanned student documents (birth certificate, Aadhaar …); every view is logged
   "documents.edit": [SA, AD], // upload, verify, remove

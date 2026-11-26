@@ -6,6 +6,7 @@ import { createAuditLog } from "../fees/ledgerService";
 import { istDate, sendWorkbook, type Sheet } from "./workbook";
 import * as svc from "./service";
 import { stockRegisterSheets } from "../inventory/service";
+import { applicationsSheets } from "../admissions/service";
 
 // Excel downloads. Each one is permission-checked by area and written to the audit log
 // (who downloaded what, when), since these files carry children's personal data.
@@ -74,6 +75,11 @@ router.get(
   "/inventory",
   allow("inventory.view"),
   exportRoute("INVENTORY", async (req) => ({ filename: `Stock_register_${istDate()}`, sheets: await stockRegisterSheets(req.query.from, req.query.to) }))
+);
+router.get(
+  "/admissions",
+  allow("admissions.view"),
+  exportRoute("ADMISSIONS", async (req) => ({ filename: `Admission_applications_${istDate()}`, sheets: await applicationsSheets(req.query as any) }))
 );
 // The same transport list as JSON, for the printed version (also recorded).
 router.get(

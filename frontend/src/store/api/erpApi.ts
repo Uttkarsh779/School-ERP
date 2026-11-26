@@ -36,6 +36,7 @@ export const erpApi = createApi({
     "StudentDocument",
     "Health",
     "Inventory",
+    "Admission",
     "Notification",
     "Account",
     "Calendar",

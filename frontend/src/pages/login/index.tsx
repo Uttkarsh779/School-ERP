@@ -5,7 +5,8 @@ import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
 import styles from "./Login.module.css";
-import logo from "../../assets/images/logo.png";
+import fallbackLogo from "../../assets/images/logo.png";
+import { useSite } from "../public/useSite";
 import Button from "../../components/Button";
 import Input from "../../components/Input";
 import Div from "../../components/Div";
@@ -33,6 +34,11 @@ const Login: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [loginMode, setLoginMode] = useState<LoginMode>("family");
+  // Logo and name come from Settings -> School profile (same as the website); the bundled
+  // image is only shown until that loads, or if no logo has been uploaded.
+  const { settings, isLoading: siteLoading } = useSite();
+  const logo = settings.logoUrl || (siteLoading ? undefined : fallbackLogo);
+  const schoolName = settings.schoolName;
   const [loginUser] = useLoginUserMutation();
   const dispatch = useDispatch();
 
@@ -100,17 +106,13 @@ const Login: React.FC = () => {
       <div className={styles.loginPage}>
         <div className={styles.leftSection}>
           <div className={styles.logoContainer}>
-            <h1 className={styles.collegeName}>RRS Intl School</h1>
+            <h1 className={styles.collegeName}>{schoolName}</h1>
             <p className={styles.portalTitle}>
               {loginMode === "family" ? "Student Portal" : "Staff & Admin Portal"}
             </p>
           </div>
           <div className={styles.imageContainer}>
-            <img
-              src={logo}
-              alt="RRS Intl School"
-              className={styles.heroImage}
-            />
+            {logo && <img src={logo} alt={schoolName} className={styles.heroImage} />}
           </div>
         </div>
 
@@ -118,9 +120,9 @@ const Login: React.FC = () => {
           <div className={styles.loginCard}>
             {/* Phones: one compact brand row instead of the big header + headings */}
             <div className={styles.mobileBrand}>
-              <img src={logo} alt="" className={styles.mobileLogo} />
+              {logo && <img src={logo} alt="" className={styles.mobileLogo} />}
               <div>
-                <div className={styles.mobileName}>RRS Intl School</div>
+                <div className={styles.mobileName}>{schoolName}</div>
                 <div className={styles.mobileTag}>Student &amp; Staff login</div>
               </div>
             </div>

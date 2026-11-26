@@ -1,4 +1,5 @@
 import type { Request, Response } from "express";
+import { submitEnquiry } from "../admissions/service";
 import type { CustomRequest } from "../../middleware/auth";
 import * as cmsService from "./cmsService";
 
@@ -15,7 +16,8 @@ export const postAdmissionInquiry = async (req: Request, res: Response) => {
     res.status(201).json({ success: true, message });
     return;
   }
-  const data = await cmsService.submitAdmissionInquiry(req.body ?? {});
+  // Enquiries now start an application at the "enquiry" stage (modules/admissions).
+  const data = await submitEnquiry(req.body ?? {});
   res.status(201).json({ success: true, message, data });
 };
 
@@ -49,13 +51,3 @@ export const deleteCollectionItem = async (req: CustomRequest, res: Response) =>
   res.json({ success: true, message: `${noun} removed` });
 };
 
-// Admin: admission enquiries
-export const getAdmissionInquiries = async (req: CustomRequest, res: Response) => {
-  const status = typeof req.query.status === "string" ? req.query.status : undefined;
-  res.json({ success: true, data: await cmsService.getAdmissionInquiries(status) });
-};
-
-export const updateInquiryStatus = async (req: CustomRequest, res: Response) => {
-  const data = await cmsService.updateInquiryStatus(Number(req.params.id), req.body?.status, req.body?.notes);
-  res.json({ success: true, data, message: "Enquiry updated" });
-};

@@ -39,8 +39,6 @@ adminCmsRouter.get("/settings", asyncHandler(controller.getSettings));
 adminCmsRouter.put("/settings", asyncHandler(controller.updateSettings));
 
 // Admission enquiries
-adminCmsRouter.get("/inquiries", asyncHandler(controller.getAdmissionInquiries));
-adminCmsRouter.patch("/inquiries/:id", asyncHandler(controller.updateInquiryStatus));
 
 // Content collections: facilities | gallery | notices | testimonials | faqs
 adminCmsRouter.get("/:collection", asyncHandler(controller.listCollection));

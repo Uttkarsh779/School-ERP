@@ -399,7 +399,6 @@ export const getPublicWebsiteData = async () => {
 // Admission enquiries
 // ---------------------------------------------------------------------------
 
-export const INQUIRY_STATUSES = ["NEW", "CONTACTED", "ADMITTED", "REJECTED"] as const;
 const PHONE_RE = /^[+]?[\d\s-]{7,15}$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -422,31 +421,4 @@ export const parseInquiry = (body: Record<string, unknown>) => {
   return data;
 };
 
-export const submitAdmissionInquiry = async (body: Record<string, unknown>) => {
-  const data = parseInquiry(body);
-  await ensureCmsTables();
-  const created = await prisma.admissionInquiry.create({
-    data: { ...data, email: data.email ?? "", status: "NEW" } as any,
-  });
-  return { id: created.id };
-};
-
-export const getAdmissionInquiries = async (status?: string) => {
-  await ensureCmsTables();
-  const where = status && status !== "ALL" ? { status } : {};
-  return prisma.admissionInquiry.findMany({ where, orderBy: { createdAt: "desc" } });
-};
-
-export const updateInquiryStatus = async (id: number, status: unknown, notes?: unknown) => {
-  if (!Number.isInteger(id) || id <= 0) throw httpError(400, "Invalid id");
-  if (!INQUIRY_STATUSES.includes(status as any)) throw httpError(400, "Invalid status");
-  if (notes !== undefined && notes !== null && (typeof notes !== "string" || notes.length > 2000)) {
-    throw httpError(400, "Notes must be text up to 2000 characters");
-  }
-  const existing = await prisma.admissionInquiry.findUnique({ where: { id } });
-  if (!existing) throw httpError(404, "Enquiry not found");
-  return prisma.admissionInquiry.update({
-    where: { id },
-    data: { status: status as string, ...(notes !== undefined ? { notes: (notes as string | null)?.trim() || null } : {}) },
-  });
-};
+// Enquiries are saved by modules/admissions (submitEnquiry); parseInquiry stays for the tests.

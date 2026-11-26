@@ -338,14 +338,19 @@ export const getAdmissionOverview = async (actor: Actor) => {
   const sessionByGender: Record<string, number> = { MALE: 0, FEMALE: 0, OTHER: 0, UNSPECIFIED: 0 };
   for (const s of sessionStudents as { gender: Gender | null }[]) sessionByGender[s.gender ?? "UNSPECIFIED"] += 1;
 
-  // AdmissionInquiry is created lazily by the CMS module; if it isn't there yet the
-  // dashboard should still render, just without the funnel.
+  // Enquiry funnel from online admissions: NEW = enquiries not yet called, CONTACTED = called
+  // or in progress (applied / test / selected), ADMITTED, REJECTED (incl. withdrawn).
   let enquiries: Record<string, number> | null = null;
   try {
-    const grouped = await prisma.admissionInquiry.groupBy({ by: ["status"], _count: { _all: true } });
-    enquiries = { NEW: 0, CONTACTED: 0, ADMITTED: 0, REJECTED: 0 };
-    for (const g of grouped as { status: string; _count: { _all: number } }[]) {
-      enquiries[g.status] = (enquiries[g.status] ?? 0) + g._count._all;
+    const grouped = await prisma.admissionApplication.groupBy({ by: ["stage"], _count: { _all: true } });
+    const uncalled = await prisma.admissionApplication.count({ where: { stage: "ENQUIRY", contactedAt: null } });
+    enquiries = { NEW: uncalled, CONTACTED: 0, ADMITTED: 0, REJECTED: 0 };
+    for (const g of grouped as { stage: string; _count: { _all: number } }[]) {
+      const n = g._count._all;
+      if (g.stage === "ENQUIRY") enquiries.CONTACTED += n - uncalled;
+      else if (["APPLIED", "TEST", "SELECTED"].includes(g.stage)) enquiries.CONTACTED += n;
+      else if (g.stage === "ADMITTED") enquiries.ADMITTED += n;
+      else enquiries.REJECTED += n;
     }
   } catch {
     enquiries = null;

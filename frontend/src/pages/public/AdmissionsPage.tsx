@@ -3,10 +3,13 @@ import { SiteIcon } from "./icons";
 import { EnquiryForm, FaqList, PageBanner, Reveal, SectionHead, cx } from "./parts";
 import { telHref, usePageTitle, useSite } from "./useSite";
 import s from "./site.module.css";
+import { Link } from "react-router-dom";
+import { useGetPublicAdmissionSettingsQuery } from "../../store/api/admissions.api";
 
 const AdmissionsPage = () => {
   const { settings, session, faqs } = useSite();
   usePageTitle("Admissions", settings.schoolName);
+  const { data: online } = useGetPublicAdmissionSettingsQuery();
 
   return (
     <>
@@ -16,6 +19,33 @@ const AdmissionsPage = () => {
         text={settings.admissionNotice || "We welcome families who share our belief in caring, all-round education."}
         image={IMAGES.smartClassroom}
       />
+
+      <section className={cx(s.section, s.sectionTight)}>
+        <div className={s.container}>
+          <div className={s.card} style={{ display: "flex", gap: 16, alignItems: "center", justifyContent: "space-between", flexWrap: "wrap" }}>
+            <div>
+              <h2 className={s.cardTitle} style={{ fontSize: "1.25rem" }}>
+                {online?.isOpen ? `Online applications are open${online.sessionName ? ` for ${online.sessionName}` : ""}` : "Apply or check an application"}
+              </h2>
+              <p className={s.cardText}>
+                {online?.isOpen
+                  ? `Fill the form online${online.classes.some((c) => c.fee > 0) && online.onlinePayment ? " and pay the registration fee by UPI or card" : ""}. Keep your application number to check the status.`
+                  : "Online applications open when the admission season starts. You can send an enquiry any time."}
+              </p>
+            </div>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              {online?.isOpen && (
+                <Link to="/admissions/apply" className={cx(s.btn, s.btnPrimary)}>
+                  Apply online <SiteIcon name="arrowRight" size={18} />
+                </Link>
+              )}
+              <Link to="/admissions/status" className={cx(s.btn, s.btnOutline)}>
+                Check application status
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
 
       <section className={s.section}>
         <div className={s.container}>

@@ -39,6 +39,7 @@
     "test:privacy": "node --no-experimental-strip-types -r ts-node/register src/tests/privacy.test.ts",
     "test:sibling-concession": "node --no-experimental-strip-types -r ts-node/register src/tests/sibling_concession.test.ts",
     "test:student-records": "node --no-experimental-strip-types -r ts-node/register src/tests/student_records.test.ts",
+    "test:admissions": "node --no-experimental-strip-types -r ts-node/register src/tests/admissions.test.ts",
     "test:inventory": "node --no-experimental-strip-types -r ts-node/register src/tests/inventory.test.ts",
     "test:rollover": "node --no-experimental-strip-types -r ts-node/register src/tests/session_rollover.test.ts",
     "reset-password": "npx ts-node scripts/reset-password.ts",

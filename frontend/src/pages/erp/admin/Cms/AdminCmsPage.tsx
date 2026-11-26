@@ -1,8 +1,7 @@
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { Button, PageHeader } from "../../../../components/ui";
-import { useGetAdmissionInquiriesQuery, type CmsCollectionName } from "../../../../store/api/cms.api";
+import { type CmsCollectionName } from "../../../../store/api/cms.api";
 import CollectionManager from "./CollectionManager";
-import InquiriesPanel from "./InquiriesPanel";
 import SettingsEditor, { type SettingsSection } from "./SettingsEditor";
 import styles from "./AdminCmsPage.module.css";
 
@@ -27,15 +26,13 @@ const AdminCmsPage = () => {
   // The tab lives in the URL (?tab=gallery) so refresh/back keep your place.
   const [params, setParams] = useSearchParams();
   const tab = (TABS.find((t) => t.key === params.get("tab"))?.key ?? "profile") as Tab;
-  const { data: inquiries } = useGetAdmissionInquiriesQuery();
-  const newCount = (inquiries ?? []).filter((i) => i.status === "NEW").length;
   const go = (key: Tab) => setParams(key === "profile" ? {} : { tab: key }, { replace: true });
 
   return (
     <div className={styles.page}>
       <PageHeader
         title="Website CMS"
-        subtitle="Edit the public school website — text, photos, notices and admission enquiries."
+        subtitle="Edit the public school website — text, photos and notices."
         actions={
           <Button variant="outline" onClick={() => window.open("/", "_blank", "noopener")}>
             View website ↗
@@ -50,7 +47,6 @@ const AdminCmsPage = () => {
           {TABS.map((t) => (
             <option key={t.key} value={t.key}>
               {t.label}
-              {t.key === "inquiries" && newCount > 0 ? ` (${newCount} new)` : ""}
             </option>
           ))}
         </select>
@@ -67,7 +63,6 @@ const AdminCmsPage = () => {
             onClick={() => go(t.key)}
           >
             {t.label}
-            {t.key === "inquiries" && newCount > 0 && <span className={styles.count}>{newCount}</span>}
           </button>
         ))}
       </div>
@@ -75,7 +70,9 @@ const AdminCmsPage = () => {
       {SETTINGS_TABS.includes(tab) ? (
         <SettingsEditor section={tab as SettingsSection} />
       ) : tab === "inquiries" ? (
-        <InquiriesPanel />
+        <p style={{ padding: "1rem 0" }}>
+          Website enquiries and online applications are handled on the <Link to="/admin/admissions">Admissions</Link> page.
+        </p>
       ) : (
         <CollectionManager key={tab} collection={tab as CmsCollectionName} />
       )}

@@ -112,11 +112,11 @@ export const familyDocumentSummary = async (studentId: number) => {
   };
 };
 
-const uploadPrivate = (buffer: Buffer, photo: boolean, publicId: string) =>
+const uploadPrivate = (buffer: Buffer, photo: boolean, publicId: string, folder: string) =>
   new Promise<{ public_id: string; bytes: number; format?: string; resource_type: string }>((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
       {
-        folder: FOLDER,
+        folder,
         public_id: publicId,
         type: "authenticated",
         resource_type: photo ? "image" : "raw",
@@ -126,6 +126,47 @@ const uploadPrivate = (buffer: Buffer, photo: boolean, publicId: string) =>
     );
     Readable.from(buffer).pipe(stream);
   });
+
+export type StoredFile = { publicId: string; resourceType: string; format: string; mimeType: string; bytes: number };
+
+// Checks and stores a photo or PDF privately (shared with online admission forms).
+export const storePrivateFile = async (file: { buffer: Buffer; mimetype: string; size: number }, nameBase: string, folder = FOLDER): Promise<StoredFile> => {
+  const photoExt = PHOTO_TYPES[file.mimetype];
+  const isPdf = file.mimetype === "application/pdf";
+  if (!photoExt && !isPdf) throw httpError(400, "Upload a photo (JPG, PNG, WebP) or a PDF");
+  if (isPdf && file.size > MAX_DOCUMENT_BYTES) throw httpError(400, `This PDF is ${(file.size / 1048576).toFixed(1)} MB. PDFs can be at most ${MAX_DOCUMENT_BYTES / 1048576} MB — scan at a lower quality.`);
+  if (photoExt && file.size > MAX_PHOTO_BYTES) throw httpError(400, "This photo is over 10 MB");
+  // Raw files keep their extension in the id; images get theirs from Cloudinary.
+  let stored;
+  try {
+    stored = await uploadPrivate(file.buffer, !!photoExt, isPdf ? `${nameBase}.pdf` : nameBase, folder);
+  } catch (e: any) {
+    console.error("[Documents] upload failed", e?.message);
+    throw httpError(502, "Couldn't save the file to storage. Try again in a minute.");
+  }
+  return {
+    publicId: stored.public_id,
+    resourceType: stored.resource_type,
+    format: photoExt ? stored.format ?? photoExt : "pdf",
+    mimeType: photoExt ? `image/${stored.format === "jpg" ? "jpeg" : stored.format ?? photoExt}` : "application/pdf",
+    bytes: stored.bytes ?? file.size,
+  };
+};
+
+// Reads a privately stored file with a 5-minute signed link.
+export const readPrivateFile = async (f: { publicId: string; resourceType: string; format: string | null }) => {
+  const url = cloudinary.utils.private_download_url(f.publicId, f.resourceType === "raw" ? "" : f.format ?? "", {
+    resource_type: f.resourceType,
+    type: "authenticated",
+    expires_at: Math.floor(Date.now() / 1000) + 300,
+  });
+  const res = await fetch(url);
+  if (!res.ok) throw httpError(502, "Couldn't fetch the file from storage");
+  return Buffer.from(await res.arrayBuffer());
+};
+
+export const deletePrivateFile = (f: { publicId: string; resourceType: string }) =>
+  cloudinary.uploader.destroy(f.publicId, { resource_type: f.resourceType, type: "authenticated", invalidate: true });
 
 export const uploadStudentDocument = async (
   actorId: number,
@@ -138,35 +179,9 @@ export const uploadStudentDocument = async (
   const title = cleanTitle(body.title);
   if (docType === "OTHER" && !title) throw httpError(400, "Say what this document is");
   if (!file) throw httpError(400, "Choose a file to upload");
-
-  const photoExt = PHOTO_TYPES[file.mimetype];
-  const isPdf = file.mimetype === "application/pdf";
-  if (!photoExt && !isPdf) throw httpError(400, "Upload a photo (JPG, PNG, WebP) or a PDF");
-  if (isPdf && file.size > MAX_DOCUMENT_BYTES) throw httpError(400, `This PDF is ${(file.size / 1048576).toFixed(1)} MB. PDFs can be at most ${MAX_DOCUMENT_BYTES / 1048576} MB — scan at a lower quality.`);
-  if (photoExt && file.size > MAX_PHOTO_BYTES) throw httpError(400, "This photo is over 10 MB");
-
-  // Raw files keep their extension in the id; images get theirs from Cloudinary.
-  const base = `s${studentId}_${docType.toLowerCase()}_${Date.now()}`;
-  let stored;
-  try {
-    stored = await uploadPrivate(file.buffer, !!photoExt, isPdf ? `${base}.pdf` : base);
-  } catch (e: any) {
-    console.error("[Documents] upload failed", e?.message);
-    throw httpError(502, "Couldn't save the file to storage. Try again in a minute.");
-  }
-
+  const stored = await storePrivateFile(file, `s${studentId}_${docType.toLowerCase()}_${Date.now()}`);
   const doc = await prisma.studentDocument.create({
-    data: {
-      studentId,
-      docType,
-      title,
-      publicId: stored.public_id,
-      resourceType: stored.resource_type,
-      format: photoExt ? stored.format ?? photoExt : "pdf",
-      mimeType: photoExt ? `image/${stored.format === "jpg" ? "jpeg" : stored.format ?? photoExt}` : "application/pdf",
-      bytes: stored.bytes ?? file.size,
-      uploadedByUserId: actorId,
-    },
+    data: { studentId, docType, title, ...stored, uploadedByUserId: actorId },
     include: { uploadedBy: { select: { name: true } } },
   });
   await createAuditLog({ action: "UPLOAD", entityType: "StudentDocument", entityId: doc.id, userId: actorId, newValues: { studentId, docType, title } });
@@ -182,17 +197,11 @@ const findDoc = async (id: number) => {
 // The file itself, fetched from storage with a short-lived signed link.
 export const fetchStudentDocument = async (actorId: number, id: number) => {
   const doc = await findDoc(id);
-  const url = cloudinary.utils.private_download_url(doc.publicId, doc.resourceType === "raw" ? "" : doc.format ?? "", {
-    resource_type: doc.resourceType,
-    type: "authenticated",
-    expires_at: Math.floor(Date.now() / 1000) + 300,
-  });
-  const res = await fetch(url);
-  if (!res.ok) throw httpError(502, "Couldn't fetch the file from storage");
+  const buffer = await readPrivateFile(doc);
   await createAuditLog({ action: "VIEW", entityType: "StudentDocument", entityId: doc.id, userId: actorId, newValues: { studentId: doc.studentId, docType: doc.docType } });
   const ext = doc.mimeType === "application/pdf" ? "pdf" : doc.format ?? "jpg";
   return {
-    buffer: Buffer.from(await res.arrayBuffer()),
+    buffer,
     mimeType: doc.mimeType ?? "application/octet-stream",
     fileName: `${doc.docType.toLowerCase()}_${doc.studentId}.${ext}`,
   };
@@ -215,7 +224,7 @@ export const removeStudentDocument = async (actorId: number, id: number, reason:
   const why = typeof reason === "string" ? reason.trim() : "";
   if (why.length < 3) throw httpError(400, "Say why this document is being removed");
   try {
-    await cloudinary.uploader.destroy(doc.publicId, { resource_type: doc.resourceType, type: "authenticated", invalidate: true });
+    await deletePrivateFile(doc);
   } catch (e: any) {
     console.error("[Documents] delete failed", doc.publicId, e?.message);
     throw httpError(502, "Couldn't delete the file from storage. Try again in a minute.");

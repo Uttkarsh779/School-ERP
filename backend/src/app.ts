@@ -30,6 +30,7 @@ import leavesRouter from "./modules/leaves/routes";
 import certificatesRouter from "./modules/certificates/routes";
 import studentRecordsRouter from "./modules/studentRecords/routes";
 import inventoryRouter from "./modules/inventory/routes";
+import admissionsRouter from "./modules/admissions/routes";
 import notificationsRouter from "./modules/notifications/routes";
 import accountsRouter from "./modules/accounts/routes";
 import calendarRouter from "./modules/calendar/routes";
@@ -52,6 +53,9 @@ app.use(
 // Routes
 app.use("/api/upload", uploadRouter);
 app.use("/api/public", publicCmsRouter);
+// Has public routes (website form), so it must come before the routers mounted at "/api"
+// that require a login for every path (fees, concessions, assignments).
+app.use("/api/admissions", admissionsRouter); // /public/* = website (no login) · rest = office
 app.use("/api/admin/cms", adminCmsRouter);
 app.use("/api/users", authRouter);
 app.use("/api/privacy", privacyRouter);

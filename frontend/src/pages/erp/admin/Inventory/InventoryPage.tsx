@@ -1,194 +1,227 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { toast } from "react-toastify";
 import { Badge, Button, Card, EmptyState, Icon, Input, Modal, PageHeader, Select, Spinner, StatCard, Table } from "../../../../components/ui";
 import type { TableColumn } from "../../../../components/ui";
 import {
-  MOVEMENT_LABEL,
+  ISSUE_STATUS,
   useGetInventoryCategoriesQuery,
+  useGetInventoryDocsQuery,
   useGetInventoryItemsQuery,
-  useGetInventoryMovementsQuery,
-  useGetItemsWithStaffQuery,
+  useGetPendingReturnsQuery,
   useSaveInventoryCategoryMutation,
-  useVoidInventoryMovementMutation,
-  type HeldItem,
   type InventoryCategory,
+  type InventoryDoc,
   type InventoryItem,
-  type InventoryMovement,
-  type MovementType,
+  type PendingReturn,
 } from "../../../../store/api/inventory.api";
 import { useDownloadExportMutation } from "../../../../store/api/exports.api";
 import { useGetPublicWebsiteDataQuery } from "../../../../store/api/cms.api";
 import { useCan } from "../../../../store/permissions";
 import { fmtDate, getErrorMessage, inr } from "../Fees/feeUtils";
-import { ItemModal, MovementModal, qty } from "./InventoryModals";
+import { AdjustModal, IssueModal, ItemModal, ReceiptModal, qty } from "./InventoryForms";
+import { DocModal, LedgerModal } from "./InventoryDetails";
 import { printStockRegister } from "./inventoryPrint";
 import styles from "./Inventory.module.css";
 
-type Tab = "stock" | "entries" | "held" | "categories";
-type EntryStart = { type: MovementType; itemId?: number; staffId?: number | null; issuedTo?: string | null; quantity?: number };
-const localDay = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
+type Tab = "items" | "receipts" | "issues" | "pending" | "adjustments" | "categories";
+type Form = { kind: "receipt" | "issue" | "adjust"; itemId?: number } | null;
+const TABS: Array<[Tab, string]> = [
+  ["items", "Items & stock"],
+  ["issues", "Issued items"],
+  ["pending", "To be returned"],
+  ["receipts", "Stock received"],
+  ["adjustments", "Stock checks & damage"],
+  ["categories", "Categories"],
+];
+const docItems = (d: InventoryDoc) => d.lines.map((l) => `${l.item} × ${qty(l.quantity)}`).join(", ");
 
-// Inventory: the school's own stock — what's in the store, who has what, and every change.
+// Inventory: standard stock keeping with numbered documents.
 const InventoryPage = () => {
   const can = useCan();
   const canEdit = can("inventory.edit");
-  const [tab, setTab] = useState<Tab>("stock");
-  const { data: allItems = [] } = useGetInventoryItemsQuery();
-  const { data: held = [] } = useGetItemsWithStaffQuery();
+  const [params, setParams] = useSearchParams();
+  const tab = (TABS.find(([k]) => k === params.get("tab"))?.[0] ?? "items") as Tab;
+  const setTab = (t: Tab) => setParams(t === "items" ? {} : { tab: t }, { replace: true });
+  const { data: items = [] } = useGetInventoryItemsQuery();
+  const { data: pending = [] } = useGetPendingReturnsQuery();
   const { data: site } = useGetPublicWebsiteDataQuery();
   const [download, { isLoading: downloading }] = useDownloadExportMutation();
-  const [entry, setEntry] = useState<EntryStart | null>(null);
+  const [form, setForm] = useState<Form>(null);
   const [editing, setEditing] = useState<InventoryItem | null | "new">(null);
+  const [openDoc, setOpenDoc] = useState<number | null>(null);
+  const [ledger, setLedger] = useState<number | null>(null);
+  const overdue = pending.filter((p) => p.overdue).length;
 
-  const excel = async () => {
-    try {
-      await download({ path: "inventory" }).unwrap();
-    } catch (e) {
-      toast.error(getErrorMessage(e, "Couldn't download the stock register"));
-    }
+  const saved = (d: InventoryDoc) => {
+    setForm(null);
+    setOpenDoc(d.id); // show the saved document, ready to print
   };
 
   return (
     <div>
       <PageHeader
         title="Inventory"
-        subtitle="School stock — what's in the store, what's with staff, and every entry"
+        subtitle="The school's stock — what's in the store, what's given out, and every entry"
         actions={
           <div className={styles.addButtons}>
-            <Button variant="outline" icon={<Icon name="printer" size={16} />} onClick={() => printStockRegister(allItems, held, site?.settings)}>
-              Print
+            <Button variant="outline" icon={<Icon name="printer" size={16} />} onClick={() => printStockRegister(items, pending, site?.settings)}>
+              Stock register
             </Button>
-            <Button variant="outline" icon={<Icon name="download" size={16} />} isLoading={downloading} onClick={excel}>
+            <Button
+              variant="outline"
+              icon={<Icon name="download" size={16} />}
+              isLoading={downloading}
+              onClick={async () => {
+                try {
+                  await download({ path: "inventory" }).unwrap();
+                } catch (e) {
+                  toast.error(getErrorMessage(e, "Couldn't download"));
+                }
+              }}
+            >
               Excel
             </Button>
-            {canEdit && (
-              <>
-                <Button variant="outline" icon={<Icon name="plus" size={16} />} onClick={() => setEditing("new")}>
-                  Add item
-                </Button>
-                <Button icon={<Icon name="box" size={16} />} disabled={!allItems.length} onClick={() => setEntry({ type: "ISSUE" })}>
-                  Stock entry
-                </Button>
-              </>
-            )}
           </div>
         }
       />
+
+      {canEdit && (
+        <div className={styles.flow} aria-label="How inventory works">
+          <FlowStep n={1} title="Add items" text="The things the school keeps" action="New item" onClick={() => setEditing("new")} />
+          <FlowStep n={2} title="Receive stock" text="Bought or donated — stock goes up" action="Receive stock" onClick={() => setForm({ kind: "receipt" })} disabled={!items.length} />
+          <FlowStep n={3} title="Issue items" text="Give to staff or a room — stock goes down" action="Issue items" onClick={() => setForm({ kind: "issue" })} disabled={!items.length} />
+          <FlowStep
+            n={4}
+            title="Receive back"
+            text={pending.length ? `${pending.length} item${pending.length > 1 ? "s" : ""} out${overdue ? `, ${overdue} overdue` : ""}` : "Nothing out right now"}
+            action="See what's out"
+            onClick={() => setTab("pending")}
+            warn={overdue > 0}
+          />
+        </div>
+      )}
+
       <div className={styles.tabs} role="tablist">
-        {(
-          [
-            ["stock", "Stock"],
-            ["entries", "Entries"],
-            ["held", `With staff${held.length ? ` (${held.length})` : ""}`],
-            ["categories", "Categories"],
-          ] as const
-        ).map(([key, label]) => (
+        {TABS.map(([key, label]) => (
           <button key={key} type="button" role="tab" aria-selected={tab === key} className={`${styles.tab} ${tab === key ? styles.tabActive : ""}`} onClick={() => setTab(key)}>
             {label}
+            {key === "pending" && pending.length > 0 && <span className={`${styles.tabCount} ${overdue ? styles.tabCountWarn : ""}`}>{pending.length}</span>}
           </button>
         ))}
       </div>
 
-      {tab === "stock" && <StockTab canEdit={canEdit} onEntry={setEntry} onEdit={setEditing} onPrintCheck={(items) => printStockRegister(items, held, site?.settings, { blankCount: true })} />}
-      {tab === "entries" && <EntriesTab canEdit={canEdit} items={allItems} />}
-      {tab === "held" && <HeldTab held={held} canEdit={canEdit} onReturn={(h) => setEntry({ type: "RETURN", itemId: h.itemId, staffId: h.staffId, issuedTo: h.issuedTo, quantity: h.quantity })} />}
+      {tab === "items" && <ItemsTab canEdit={canEdit} onEdit={setEditing} onLedger={setLedger} onForm={setForm} pendingCount={pending.length} />}
+      {tab === "issues" && <DocsTab kind="ISSUE" canEdit={canEdit} onOpen={setOpenDoc} onNew={() => setForm({ kind: "issue" })} />}
+      {tab === "pending" && <PendingTab rows={pending} onOpen={setOpenDoc} />}
+      {tab === "receipts" && <DocsTab kind="RECEIPT" canEdit={canEdit} onOpen={setOpenDoc} onNew={() => setForm({ kind: "receipt" })} />}
+      {tab === "adjustments" && <DocsTab kind="ADJUST" canEdit={canEdit} onOpen={setOpenDoc} onNew={() => setForm({ kind: "adjust" })} />}
       {tab === "categories" && <CategoriesTab canEdit={canEdit} />}
 
-      {entry && <MovementModal items={allItems} initial={entry} onClose={() => setEntry(null)} />}
+      {form?.kind === "receipt" && <ReceiptModal items={items} startItemId={form.itemId} onClose={() => setForm(null)} onSaved={saved} />}
+      {form?.kind === "issue" && <IssueModal items={items} startItemId={form.itemId} onClose={() => setForm(null)} onSaved={saved} />}
+      {form?.kind === "adjust" && <AdjustModal items={items} startItemId={form.itemId} onClose={() => setForm(null)} onSaved={saved} />}
       {editing && <ItemModal item={editing === "new" ? null : editing} onClose={() => setEditing(null)} />}
+      {ledger && <LedgerModal itemId={ledger} onClose={() => setLedger(null)} onOpenDoc={(id) => (setLedger(null), setOpenDoc(id))} />}
+      {openDoc && <DocModal id={openDoc} canEdit={canEdit} onClose={() => setOpenDoc(null)} onOpenDoc={setOpenDoc} />}
     </div>
   );
 };
 
+const FlowStep = ({ n, title, text, action, onClick, disabled, warn }: { n: number; title: string; text: string; action: string; onClick: () => void; disabled?: boolean; warn?: boolean }) => (
+  <div className={`${styles.flowStep} ${warn ? styles.flowWarn : ""}`}>
+    <span className={styles.flowNum}>{n}</span>
+    <div className={styles.flowBody}>
+      <strong>{title}</strong>
+      <span className={styles.muted}>{text}</span>
+    </div>
+    <Button size="sm" variant={n === 4 ? "outline" : "primary"} disabled={disabled} onClick={onClick}>
+      {action}
+    </Button>
+  </div>
+);
+
 // ---------------------------------------------------------------------------
 
-const StockTab = ({
+const ItemsTab = ({
   canEdit,
-  onEntry,
   onEdit,
-  onPrintCheck,
+  onLedger,
+  onForm,
+  pendingCount,
 }: {
   canEdit: boolean;
-  onEntry: (e: EntryStart) => void;
   onEdit: (i: InventoryItem) => void;
-  onPrintCheck: (items: InventoryItem[]) => void;
+  onLedger: (id: number) => void;
+  onForm: (f: Form) => void;
+  pendingCount: number;
 }) => {
   const [filters, setFilters] = useState({ q: "", categoryId: "", low: false, includeInactive: false });
   const set = (k: keyof typeof filters, v: string | boolean) => setFilters((f) => ({ ...f, [k]: v }));
-  const { data: items = [], isFetching, isLoading } = useGetInventoryItemsQuery(filters);
-  const { data: categories = [] } = useGetInventoryCategoriesQuery();
+  const { data: items = [], isLoading, isFetching } = useGetInventoryItemsQuery(filters);
   const { data: all = [] } = useGetInventoryItemsQuery();
-
-  const stats = useMemo(
-    () => ({
-      items: all.length,
-      low: all.filter((i) => i.isLow).length,
-      withStaff: all.filter((i) => i.withStaff > 0).length,
-      value: all.reduce((s, i) => s + (i.stockValue ?? 0), 0),
-    }),
-    [all]
-  );
+  const { data: categories = [] } = useGetInventoryCategoriesQuery();
+  const { data: site } = useGetPublicWebsiteDataQuery();
+  const { data: pending = [] } = useGetPendingReturnsQuery();
+  const stats = useMemo(() => ({ items: all.length, reorder: all.filter((i) => i.needsReorder).length, value: all.reduce((s, i) => s + (i.stockValue ?? 0), 0) }), [all]);
 
   const columns: TableColumn<InventoryItem>[] = [
     {
       key: "name",
       label: "Item",
       render: (i) => (
-        <div>
+        <button type="button" className={styles.rowButton} onClick={() => onLedger(i.id)} title="Open stock ledger">
           <div className={styles.strong}>
             {i.name} {!i.isActive && <Badge tone="neutral">Not used</Badge>}
           </div>
           <div className={styles.muted}>
             {i.category}
             {i.location ? ` · ${i.location}` : ""}
-            {i.returnable ? " · returnable" : ""}
+            {i.returnable ? " · equipment (returned)" : " · consumable"}
           </div>
-        </div>
+        </button>
       ),
     },
     {
       key: "stock",
-      label: "In stock",
+      label: "In store",
       render: (i) => (
         <div>
-          <span className={i.isLow ? styles.lowText : styles.strong}>{qty(i.stock, i.unit)}</span>
-          {i.isLow && (
+          <span className={i.needsReorder ? styles.lowText : styles.strong}>{qty(i.stock, i.unit)}</span>
+          {i.needsReorder && (
             <div>
-              <Badge tone="danger">Low — reorder</Badge>
+              <Badge tone="danger">Reorder</Badge>
             </div>
           )}
-          {i.minStock > 0 && !i.isLow && <div className={styles.muted}>warn at {qty(i.minStock)}</div>}
         </div>
       ),
     },
-    { key: "withStaff", label: "With staff", render: (i) => (i.returnable ? (i.withStaff ? qty(i.withStaff, i.unit) : "—") : <span className={styles.muted}>consumable</span>) },
-    { key: "stockValue", label: "Value", render: (i) => (i.stockValue === null ? <span className={styles.muted}>no cost entered</span> : inr(i.stockValue)) },
+    { key: "issuedOut", label: "Given out", render: (i) => (i.issuedOut ? <span>{qty(i.issuedOut, i.unit)}</span> : <span className={styles.muted}>—</span>) },
+    { key: "total", label: "Total owned", render: (i) => qty(i.total, i.unit) },
+    { key: "reorderLevel", label: "Reorder at", render: (i) => (i.reorderLevel ? qty(i.reorderLevel) : <span className={styles.muted}>—</span>) },
+    { key: "stockValue", label: "Value in store", render: (i) => (i.stockValue === null ? <span className={styles.muted}>no rate</span> : inr(i.stockValue)) },
     ...(canEdit
       ? [
           {
             key: "actions",
             label: "",
-            render: (i: InventoryItem) =>
-              i.isActive ? (
-                <div className={styles.rowActions}>
-                  <Button size="sm" variant="outline" onClick={() => onEntry({ type: "IN", itemId: i.id })}>
-                    Receive
-                  </Button>
-                  <Button size="sm" variant="outline" disabled={i.stock <= 0} onClick={() => onEntry({ type: "ISSUE", itemId: i.id })}>
-                    Issue
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => onEntry({ type: "ADJUST", itemId: i.id })}>
-                    Count
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => onEdit(i)}>
-                    Edit
-                  </Button>
-                </div>
-              ) : (
+            render: (i: InventoryItem) => (
+              <div className={styles.rowActions}>
+                {i.isActive && (
+                  <>
+                    <Button size="sm" variant="outline" onClick={() => onForm({ kind: "issue", itemId: i.id })} disabled={i.stock <= 0}>
+                      Issue
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => onForm({ kind: "receipt", itemId: i.id })}>
+                      Receive
+                    </Button>
+                  </>
+                )}
                 <Button size="sm" variant="ghost" onClick={() => onEdit(i)}>
                   Edit
                 </Button>
-              ),
+              </div>
+            ),
           },
         ]
       : []),
@@ -198,29 +231,24 @@ const StockTab = ({
     <div className={styles.section}>
       <div className={styles.statsGrid}>
         <StatCard label="Items" value={stats.items} icon={<Icon name="box" size={18} />} />
-        <StatCard label="Low stock" value={stats.low} icon={<Icon name="alert" size={18} />} />
-        <StatCard label="Items with staff" value={stats.withStaff} icon={<Icon name="users" size={18} />} />
-        <StatCard label="Stock value" value={inr(Math.round(stats.value))} icon={<Icon name="wallet" size={18} />} />
+        <StatCard label="Need reorder" value={stats.reorder} icon={<Icon name="alert" size={18} />} />
+        <StatCard label="Given out, to be returned" value={pendingCount} icon={<Icon name="users" size={18} />} />
+        <StatCard label="Value in store" value={inr(Math.round(stats.value))} icon={<Icon name="wallet" size={18} />} />
       </div>
       <Card
-        title="Stock"
-        subtitle="Value uses the latest purchase cost entered for each item"
+        title="Items & stock"
+        subtitle="In store = on the shelf now · Given out = with staff, to be returned · Click an item for its full history"
         action={
-          <Button size="sm" variant="outline" icon={<Icon name="printer" size={15} />} disabled={!items.length} onClick={() => onPrintCheck(items)}>
+          <Button size="sm" variant="outline" icon={<Icon name="printer" size={15} />} disabled={!items.length} onClick={() => printStockRegister(items, pending, site?.settings, { blankCount: true })}>
             Stock check sheet
           </Button>
         }
       >
         <div className={styles.filters}>
           <Input label="Search" placeholder="Item or place" value={filters.q} onChange={(e) => set("q", e.target.value)} />
-          <Select
-            label="Category"
-            value={filters.categoryId}
-            onChange={(e) => set("categoryId", e.target.value)}
-            options={[{ label: "All categories", value: "" }, ...categories.map((c) => ({ label: c.name, value: String(c.id) }))]}
-          />
+          <Select label="Category" value={filters.categoryId} onChange={(e) => set("categoryId", e.target.value)} options={[{ label: "All categories", value: "" }, ...categories.map((c) => ({ label: c.name, value: String(c.id) }))]} />
           <label className={styles.check}>
-            <input type="checkbox" checked={filters.low} onChange={(e) => set("low", e.target.checked)} /> Low stock only
+            <input type="checkbox" checked={filters.low} onChange={(e) => set("low", e.target.checked)} /> Needs reorder only
           </label>
           <label className={styles.check}>
             <input type="checkbox" checked={filters.includeInactive} onChange={(e) => set("includeInactive", e.target.checked)} /> Show items not used
@@ -229,7 +257,7 @@ const StockTab = ({
         {isLoading ? (
           <Spinner />
         ) : !all.length ? (
-          <EmptyState title="No items yet" description={canEdit ? "Add the things the school keeps in stock — chalk, A4 paper, footballs, chairs …" : "The office hasn't added any items yet."} />
+          <EmptyState title="No items yet" description={canEdit ? 'Start with step 1: "New item" — e.g. A4 paper, chalk, footballs, computer monitors.' : "The office hasn't added any items yet."} />
         ) : (
           <div style={{ opacity: isFetching ? 0.6 : 1 }}>
             <Table columns={columns} data={items} keyField="id" emptyMessage="No items match these filters" stackBelow={900} />
@@ -242,109 +270,109 @@ const StockTab = ({
 
 // ---------------------------------------------------------------------------
 
-const EntriesTab = ({ canEdit, items }: { canEdit: boolean; items: InventoryItem[] }) => {
-  const now = new Date();
-  const [filters, setFilters] = useState({ from: localDay(new Date(now.getFullYear(), now.getMonth(), 1)), to: localDay(now), type: "", itemId: "", includeVoid: false });
-  const set = (k: keyof typeof filters, v: string | boolean) => setFilters((f) => ({ ...f, [k]: v }));
-  const { data: rows = [], isFetching } = useGetInventoryMovementsQuery(filters);
-  const [voiding, setVoiding] = useState<InventoryMovement | null>(null);
-  const [reason, setReason] = useState("");
-  const [voidEntry, { isLoading }] = useVoidInventoryMovementMutation();
+const DOCS_COPY: Record<"ISSUE" | "RECEIPT" | "ADJUST", { title: string; subtitle: string; newLabel: string; empty: string }> = {
+  ISSUE: { title: "Issued items", subtitle: "Every issue slip. Open one to receive items back or close what won't come back.", newLabel: "Issue items", empty: "Nothing issued yet." },
+  RECEIPT: { title: "Stock received", subtitle: "Goods receipts — items bought or donated.", newLabel: "Receive stock", empty: "No stock received yet." },
+  ADJUST: { title: "Stock checks & damage", subtitle: "Corrections after counting the store, and damaged / lost / expired / found items.", newLabel: "Stock check / damage", empty: "No adjustments yet." },
+};
+const ISSUE_FILTERS: Array<[string, string]> = [
+  ["PENDING", "To be returned"],
+  ["OVERDUE", "Overdue"],
+  ["SETTLED", "All returned"],
+  ["CONSUMED", "Consumed"],
+  ["", "All"],
+];
 
-  const confirmVoid = async () => {
-    if (!voiding) return;
-    try {
-      await voidEntry({ id: voiding.id, reason: reason.trim() }).unwrap();
-      toast.success("Entry voided — stock corrected");
-      setVoiding(null);
-      setReason("");
-    } catch (e) {
-      toast.error(getErrorMessage(e, "Couldn't void the entry"));
-    }
-  };
+const localDay = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
 
-  const columns: TableColumn<InventoryMovement>[] = [
-    { key: "movedOn", label: "Date", render: (m) => fmtDate(m.movedOn) },
+const DocsTab = ({ kind, canEdit, onOpen, onNew }: { kind: "ISSUE" | "RECEIPT" | "ADJUST"; canEdit: boolean; onOpen: (id: number) => void; onNew: () => void }) => {
+  const copy = DOCS_COPY[kind];
+  const [status, setStatus] = useState(kind === "ISSUE" ? "" : "");
+  const [q, setQ] = useState("");
+  const [search, setSearch] = useState("");
+  const [range, setRange] = useState({ from: "", to: localDay(new Date()) });
+  const [includeVoid, setIncludeVoid] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setSearch(q.trim()), 300);
+    return () => clearTimeout(t);
+  }, [q]);
+  const { data: docs = [], isLoading, isFetching } = useGetInventoryDocsQuery({ kind, status, q: search, from: range.from, to: range.to, includeVoid });
+
+  const columns: TableColumn<InventoryDoc>[] = [
     {
-      key: "item",
-      label: "Entry",
-      render: (m) => (
-        <div className={m.isVoid ? styles.voided : undefined}>
-          <div className={styles.strong}>
-            {MOVEMENT_LABEL[m.type]} · {m.item}
-          </div>
-          <div className={styles.muted}>
-            {[
-              m.holder && (m.type === "RETURN" ? `from ${m.holder}` : `to ${m.holder}`),
-              m.supplier && `from ${m.supplier}`,
-              m.billNo && `bill ${m.billNo}`,
-              m.unitCost !== null && `${inr(m.unitCost)} each`,
-              m.note,
-            ]
-              .filter(Boolean)
-              .join(" · ")}
-          </div>
-          {m.isVoid && <div className={styles.danger}>Voided: {m.voidReason}</div>}
-        </div>
+      key: "docNo",
+      label: "Document",
+      render: (d) => (
+        <button type="button" className={styles.rowButton} onClick={() => onOpen(d.id)}>
+          <div className={`${styles.strong} ${d.isVoid ? styles.voided : ""}`}>{d.docNo}</div>
+          <div className={styles.muted}>{fmtDate(d.docDate)}</div>
+        </button>
       ),
     },
     {
-      key: "change",
-      label: "Stock",
-      render: (m) => <strong className={`${m.change < 0 ? styles.danger : styles.success} ${m.isVoid ? styles.voided : ""}`}>{`${m.change > 0 ? "+" : "−"}${qty(Math.abs(m.change), m.unit)}`}</strong>,
+      key: "party",
+      label: kind === "ISSUE" ? "Given to" : kind === "RECEIPT" ? "Supplier" : "Reason",
+      render: (d) => (
+        <div>
+          <div>{kind === "ISSUE" ? d.issuedTo : kind === "RECEIPT" ? d.supplier : d.reasonLabel}</div>
+          <div className={styles.muted}>{kind === "RECEIPT" ? (d.billNo ? `Bill ${d.billNo}` : "") : kind === "ISSUE" ? d.purpose ?? "" : d.note ?? ""}</div>
+        </div>
+      ),
     },
-    { key: "createdBy", label: "By", render: (m) => <span className={styles.muted}>{m.createdBy}</span> },
-    ...(canEdit
+    { key: "items", label: "Items", render: (d) => <span className={d.isVoid ? styles.voided : undefined}>{docItems(d)}</span> },
+    ...(kind === "RECEIPT" ? [{ key: "amount", label: "Amount", render: (d: InventoryDoc) => { const t = d.lines.reduce((s, l) => s + (l.amount ?? 0), 0); return t ? inr(t) : <span className={styles.muted}>—</span>; } }] : []),
+    ...(kind === "ISSUE"
       ? [
           {
-            key: "actions",
-            label: "",
-            render: (m: InventoryMovement) =>
-              !m.isVoid && (
-                <Button size="sm" variant="ghost" onClick={() => setVoiding(m)}>
-                  Void
-                </Button>
-              ),
+            key: "status",
+            label: "Status",
+            render: (d: InventoryDoc) =>
+              d.status ? (
+                <div>
+                  <Badge tone={ISSUE_STATUS[d.status].tone}>{ISSUE_STATUS[d.status].label}</Badge>
+                  {d.expectedReturnOn && ["OUT", "PART_RETURNED", "OVERDUE"].includes(d.status) && <div className={styles.muted}>due {fmtDate(d.expectedReturnOn)}</div>}
+                </div>
+              ) : null,
           },
         ]
       : []),
   ];
 
   return (
-    <Card title="Entries" subtitle="Every change to stock. A wrong entry is voided (stock put back), never edited.">
+    <Card
+      title={copy.title}
+      subtitle={copy.subtitle}
+      action={
+        canEdit && (
+          <Button size="sm" icon={<Icon name="plus" size={15} />} onClick={onNew}>
+            {copy.newLabel}
+          </Button>
+        )
+      }
+    >
+      {kind === "ISSUE" && (
+        <div className={styles.typePicker} role="tablist" aria-label="Filter issue slips">
+          {ISSUE_FILTERS.map(([k, label]) => (
+            <button key={k || "all"} type="button" role="tab" aria-selected={status === k} className={`${styles.typeBtn} ${status === k ? styles.typeBtnActive : ""}`} onClick={() => setStatus(k)}>
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
       <div className={styles.filters}>
-        <Input label="From" type="date" value={filters.from} onChange={(e) => set("from", e.target.value)} />
-        <Input label="To" type="date" value={filters.to} onChange={(e) => set("to", e.target.value)} />
-        <Select
-          label="What"
-          value={filters.type}
-          onChange={(e) => set("type", e.target.value)}
-          options={[{ label: "All entries", value: "" }, ...(Object.keys(MOVEMENT_LABEL) as MovementType[]).map((t) => ({ label: MOVEMENT_LABEL[t], value: t }))]}
-        />
-        <Select label="Item" value={filters.itemId} onChange={(e) => set("itemId", e.target.value)} options={[{ label: "All items", value: "" }, ...items.map((i) => ({ label: i.name, value: String(i.id) }))]} />
+        <Input label="Search" placeholder={kind === "ISSUE" ? "Slip no., person, item" : "Document no., supplier, item"} value={q} onChange={(e) => setQ(e.target.value)} />
+        <Input label="From" type="date" value={range.from} onChange={(e) => setRange({ ...range, from: e.target.value })} />
+        <Input label="To" type="date" value={range.to} onChange={(e) => setRange({ ...range, to: e.target.value })} />
         <label className={styles.check}>
-          <input type="checkbox" checked={filters.includeVoid} onChange={(e) => set("includeVoid", e.target.checked)} /> Show voided
+          <input type="checkbox" checked={includeVoid} onChange={(e) => setIncludeVoid(e.target.checked)} /> Show voided
         </label>
       </div>
-      <div style={{ opacity: isFetching ? 0.6 : 1 }}>
-        <Table columns={columns} data={rows} keyField="id" emptyMessage="No entries in this period" stackBelow={900} />
-      </div>
-
-      {voiding && (
-        <Modal title="Void this entry?" size="sm" onClose={() => setVoiding(null)}>
-          <p className={styles.muted}>
-            {MOVEMENT_LABEL[voiding.type]} · {voiding.item} · {qty(voiding.quantity, voiding.unit)}. The stock is put back as if it never happened; the entry stays listed as voided.
-          </p>
-          <Input label="Reason" required value={reason} placeholder="e.g. Entered twice" onChange={(e) => setReason(e.target.value)} />
-          <div className={styles.actions}>
-            <Button variant="ghost" onClick={() => setVoiding(null)}>
-              Keep it
-            </Button>
-            <Button variant="danger" isLoading={isLoading} disabled={reason.trim().length < 3} onClick={confirmVoid}>
-              Void entry
-            </Button>
-          </div>
-        </Modal>
+      {isLoading ? (
+        <Spinner />
+      ) : (
+        <div style={{ opacity: isFetching ? 0.6 : 1 }}>
+          <Table columns={columns} data={docs} keyField="id" emptyMessage={copy.empty} stackBelow={900} />
+        </div>
       )}
     </Card>
   );
@@ -352,34 +380,48 @@ const EntriesTab = ({ canEdit, items }: { canEdit: boolean; items: InventoryItem
 
 // ---------------------------------------------------------------------------
 
-const daysSince = (iso: string) => Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86400_000));
-
-const HeldTab = ({ held, canEdit, onReturn }: { held: HeldItem[]; canEdit: boolean; onReturn: (h: HeldItem) => void }) => {
-  const columns: TableColumn<HeldItem>[] = [
-    { key: "holder", label: "With", render: (h) => <span className={styles.strong}>{h.holder}</span> },
-    { key: "item", label: "Item" },
-    { key: "quantity", label: "Qty", render: (h) => qty(h.quantity, h.unit) },
-    { key: "since", label: "Since", render: (h) => `${fmtDate(h.since)} (${daysSince(h.since)} days)` },
-    ...(canEdit
-      ? [
-          {
-            key: "actions",
-            label: "",
-            render: (h: HeldItem) => (
-              <Button size="sm" variant="outline" onClick={() => onReturn(h)}>
-                Record return
-              </Button>
-            ),
-          },
-        ]
-      : []),
+const PendingTab = ({ rows, onOpen }: { rows: PendingReturn[]; onOpen: (issueId: number) => void }) => {
+  const columns: TableColumn<PendingReturn & { key: number }>[] = [
+    {
+      key: "holder",
+      label: "With",
+      render: (r) => (
+        <div>
+          <div className={styles.strong}>{r.holder}</div>
+          {r.purpose && <div className={styles.muted}>{r.purpose}</div>}
+        </div>
+      ),
+    },
+    {
+      key: "item",
+      label: "Item",
+      render: (r) => (
+        <div>
+          <div>
+            {r.item} × {qty(r.out, r.unit)}
+          </div>
+          {r.remark && <div className={styles.muted}>{r.remark}</div>}
+        </div>
+      ),
+    },
+    { key: "issuedOn", label: "Given on", render: (r) => `${fmtDate(r.issuedOn)} (${r.daysOut} days)` },
+    { key: "expectedReturnOn", label: "Due back", render: (r) => (r.expectedReturnOn ? <span className={r.overdue ? styles.lowText : undefined}>{fmtDate(r.expectedReturnOn)}{r.overdue ? " · overdue" : ""}</span> : <span className={styles.muted}>no date</span>) },
+    {
+      key: "issueNo",
+      label: "",
+      render: (r) => (
+        <Button size="sm" variant="outline" onClick={() => onOpen(r.issueId)}>
+          Open {r.issueNo} to receive back
+        </Button>
+      ),
+    },
   ];
   return (
-    <Card title="With staff" subtitle="Returnable items issued and not yet back, oldest first">
-      {held.length ? (
-        <Table columns={columns} data={held.map((h, i) => ({ ...h, key: i }))} keyField={"key" as keyof HeldItem} emptyMessage="" />
+    <Card title="To be returned" subtitle="Everything given out that should come back, overdue first. Open the issue slip to receive it back.">
+      {rows.length ? (
+        <Table columns={columns} data={rows.map((r) => ({ ...r, key: r.lineId }))} keyField="key" emptyMessage="" stackBelow={900} />
       ) : (
-        <EmptyState title="Nothing is out" description="Returnable items (sports kit, tools, lab equipment) show here while someone has them." />
+        <EmptyState title="Nothing is out" description='Items issued with "To be returned" ticked show here until they come back.' />
       )}
     </Card>
   );
@@ -407,7 +449,7 @@ const CategoriesTab = ({ canEdit }: { canEdit: boolean }) => {
 
   if (isLoading) return <Spinner />;
   return (
-    <Card title="Categories">
+    <Card title="Categories" subtitle="Groups for the item list and the stock register.">
       {canEdit && (
         <div className={styles.filters}>
           <Input label="New category" value={name} placeholder="e.g. Music instruments" onChange={(e) => setName(e.target.value)} />

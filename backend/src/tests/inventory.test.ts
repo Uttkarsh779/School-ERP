@@ -4,102 +4,131 @@ import { prisma } from "../config/prisma";
 import * as inv from "../modules/inventory/service";
 import { trackTestRows, uniqueTag } from "./helpers/testData";
 
-// Inventory: opening stock, receive, issue (never below zero, even at the same moment),
-// returns only up to what someone holds, stock count, write-off, void rules, low stock,
-// "With staff", stock value and the Excel sheets. Throwaway category, items and staff.
+// Inventory documents end to end: item with opening stock, goods receipt (several items,
+// rates), issue slip with a consumed line and a to-be-returned line, never below zero (even at
+// the same moment), receive back (good + damaged, partial), closing a lost item, issue status,
+// pending returns, stock check, damage, void rules, stock ledger, Excel sheets.
 const rejects = (p: Promise<unknown>, re: RegExp) => assert.rejects(p, (e: any) => re.test(e.message));
 const stockOf = async (id: number) => Number((await prisma.inventoryItem.findUniqueOrThrow({ where: { id } })).stock);
 
 const main = async () => {
   const rows = trackTestRows();
   const tag = uniqueTag();
+  let itemIds: number[] = [];
   try {
-    const office = rows.add("User", await prisma.user.create({ data: { email: `${tag.toLowerCase()}-o@test.local`, passwordHash: "x", role: "ADMIN", name: `${tag} Office` } }));
+    const office = { id: rows.add("User", await prisma.user.create({ data: { email: `${tag.toLowerCase()}-o@test.local`, passwordHash: "x", role: "ADMIN", name: `${tag} Office` } })).id, role: "ADMIN" };
     const sUser = rows.add("User", await prisma.user.create({ data: { email: `${tag.toLowerCase()}-s@test.local`, passwordHash: "x", role: "TEACHER", name: `${tag} PT Teacher`, isActive: false } }));
     const staff = rows.add("teachers", await prisma.staff.create({ data: { userId: sUser.id } }));
     const cat = rows.add("InventoryCategory", await inv.saveCategory(office.id, null, { name: `${tag} Sports` }));
-    await rejects(inv.saveCategory(office.id, null, { name: `${tag} sports` }), /already a category/);
 
-    // Items: a returnable one with opening stock, a consumable one.
-    const balls = rows.add("InventoryItem", await inv.createItem(office.id, { name: `${tag} Football`, categoryId: cat.id, unit: "pcs", returnable: true, minStock: 3, openingStock: 10, unitCost: 450 }));
-    const chalk = rows.add("InventoryItem", await inv.createItem(office.id, { name: `${tag} Chalk`, categoryId: cat.id, unit: "box", minStock: 0 }));
-    await rejects(inv.createItem(office.id, { name: `${tag} FOOTBALL`, categoryId: cat.id }), /already in the list/);
-    await rejects(inv.createItem(office.id, { name: `${tag} X`, categoryId: 0 }), /Choose a category/);
-    assert.equal(await stockOf(balls.id), 10);
+    // Items: football (usually returned) with opening stock, chalk (consumed).
+    const ball = await inv.createItem(office, { name: `${tag} Football`, categoryId: cat.id, unit: "pcs", returnable: true, reorderLevel: 3, openingStock: 10, rate: 450 });
+    const chalk = await inv.createItem(office, { name: `${tag} Chalk`, categoryId: cat.id, unit: "box" });
+    itemIds = [ball.id, chalk.id];
+    await rejects(inv.createItem(office, { name: `${tag} FOOTBALL`, categoryId: cat.id }), /already in the list/);
+    assert.equal(await stockOf(ball.id), 10);
 
-    // Receive, with cost (latest cost is used for the stock value).
-    await rejects(inv.recordMovement(office.id, { itemId: chalk.id, type: "IN", quantity: 0 }), /more than 0/);
-    await rejects(inv.recordMovement(office.id, { itemId: chalk.id, type: "IN", quantity: 5, movedOn: "2999-01-01" }), /future/);
-    await inv.recordMovement(office.id, { itemId: chalk.id, type: "IN", quantity: 20, supplier: "Sharma Stationers", billNo: "B-11", unitCost: 30 });
+    // Goods receipt: two items on one document.
+    await rejects(inv.createReceipt(office, { lines: [{ itemId: chalk.id, quantity: 5 }] }), /Who supplied/);
+    await rejects(inv.createReceipt(office, { supplier: "X", lines: [{ itemId: chalk.id, quantity: 5 }, { itemId: chalk.id, quantity: 1 }] }), /two lines/);
+    await rejects(inv.createReceipt(office, { supplier: "X", docDate: "2999-01-01", lines: [{ itemId: chalk.id, quantity: 5 }] }), /future/);
+    const grn = await inv.createReceipt(office, { supplier: "Sharma Stationers", billNo: "B-11", lines: [{ itemId: chalk.id, quantity: 20, rate: 30 }, { itemId: ball.id, quantity: 2, rate: 500 }] });
+    assert.match(grn.docNo, /^GRN-\d{4}$/);
+    assert.equal(grn.lines[0].amount, 600);
     assert.equal(await stockOf(chalk.id), 20);
+    assert.equal(await stockOf(ball.id), 12);
 
-    // Issue: needs a receiver, can't exceed stock; two issues of the last 6 at the same time → one wins.
-    await rejects(inv.recordMovement(office.id, { itemId: chalk.id, type: "ISSUE", quantity: 2 }), /Issued to whom/);
-    await rejects(inv.recordMovement(office.id, { itemId: chalk.id, type: "ISSUE", quantity: 25, issuedTo: "Class 5A" }), /Only 20 box/);
-    await inv.recordMovement(office.id, { itemId: chalk.id, type: "ISSUE", quantity: 14, issuedTo: "Class 5A" });
-    const race = await Promise.allSettled([
-      inv.recordMovement(office.id, { itemId: chalk.id, type: "ISSUE", quantity: 6, issuedTo: "Class 6A" }),
-      inv.recordMovement(office.id, { itemId: chalk.id, type: "ISSUE", quantity: 6, issuedTo: "Class 6B" }),
-    ]);
-    assert.equal(race.filter((r) => r.status === "fulfilled").length, 1, "only one of two simultaneous issues of the last stock succeeds");
-    assert.equal(await stockOf(chalk.id), 0);
-    await rejects(inv.recordMovement(office.id, { itemId: chalk.id, type: "RETURN", quantity: 1, issuedTo: "Class 5A" }), /isn't a returnable item/);
-
-    // Returnable: issue to staff (no login needed), return only what they hold.
-    const issue = await inv.recordMovement(office.id, { itemId: balls.id, type: "ISSUE", quantity: 4, staffId: staff.id, note: "Sports day" });
-    await inv.recordMovement(office.id, { itemId: balls.id, type: "ISSUE", quantity: 2, issuedTo: "Sports room" });
-    assert.equal(await stockOf(balls.id), 4);
+    // Issue slip: chalk consumed, footballs to be returned by a date.
+    await rejects(inv.createIssue(office, { lines: [{ itemId: chalk.id, quantity: 2 }] }), /Issued to whom/);
+    await rejects(inv.createIssue(office, { department: "5A", lines: [{ itemId: chalk.id, quantity: 25 }] }), /Only 20 box/);
+    const iss = await inv.createIssue(office, {
+      staffId: staff.id,
+      purpose: "Sports day",
+      expectedReturnOn: "2999-01-01",
+      lines: [
+        { itemId: chalk.id, quantity: 2 },
+        { itemId: ball.id, quantity: 5, toReturn: true, remark: "Tags 1-5" },
+      ],
+    });
+    assert.match(iss.docNo, /^ISS-\d{4}$/);
+    assert.equal(iss.status, "OUT");
+    // Once the due date has passed it shows as overdue.
+    await prisma.inventoryDoc.update({ where: { id: iss.id }, data: { expectedReturnOn: new Date("2000-01-02") } });
+    assert.equal((await inv.getDoc(iss.id)).status, "OVERDUE");
+    assert.equal(await stockOf(ball.id), 7);
     let items = await inv.listItems({ q: tag });
-    let ballRow = items.find((i) => i.id === balls.id)!;
-    assert.equal(ballRow.withStaff, 6);
-    assert.equal(ballRow.isLow, false);
-    assert.equal(ballRow.stockValue, 1800);
-    await rejects(inv.recordMovement(office.id, { itemId: balls.id, type: "RETURN", quantity: 5, staffId: staff.id }), /only 4 pcs/);
-    await rejects(inv.recordMovement(office.id, { itemId: balls.id, type: "RETURN", quantity: 1, issuedTo: "Library" }), /No .* recorded as issued/);
-    const ret = await inv.recordMovement(office.id, { itemId: balls.id, type: "RETURN", quantity: 3, staffId: staff.id });
-    await inv.recordMovement(office.id, { itemId: balls.id, type: "RETURN", quantity: 2, issuedTo: "sports ROOM" }); // matched ignoring case
-    const held = (await inv.listWithStaff()).filter((r) => r.itemId === balls.id);
-    assert.deepEqual(held.map((r) => [r.holder, r.quantity]), [[`${tag} PT Teacher`, 1]]);
-    await rejects(inv.updateItem(office.id, balls.id, { returnable: false }), /still with staff/);
+    const ballRow = items.find((i) => i.id === ball.id)!;
+    assert.equal(ballRow.issuedOut, 5);
+    assert.equal(ballRow.total, 12, "in store + issued out = owned");
 
-    // Void: an issue that's partly returned can't be voided until the return is.
-    await rejects(inv.voidMovement(office.id, issue.id, "wrong"), /already been returned/);
-    await rejects(inv.voidMovement(office.id, ret.id, ""), /Say why/);
-    await inv.voidMovement(office.id, ret.id, "Entered twice");
-    await rejects(inv.voidMovement(office.id, ret.id, "again"), /already void/);
-    assert.equal(await stockOf(balls.id), 6);
+    // Never below zero, even with two issues of the last 18 boxes at the same moment.
+    const race = await Promise.allSettled([
+      inv.createIssue(office, { department: "Class 6A", lines: [{ itemId: chalk.id, quantity: 18 }] }),
+      inv.createIssue(office, { department: "Class 6B", lines: [{ itemId: chalk.id, quantity: 18 }] }),
+    ]);
+    assert.equal(race.filter((r) => r.status === "fulfilled").length, 1);
+    assert.equal(await stockOf(chalk.id), 0);
 
-    // Stock count and write-off.
-    await rejects(inv.recordMovement(office.id, { itemId: balls.id, type: "ADJUST", countedStock: 6, note: "Count" }), /matches the stock/);
-    await rejects(inv.recordMovement(office.id, { itemId: balls.id, type: "ADJUST", countedStock: 5 }), /Add a note/);
-    const count = await inv.recordMovement(office.id, { itemId: balls.id, type: "ADJUST", countedStock: 5, note: "Annual stock check" });
-    assert.equal(Number(count.change), -1);
-    await rejects(inv.recordMovement(office.id, { itemId: balls.id, type: "WRITE_OFF", quantity: 2 }), /Say why/);
-    await inv.recordMovement(office.id, { itemId: balls.id, type: "WRITE_OFF", quantity: 2, note: "Punctured" });
-    assert.equal(await stockOf(balls.id), 3);
+    // Receive back against the slip: 2 good + 1 damaged; only what's still out.
+    const ballLine = iss.lines.find((l: any) => l.itemId === ball.id)!;
+    const chalkLine = iss.lines.find((l: any) => l.itemId === chalk.id)!;
+    await rejects(inv.receiveBack(office, iss.id, { lines: [{ lineId: chalkLine.id, good: 1 }] }), /isn't on this issue slip as 'to be returned'/);
+    await rejects(inv.receiveBack(office, iss.id, { lines: [{ lineId: ballLine.id, good: 6 }] }), /Only 5 pcs/);
+    await rejects(inv.receiveBack(office, iss.id, { lines: [{ lineId: ballLine.id, good: 0 }] }), /how many came back/);
+    let slip = await inv.receiveBack(office, iss.id, { lines: [{ lineId: ballLine.id, good: 2, damaged: 1 }] });
+    assert.equal(await stockOf(ball.id), 9, "good ones back in stock, damaged not");
+    assert.equal(slip.status, "OVERDUE");
+    assert.equal(slip.lines.find((l: any) => l.id === ballLine.id).balance.out, 2);
+    assert.equal(slip.settlements.length, 1);
+    assert.match(slip.settlements[0].docNo, /^RET-/);
+
+    // One lost, one came back later; the slip is settled and leaves pending returns.
+    await rejects(inv.closeIssueLine(office, iss.id, { lineId: ballLine.id, quantity: 1, reason: "LOST" }), /short note/);
+    slip = await inv.closeIssueLine(office, iss.id, { lineId: ballLine.id, quantity: 1, reason: "LOST", note: "Kicked into the river" });
+    assert.equal(await stockOf(ball.id), 9, "closing a lost item doesn't change stock (it already left)");
+    assert.ok((await inv.pendingReturns()).some((r) => r.issueId === iss.id && r.out === 1));
+    slip = await inv.receiveBack(office, iss.id, { lines: [{ lineId: ballLine.id, good: 1 }] });
+    assert.equal(slip.status, "SETTLED");
+    assert.equal(await stockOf(ball.id), 10);
+    assert.ok(!(await inv.pendingReturns()).some((r) => r.issueId === iss.id));
+    await rejects(inv.closeIssueLine(office, iss.id, { lineId: ballLine.id, reason: "LOST", note: "x" }), /Nothing is still out/);
+
+    // Void: an issue with returns can't be voided until they are.
+    await rejects(inv.voidDoc(office, iss.id, "wrong"), /returned or closed/);
+
+    // Stock check and damage.
+    await rejects(inv.createAdjustment(office, { reason: "COUNT", note: "Count", lines: [{ itemId: ball.id, counted: 10 }] }), /matches the book/);
+    const adj = await inv.createAdjustment(office, { reason: "COUNT", note: "Annual stock check", lines: [{ itemId: ball.id, counted: 10 }, { itemId: chalk.id, counted: 1 }] });
+    assert.equal(adj.lines.length, 1, "only items that differ are adjusted");
+    assert.equal(await stockOf(chalk.id), 1);
+    await rejects(inv.createAdjustment(office, { reason: "DAMAGED", lines: [{ itemId: ball.id, quantity: 1 }] }), /Add a note/);
+    await inv.createAdjustment(office, { reason: "DAMAGED", note: "Punctured", lines: [{ itemId: ball.id, quantity: 7 }] });
+    assert.equal(await stockOf(ball.id), 3);
     items = await inv.listItems({ q: tag, low: "true" });
-    assert.deepEqual(items.map((i) => i.id), [balls.id], "at or below the low-stock level");
+    assert.deepEqual(items.map((i) => i.id), [ball.id], "at or below reorder level");
 
-    // Voiding the opening stock now would take stock below zero → refused.
-    const opening = await prisma.inventoryMovement.findFirstOrThrow({ where: { itemId: balls.id, note: "Opening stock" } });
-    await rejects(inv.voidMovement(office.id, opening.id, "test"), /below zero/);
+    // Voiding the goods receipt now would take stock below zero → refused.
+    await rejects(inv.voidDoc(office, grn.id, "test"), /below zero/);
 
-    // Switched-off items can't take entries.
-    await inv.updateItem(office.id, chalk.id, { isActive: false });
-    await rejects(inv.recordMovement(office.id, { itemId: chalk.id, type: "IN", quantity: 1 }), /switched off/);
+    // Stock ledger: running balance ends at the stock.
+    const ledger = await inv.itemLedger(ball.id, {});
+    assert.equal(ledger.rows[0].docNo.slice(0, 4), "OPN-");
+    assert.equal(ledger.rows.at(-1)!.balance, 3);
 
-    // Excel sheets.
+    // Lists and Excel.
+    const issues = await inv.listDocs({ kind: "ISSUE", q: tag });
+    assert.ok(issues.some((d: any) => d.id === iss.id && d.status === "SETTLED"));
     const sheets = await inv.stockRegisterSheets(undefined, undefined);
-    assert.deepEqual(sheets.map((s) => s.name), ["Stock", "Entries", "With staff"]);
-    assert.ok(sheets[1].rows.some((r: any) => r.itemId === balls.id && r.voided.startsWith("Void")));
-
-    // The issuable staff list includes staff without a login.
-    assert.ok((await inv.listIssuableStaff()).some((s) => s.id === staff.id));
+    assert.deepEqual(sheets.map((s) => s.name), ["Stock register", "Documents", "Pending returns"]);
+    assert.ok((await inv.listIssuableStaff()).some((s) => s.id === staff.id), "staff without a login can be issued to");
 
     console.log("inventory: all checks passed");
   } finally {
-    const itemIds = (await prisma.inventoryItem.findMany({ where: { name: { startsWith: tag } }, select: { id: true } })).map((i) => i.id);
-    await prisma.inventoryMovement.deleteMany({ where: { itemId: { in: itemIds } } });
+    const docIds = (await prisma.inventoryDocLine.findMany({ where: { itemId: { in: itemIds } }, select: { docId: true } })).map((l) => l.docId);
+    await prisma.inventoryDocLine.updateMany({ where: { docId: { in: docIds } }, data: { issueLineId: null } });
+    await prisma.inventoryDoc.updateMany({ where: { id: { in: docIds } }, data: { issueId: null } });
+    await prisma.inventoryDoc.deleteMany({ where: { id: { in: docIds } } });
+    await prisma.inventoryItem.deleteMany({ where: { id: { in: itemIds } } });
     await rows.remove();
     await prisma.$disconnect();
   }
