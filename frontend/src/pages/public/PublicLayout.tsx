@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { SiteIcon, type SiteIconName } from "./icons";
 import { cx } from "./parts";
-import { telHref, useSite, whatsappHref } from "./useSite";
+import { formatDate, telHref, useSite, whatsappHref } from "./useSite";
 import s from "./site.module.css";
 
 export const NAV_LINKS = [
@@ -154,6 +154,18 @@ const PublicLayout = () => {
           </nav>
         </div>
       </header>
+
+      {site.notices[0] && (
+        <div className={s.newsStrip}>
+          <div className={cx(s.container, s.newsStripInner)}>
+            <span className={s.newsStripLabel}>Latest</span>
+            <Link to="/notices" className={s.newsStripLink}>
+              {site.notices[0].title}
+            </Link>
+            <span className={s.newsStripDate}>{formatDate(site.notices[0].publishedAt)}</span>
+          </div>
+        </div>
+      )}
 
       <main id="main" className={s.main}>
         <Outlet />
