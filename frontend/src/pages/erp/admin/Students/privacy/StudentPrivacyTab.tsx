@@ -26,7 +26,7 @@ const RELATIONSHIPS = [
   { label: "Guardian", value: "Guardian" },
 ];
 
-// Office view of one student's consent (DPDP Act) and the family's data requests.
+// Office view of one student's consent (DPDP Act) and the parents' data requests.
 const StudentPrivacyTab = ({ studentId }: { studentId: number }) => {
   const { data, isLoading } = useGetStudentPrivacyQuery(studentId);
   const [record, { isLoading: recording }] = useRecordPaperConsentMutation();
@@ -71,7 +71,7 @@ const StudentPrivacyTab = ({ studentId }: { studentId: number }) => {
               {active.method === "PAPER" ? `paper form, recorded by ${active.recordedBy?.name ?? "the office"}` : "online, on the student login"}.
             </p>
           ) : (
-            <p style={{ margin: 0 }}>The family is asked to agree the next time the student login is used. If they signed consent on the admission form, record it here.</p>
+            <p style={{ margin: 0 }}>A parent is asked to agree the next time the student login is used. If they signed consent on the admission form, record it here.</p>
           )}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <Button size="sm" onClick={() => setPaperOpen(true)}>
@@ -96,9 +96,9 @@ const StudentPrivacyTab = ({ studentId }: { studentId: number }) => {
         </div>
       </Card>
 
-      <Card title="Data requests from the family">
+      <Card title="Data requests from parents">
         {data.requests.length === 0 ? (
-          <EmptyState title="No requests" description="Requests the family sends from My Profile appear here." />
+          <EmptyState title="No requests" description="Requests parents send from My Profile appear here." />
         ) : (
           <div style={{ display: "grid", gap: "0.6rem" }}>
             {data.requests.map((r) => (

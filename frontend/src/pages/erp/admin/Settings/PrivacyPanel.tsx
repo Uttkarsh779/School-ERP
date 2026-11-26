@@ -15,7 +15,7 @@ import {
 
 const date = (v?: string | null) => (v ? new Date(v).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—");
 
-// Settings -> Privacy (DPDP Act): who has consented, families' requests, and the notice.
+// Settings -> Privacy (DPDP Act): who has consented, parents' requests, and the notice.
 const PrivacyPanel = ({ canEditNotice }: { canEditNotice: boolean }) => {
   const { data: summary, isLoading } = useGetConsentSummaryQuery();
   const [filter, setFilter] = useState("OPEN");
@@ -76,7 +76,7 @@ const PrivacyPanel = ({ canEditNotice }: { canEditNotice: boolean }) => {
       <Card
         title="Parents' consent"
         subtitle={`Privacy notice version ${summary.noticeVersion}`}
-        action={<Badge tone={summary.consentEnabled ? "success" : "neutral"}>{summary.consentEnabled ? "Asking families" : "Not asking yet"}</Badge>}
+        action={<Badge tone={summary.consentEnabled ? "success" : "neutral"}>{summary.consentEnabled ? "Asking parents" : "Not asking yet"}</Badge>}
       >
         <div style={{ display: "grid", gap: "0.75rem" }}>
           {!summary.consentEnabled && (
@@ -86,7 +86,7 @@ const PrivacyPanel = ({ canEditNotice }: { canEditNotice: boolean }) => {
               {canEditNotice ? (
                 <div style={{ marginTop: "0.6rem" }}>
                   <Button size="sm" onClick={() => setConsentOn(true)} isLoading={switching}>
-                    Start asking families
+                    Start asking parents
                   </Button>
                 </div>
               ) : (
@@ -106,12 +106,12 @@ const PrivacyPanel = ({ canEditNotice }: { canEditNotice: boolean }) => {
           {summary.consentEnabled && canEditNotice && (
             <div>
               <Button size="sm" variant="ghost" onClick={() => setConsentOn(false)} isLoading={switching}>
-                Stop asking families
+                Stop asking parents
               </Button>
             </div>
           )}
           <p style={{ margin: 0, fontSize: "0.86rem", color: "var(--erp-text-muted)" }}>
-            {summary.consentEnabled ? "Families are asked automatically the next time the student login is used." : "Paper consent can be recorded at any time."} For families who don't use the portal, record their signed paper form on the
+            {summary.consentEnabled ? "Parents are asked automatically the next time the student login is used." : "Paper consent can be recorded at any time."} For parents who don't use the portal, record their signed paper form on the
             student's Privacy tab.
           </p>
           {summary.missing.length > 0 && (
@@ -135,7 +135,7 @@ const PrivacyPanel = ({ canEditNotice }: { canEditNotice: boolean }) => {
       </Card>
 
       <Card
-        title="Requests from families"
+        title="Requests from parents"
         subtitle={summary.openRequests ? `${summary.openRequests} waiting for a reply` : "Nothing waiting"}
         action={
           <Select
@@ -150,7 +150,7 @@ const PrivacyPanel = ({ canEditNotice }: { canEditNotice: boolean }) => {
         }
       >
         {requests.length === 0 ? (
-          <EmptyState title={filter === "OPEN" ? "No requests waiting" : "No requests yet"} description="Families send these from My Profile on the student login." />
+          <EmptyState title={filter === "OPEN" ? "No requests waiting" : "No requests yet"} description="Parents send these from My Profile on the student login." />
         ) : (
           <div style={{ display: "grid", gap: "0.6rem" }}>
             {requests.map((r) => (
@@ -189,7 +189,7 @@ const PrivacyPanel = ({ canEditNotice }: { canEditNotice: boolean }) => {
 
       <Card
         title="Privacy notice"
-        subtitle={canEditNotice ? "What families read and agree to. Shown at /privacy on the website." : "Only the Super Admin can change the notice."}
+        subtitle={canEditNotice ? "What parents read and agree to. Shown at /privacy on the website." : "Only the Super Admin can change the notice."}
         action={
           <Button size="sm" variant="ghost" onClick={() => setPreview((v) => !v)}>
             {preview ? "Edit" : "Preview"}
@@ -218,7 +218,7 @@ const PrivacyPanel = ({ canEditNotice }: { canEditNotice: boolean }) => {
             <label style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: "0.9rem", cursor: "pointer" }}>
               <input type="checkbox" checked={askAgain} onChange={(e) => setAskAgain(e.target.checked)} style={{ marginTop: 3 }} />
               <span>
-                <strong>This is an important change — ask every family to agree again.</strong> Leave unticked for small fixes such as spelling or contact details.
+                <strong>This is an important change — ask every parent to agree again.</strong> Leave unticked for small fixes such as spelling or contact details.
               </span>
             </label>
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap" }}>
